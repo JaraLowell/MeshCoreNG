@@ -137,15 +137,45 @@ This means:
 [LoRa mesh A]  ←→  [Repeater A with WiFi]  ←→  internet  ←→  [Repeater B with WiFi]  ←→  [LoRa mesh B]
 ```
 
-**Set up a repeater with TCP bridge:**
+**Path 1: ESP32 repeater with WiFi**
+
+Repeaters with WiFi connect directly to the bridge server over the internet.
 
 ```text
-set wifi.ssid     MijnWiFi
-set wifi.password geheim123
-set bridge.server mijnserver.example.com
+set wifi.ssid     YourWiFi
+set wifi.password secret123
+set bridge.server yourserver.example.com
 set bridge.port   4200
 set bridge.enabled on
 ```
+
+All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
+
+**Path 2: Repeater via USB (no WiFi required)**
+
+Some repeaters have no WiFi — nRF52 boards (RAK4631), RP2040 boards, STM32 boards, and ESP32 boards in locations without WiFi coverage. These can still participate in the internet bridge via USB.
+
+The repeater runs standard `_bridge_rs232` firmware and sends packets over the serial port to a connected PC or Raspberry Pi. A small Python script on that PC handles the TCP connection to the server.
+
+```
+[LoRa mesh]  ←→  [Repeater + RS232Bridge]  ←USB→  [PC/RPi + usb_bridge_client.py]  ←internet→  [tcp_bridge_server.py]
+```
+
+Set up on the repeater (RS232 bridge firmware):
+
+```text
+set bridge.enabled on
+```
+
+Run the relay script on the PC or Raspberry Pi:
+
+```bash
+pip install pyserial
+python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
+                                    --server yourserver.example.com --port 4200
+```
+
+On Windows, use `--serial COM3` instead of `/dev/ttyUSB0`. The script is included in this repository at [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
 
 **Start the forwarding server** (VPS, Raspberry Pi, or any internet-connected PC):
 
@@ -153,9 +183,7 @@ set bridge.enabled on
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies.
-
-All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
+The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same server simultaneously.
 
 ### 7. Safer repeater power saving
 

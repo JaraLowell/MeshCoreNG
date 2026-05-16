@@ -134,7 +134,9 @@ Het resultaat: twee compleet gescheiden LoRa-netwerken, hoe ver ook van elkaar, 
 
 Gebruikers en apps merken er niks van. Ze gebruiken gewoon LoRa zoals altijd. De brug haalt alleen de afstandslimiet weg.
 
-**Instellen op de repeater via CLI:**
+**Route 1: ESP32-repeater met WiFi**
+
+Repeaters met WiFi verbinden zichzelf rechtstreeks via internet met de server.
 
 ```text
 set wifi.ssid     MijnWiFi
@@ -144,15 +146,41 @@ set bridge.port   4200
 set bridge.enabled on
 ```
 
+Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
+
+**Route 2: Repeater via USB (geen WiFi nodig)**
+
+Sommige repeaters hebben geen WiFi — zoals nRF52-boards (RAK4631), RP2040-boards, STM32-boards en ESP32-boards op locaties zonder WiFi-bereik. Die kunnen toch meedoen via USB.
+
+De repeater draait gewone `_bridge_rs232` firmware en stuurt pakketten via de seriële poort naar een PC of Raspberry Pi. Op die PC draait een klein Python-script dat de verbinding met de TCP-server verzorgt.
+
+```
+[LoRa mesh]  ←→  [Repeater + RS232Bridge]  ←USB→  [PC/RPi + usb_bridge_client.py]  ←internet→  [tcp_bridge_server.py]
+```
+
+Instellen op de repeater (RS232 bridge firmware):
+
+```text
+set bridge.enabled on
+```
+
+Script starten op de PC of Raspberry Pi:
+
+```bash
+pip install pyserial
+python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
+                                    --server mijnserver.example.com --port 4200
+```
+
+Op Windows gebruik je `--serial COM3` in plaats van `/dev/ttyUSB0`. Het script staat in deze repository bij [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
+
 **Server starten** (op een VPS, Raspberry Pi of gewone pc met Python 3.7+):
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies.
-
-Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Die flash je gewoon op dezelfde manier als elk ander repeater-firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
+Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde server verbonden zijn.
 
 ### 7. Veiligere power saving voor repeaters
 
