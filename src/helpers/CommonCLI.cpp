@@ -101,7 +101,23 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
       _prefs->flood_dynamic_enable = flood_dynamic_enable;                                        // 296
     }
-    // next: 297
+    char wifi_ssid[32] = {};
+    if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
+      memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 297
+    }
+    char wifi_password[64] = {};
+    if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
+      memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 329
+    }
+    char bridge_server[64] = {};
+    if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
+      memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 393
+    }
+    uint16_t bridge_port = _prefs->bridge_port;
+    if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
+      _prefs->bridge_port = bridge_port;                                                         // 457
+    }
+    // next: 459
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -123,6 +139,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
+    if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
 
@@ -199,7 +216,11 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));          // 291
     file.write((uint8_t *)&_prefs->flood_relay_prob, sizeof(_prefs->flood_relay_prob));            // 295
     file.write((uint8_t *)&_prefs->flood_dynamic_enable, sizeof(_prefs->flood_dynamic_enable));    // 296
-    // next: 297
+    file.write((uint8_t *)&_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));                          // 297
+    file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 329
+    file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 393
+    file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 457
+    // next: 459
 
     file.close();
   }
@@ -770,6 +791,31 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     strcpy(reply, "OK");
 #endif
+#ifdef WITH_TCP_BRIDGE
+  } else if (memcmp(config, "wifi.ssid ", 10) == 0) {
+    StrHelper::strncpy(_prefs->wifi_ssid, &config[10], sizeof(_prefs->wifi_ssid));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
+  } else if (memcmp(config, "wifi.password ", 14) == 0) {
+    StrHelper::strncpy(_prefs->wifi_password, &config[14], sizeof(_prefs->wifi_password));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
+  } else if (memcmp(config, "bridge.server ", 14) == 0) {
+    StrHelper::strncpy(_prefs->bridge_server, &config[14], sizeof(_prefs->bridge_server));
+    _callbacks->restartBridge();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.port ", 12) == 0) {
+    int port = _atoi(&config[12]);
+    if (port > 0 && port <= 65535) {
+      _prefs->bridge_port = (uint16_t)port;
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: port must be between 1-65535");
+    }
+#endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
@@ -885,8 +931,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s",
 #ifdef WITH_RS232_BRIDGE
             "rs232"
-#elif WITH_ESPNOW_BRIDGE
+#elif defined(WITH_ESPNOW_BRIDGE)
             "espnow"
+#elif defined(WITH_TCP_BRIDGE)
+            "tcp"
 #else
             "none"
 #endif
@@ -908,6 +956,16 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
+#ifdef WITH_TCP_BRIDGE
+  } else if (memcmp(config, "wifi.ssid", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->wifi_ssid);
+  } else if (memcmp(config, "wifi.password", 13) == 0) {
+    strcpy(reply, "> ***");
+  } else if (memcmp(config, "bridge.server", 13) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_server);
+  } else if (memcmp(config, "bridge.port", 11) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM

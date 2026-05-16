@@ -1,0 +1,59 @@
+#pragma once
+
+#include "helpers/bridges/BridgeBase.h"
+
+#ifdef WITH_TCP_BRIDGE
+
+/**
+ * @brief Bridge implementation that tunnels mesh packets over a TCP connection
+ *
+ * Connects to a central TCP server (see tools/tcp_bridge_server.py) and exchanges
+ * mesh packets with other repeaters connected to the same server. This allows
+ * geographically separated LoRa mesh networks to act as one.
+ *
+ * The ESP32 connects to a WiFi access point in STA mode, then opens a TCP socket
+ * to the configured server. Packets received from the local mesh are forwarded to
+ * the server; packets arriving from the server are injected into the local mesh.
+ *
+ * Packet framing is identical to RS232Bridge:
+ *   [2 bytes] Magic header (0xC03E)
+ *   [2 bytes] Payload length
+ *   [n bytes] Mesh packet payload
+ *   [2 bytes] Fletcher-16 checksum over payload
+ *
+ * Configuration via CLI:
+ *   set wifi.ssid <ssid>         WiFi network to join
+ *   set wifi.password <pw>       WiFi password
+ *   set bridge.server <host>     TCP server hostname or IP
+ *   set bridge.port <port>       TCP server port (default 4200)
+ *   set bridge.enabled on        Enable the bridge
+ *
+ * Firmware build flag: -D WITH_TCP_BRIDGE
+ */
+class TCPBridge : public BridgeBase {
+public:
+  TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+
+  void begin() override;
+  void end() override;
+  void loop() override;
+  void sendPacket(mesh::Packet *packet) override;
+  void onPacketReceived(mesh::Packet *packet) override;
+
+private:
+  static constexpr uint16_t TCP_OVERHEAD =
+      BRIDGE_MAGIC_SIZE + BRIDGE_LENGTH_SIZE + BRIDGE_CHECKSUM_SIZE;
+  static constexpr uint16_t MAX_TCP_PACKET_SIZE = (MAX_TRANS_UNIT + 1) + TCP_OVERHEAD;
+  static constexpr uint32_t RECONNECT_INTERVAL_MS = 5000;
+  static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000;
+
+  uint8_t _rx_buffer[MAX_TCP_PACKET_SIZE];
+  uint16_t _rx_buffer_pos = 0;
+  uint32_t _last_reconnect_ms = 0;
+
+  void tryConnect();
+  bool connectWifi();
+  bool connectServer();
+};
+
+#endif

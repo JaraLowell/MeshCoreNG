@@ -1019,6 +1019,45 @@ region save
 
 ### Bridge (When bridge support is compiled in)
 
+Three bridge types are available, each compiled in separately:
+
+| Bridge | Build flag | Platform | Use case |
+|---|---|---|---|
+| **RS232** | `-D WITH_RS232_BRIDGE=Serial2` | All | Wired serieel naar ander apparaat |
+| **ESPNow** | `-D WITH_ESPNOW_BRIDGE=1` | ESP32 | Lokaal WiFi tussen ESP32 boards |
+| **TCP** | `-D WITH_TCP_BRIDGE=1` | ESP32 | Meerdere repeaters via internet |
+
+#### TCP bridge instellen (internet-verbinding tussen repeaters)
+
+De TCP bridge verbindt repeaters via internet. Vereist een centrale server (zie `tools/tcp_bridge_server.py`).
+
+**1. Server starten (VPS, Raspberry Pi of PC met internet):**
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+**2. Elke repeater instellen via CLI:**
+```
+set wifi.ssid     MijnWiFi
+set wifi.password geheim123
+set bridge.server mijnserver.example.com
+set bridge.port   4200
+set bridge.enabled on
+```
+
+**3. Beschikbare firmware-varianten** (compileer met PlatformIO):
+- `Heltec_v3_repeater_bridge_tcp`
+- `Heltec_WSL3_repeater_bridge_tcp`
+- `heltec_v4_repeater_bridge_tcp`
+- `Tbeam_SX1262_repeater_bridge_tcp`
+- `Tbeam_SX1276_repeater_bridge_tcp`
+- `T_Beam_S3_Supreme_SX1262_repeater_bridge_tcp`
+- `LilyGo_TBeam_1W_repeater_bridge_tcp`
+- `LilyGo_T3S3_sx1262_repeater_bridge_tcp`
+- *(en vele andere, zie de `variants/*/platformio.ini` bestanden)*
+
+---
+
 #### View the compiled bridge type
 **Usage:** `get bridge.type`
 
@@ -1093,6 +1132,53 @@ region save
 - `secret`: ESP-NOW bridge secret, up to 15 characters
 
 **Default:** Varies by board
+
+---
+
+#### Set the WiFi SSID (TCP bridge only)
+**Usage:**
+- `get wifi.ssid`
+- `set wifi.ssid <ssid>`
+
+**Parameters:**
+- `ssid`: Name of the WiFi network the repeater should join, up to 31 characters
+
+**Note:** Requires `WITH_TCP_BRIDGE` firmware build flag. Reboot to apply.
+
+---
+
+#### Set the WiFi password (TCP bridge only)
+**Usage:**
+- `set wifi.password <password>`
+
+**Parameters:**
+- `password`: WiFi network password, up to 63 characters
+
+**Note:** `get wifi.password` always returns `***` for security.
+
+---
+
+#### Set the TCP bridge server (TCP bridge only)
+**Usage:**
+- `get bridge.server`
+- `set bridge.server <host>`
+
+**Parameters:**
+- `host`: Hostname or IP address of the central TCP bridge server
+
+**Note:** Requires `WITH_TCP_BRIDGE` firmware build flag.
+
+---
+
+#### Set the TCP bridge port (TCP bridge only)
+**Usage:**
+- `get bridge.port`
+- `set bridge.port <port>`
+
+**Parameters:**
+- `port`: TCP port number (1–65535)
+
+**Default:** 4200
 
 ---
 

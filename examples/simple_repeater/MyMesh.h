@@ -23,6 +23,11 @@
 #define WITH_BRIDGE
 #endif
 
+#ifdef WITH_TCP_BRIDGE
+#include "helpers/bridges/TCPBridge.h"
+#define WITH_BRIDGE
+#endif
+
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>

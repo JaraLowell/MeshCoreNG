@@ -120,7 +120,44 @@ The repeater now uses hardware CAD/channel scan where possible. That lets the fi
 
 This helps reduce collisions and unnecessary transmissions on a busy LoRa channel.
 
-### 6. Safer repeater power saving
+### 6. Internet bridge — connecting distant LoRa islands
+
+LoRa is great for local mesh networks, but it has a physical limit. When two groups of LoRa users are too far apart to hear each other — different cities, different hills, different countries — they become isolated islands.
+
+MeshCoreNG now includes a **TCP internet bridge** that solves this. Repeaters with WiFi can connect to a shared server over the internet. Mesh packets received locally are forwarded to all remote repeaters, and packets from remote repeaters are injected into the local LoRa mesh.
+
+This means:
+- Two groups in different Dutch cities can still exchange messages.
+- A repeater on a hill with WiFi can link an otherwise isolated valley into the wider mesh.
+- LoRa stays LoRa — users keep using their normal apps and devices. The bridge is invisible to them.
+
+**How it works:**
+
+```text
+[LoRa mesh A]  ←→  [Repeater A with WiFi]  ←→  internet  ←→  [Repeater B with WiFi]  ←→  [LoRa mesh B]
+```
+
+**Set up a repeater with TCP bridge:**
+
+```text
+set wifi.ssid     MijnWiFi
+set wifi.password geheim123
+set bridge.server mijnserver.example.com
+set bridge.port   4200
+set bridge.enabled on
+```
+
+**Start the forwarding server** (VPS, Raspberry Pi, or any internet-connected PC):
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies.
+
+All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
+
+### 7. Safer repeater power saving
 
 Power saving for repeaters is now clearer and easier to inspect.
 
@@ -182,6 +219,17 @@ set flood.relay.prob 255
 get flood.dynamic.enable
 set flood.dynamic.enable on
 set flood.dynamic.enable off
+```
+
+**Internet bridge (TCP):**
+
+```text
+set wifi.ssid     <ssid>
+set wifi.password <password>
+set bridge.server <hostname or IP>
+set bridge.port   4200
+set bridge.enabled on
+get bridge.type
 ```
 
 More CLI details are in [docs/cli_commands.md](./docs/cli_commands.md).

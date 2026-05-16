@@ -120,7 +120,41 @@ De repeater gebruikt nu hardware CAD/channel scan waar mogelijk. Daardoor kan de
 
 Dat helpt tegen botsingen en onnodig zenden op een bezet LoRa-kanaal.
 
-### 6. Veiligere power saving voor repeaters
+### 6. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
+
+LoRa is geweldig voor lokale meshnetwerken, maar het heeft een fysieke grens. Als twee groepen gebruikers te ver van elkaar zitten om via LoRa contact te maken — andere steden, andere bergen, ander land — dan zijn ze gewoon eilanden. Ze kunnen elkaar niet bereiken, hoe goed hun repeaters ook werken.
+
+MeshCoreNG heeft daarvoor nu een **TCP internetbrug**. Een ESP32-repeater met WiFi-toegang verbindt zich via internet met een centrale server. Pakketten die hij ontvangt via LoRa stuurt hij door naar alle andere repeaters op die server. Pakketten die van het internet binnenkomen, gooit hij terug in zijn eigen LoRa-mesh.
+
+Het resultaat: twee compleet gescheiden LoRa-netwerken, hoe ver ook van elkaar, kunnen berichten uitwisselen alsof ze één netwerk zijn.
+
+```
+[LoRa mesh A]  ←→  [Repeater A + WiFi]  ──internet──  [Repeater B + WiFi]  ←→  [LoRa mesh B]
+```
+
+Gebruikers en apps merken er niks van. Ze gebruiken gewoon LoRa zoals altijd. De brug haalt alleen de afstandslimiet weg.
+
+**Instellen op de repeater via CLI:**
+
+```text
+set wifi.ssid     MijnWiFi
+set wifi.password geheim123
+set bridge.server mijnserver.example.com
+set bridge.port   4200
+set bridge.enabled on
+```
+
+**Server starten** (op een VPS, Raspberry Pi of gewone pc met Python 3.7+):
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies.
+
+Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Die flash je gewoon op dezelfde manier als elk ander repeater-firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
+
+### 7. Veiligere power saving voor repeaters
 
 Power saving voor repeaters is nu duidelijker en beter te controleren.
 
@@ -182,6 +216,17 @@ set flood.relay.prob 255
 get flood.dynamic.enable
 set flood.dynamic.enable on
 set flood.dynamic.enable off
+```
+
+**Internetbrug (TCP):**
+
+```text
+set wifi.ssid     <netwerknaam>
+set wifi.password <wachtwoord>
+set bridge.server <hostnaam of IP>
+set bridge.port   4200
+set bridge.enabled on
+get bridge.type
 ```
 
 Meer CLI-uitleg staat in [docs/cli_commands.md](./docs/cli_commands.md).
@@ -256,8 +301,9 @@ De volgende logische stappen zijn:
 - Alleen lage-prioriteit verkeer verminderen bij drukte.
 - Later pas automatische tuning aanzetten.
 - Nog later voorbereiden op hybride routed + flooded mesh.
+- Optionele TLS-versleuteling voor de TCP internetbrug, zodat verkeer over het internet beter beveiligd is.
 
-Het einddoel is een schaalbaarder LoRa MANET netwerk: simpel waar het kan, slimmer waar het nodig is.
+Het einddoel is een schaalbaarder LoRa MANET netwerk: simpel waar het kan, slimmer waar het nodig is — en met de TCP brug ook bereikbaar waar geen LoRa is.
 
 ## License
 

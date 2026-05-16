@@ -6,7 +6,7 @@
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
 
-#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
@@ -64,6 +64,11 @@ struct NodePrefs { // persisted to file
   float flood_advert_base;
   uint8_t flood_relay_prob;
   uint8_t flood_dynamic_enable;
+  // Internet TCP bridge settings (ESP32 only, WITH_TCP_BRIDGE)
+  char wifi_ssid[32];
+  char wifi_password[64];
+  char bridge_server[64];
+  uint16_t bridge_port;
 };
 
 class CommonCLICallbacks {
