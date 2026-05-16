@@ -6,6 +6,10 @@
 .vscode/ipch
 out/
 site/
+website/node_modules/
+website/.vitepress/dist/
+website/.vitepress/cache/
+website/.vitepress/.temp/
 .direnv/
 .DS_Store
 .vscode/settings.json
