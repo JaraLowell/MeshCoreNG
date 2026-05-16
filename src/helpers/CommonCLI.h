@@ -62,6 +62,8 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   float flood_advert_base;
+  uint8_t flood_relay_prob;
+  uint8_t flood_dynamic_enable;
 };
 
 class CommonCLICallbacks {

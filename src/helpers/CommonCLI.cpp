@@ -93,7 +93,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
       _prefs->flood_advert_base = flood_advert_base;                                              // 291
     }
-    // next: 295
+    uint8_t flood_relay_prob = _prefs->flood_relay_prob;
+    if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
+      _prefs->flood_relay_prob = flood_relay_prob;                                                // 295
+    }
+    uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
+    if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
+      _prefs->flood_dynamic_enable = flood_dynamic_enable;                                        // 296
+    }
+    // next: 297
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -126,6 +134,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (!(_prefs->flood_advert_base >= 0.0f && _prefs->flood_advert_base <= 1.0f)) {
       _prefs->flood_advert_base = default_flood_advert_base;
     }
+    _prefs->flood_dynamic_enable = constrain(_prefs->flood_dynamic_enable, 0, 1);
 
     file.close();
   }
@@ -188,7 +197,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
     file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));          // 291
-    // next: 295
+    file.write((uint8_t *)&_prefs->flood_relay_prob, sizeof(_prefs->flood_relay_prob));            // 295
+    file.write((uint8_t *)&_prefs->flood_dynamic_enable, sizeof(_prefs->flood_dynamic_enable));    // 296
+    // next: 297
 
     file.close();
   }
@@ -626,6 +637,29 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: base must be between 0 and 1");
     }
+  } else if (memcmp(config, "flood.relay.prob ", 17) == 0) {
+    const char* value = &config[17];
+    int p = atoi(value);
+    if (*value >= '0' && *value <= '9' && p >= 0 && p <= 255) {
+      _prefs->flood_relay_prob = (uint8_t)p;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: probability must be 0-255");
+    }
+  } else if (memcmp(config, "flood.dynamic.enable ", 21) == 0) {
+    const char* value = &config[21];
+    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+      _prefs->flood_dynamic_enable = 1;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+      _prefs->flood_dynamic_enable = 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
     if (f >= 0) {
@@ -772,6 +806,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "flood.advert.base", 17) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->flood_advert_base));
+  } else if (memcmp(config, "flood.relay.prob", 16) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->flood_relay_prob);
+  } else if (memcmp(config, "flood.dynamic.enable", 20) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_dynamic_enable ? "on" : "off");
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
   } else if (memcmp(config, "advert.interval", 15) == 0) {

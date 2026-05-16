@@ -129,6 +129,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 Shows repeater dense-mesh counters in one place: flood adverts received, forwarded and dropped, CAD busy/timeout events, and flood/direct duplicate counters.
 
+MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicate flood RX, suppressed flood TX, RX/TX airtime, congestion level, and density level. These counters are RAM-only and do not change the packet protocol.
+
 **Serial Only:** `get dense.stats`
 
 ---
@@ -633,6 +635,35 @@ Simple start advice:
 - `1`: forward every flood advert, matching unrestricted forwarding.
 
 **Default:** `0.308` (Repeater)
+
+---
+
+#### View or change flood relay probability
+**Usage:**
+- `get flood.relay.prob`
+- `set flood.relay.prob <value>`
+
+**Parameters:**
+- `value`: Integer probability from `0` to `255`, applied to eligible flood forwarding after normal deny, loop, max-hop, and advert-base checks.
+
+Simple start advice:
+- `0`: suppress eligible flood forwarding.
+- `128`: forward about half of eligible flood packets.
+- `255`: normal eligible flood forwarding.
+
+**Default:** `255`
+
+---
+
+#### View or change dense dynamic mode
+**Usage:**
+- `get flood.dynamic.enable`
+- `set flood.dynamic.enable on`
+- `set flood.dynamic.enable off`
+
+**Note:** In v2 this is telemetry/recommendation mode only. It does not automatically change advert interval, hop limits, or rebroadcast delay.
+
+**Default:** `off`
 
 ---
 

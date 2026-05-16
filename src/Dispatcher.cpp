@@ -87,6 +87,7 @@ void Dispatcher::loop() {
     if (_radio->isSendComplete()) {
       long t = _ms->getMillis() - outbound_start;
       total_air_time += t;
+      onTxAirTime(t);
       //Serial.print("  airtime="); Serial.println(t);
 
       updateTxBudget();
@@ -207,6 +208,7 @@ void Dispatcher::checkRecv() {
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
+          onRxAirTime(air_time);
         } else {
           _mgr->free(pkt);  // put back into pool
           pkt = NULL;

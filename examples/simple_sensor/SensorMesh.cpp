@@ -725,6 +725,8 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.flood_advert_interval = 0;   // disabled
   _prefs.disable_fwd = true;
   _prefs.flood_max = 64;
+  _prefs.flood_relay_prob = 255;
+  _prefs.flood_dynamic_enable = 0;
   _prefs.interference_threshold = 0;  // disabled
 
   // GPS defaults

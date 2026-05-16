@@ -29,6 +29,7 @@ class Mesh : public Dispatcher {
   MeshTables* _tables;
 
   void removeSelfFromPath(Packet* packet);
+  bool hasSeen(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
@@ -54,6 +55,8 @@ protected:
    *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
   virtual bool allowPacketForward(const Packet* packet);
+
+  virtual void onPacketSeen(Packet* packet, bool duplicate) { }
 
   /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet.

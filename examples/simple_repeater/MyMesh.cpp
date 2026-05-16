@@ -60,6 +60,37 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+#if defined(ESP32)
+static portMUX_TYPE dense_stats_mux = portMUX_INITIALIZER_UNLOCKED;
+#define DENSE_STATS_LOCK() portENTER_CRITICAL(&dense_stats_mux)
+#define DENSE_STATS_UNLOCK() portEXIT_CRITICAL(&dense_stats_mux)
+#else
+#define DENSE_STATS_LOCK() noInterrupts()
+#define DENSE_STATS_UNLOCK() interrupts()
+#endif
+
+static void addSaturating(uint16_t* value, uint16_t amount = 1) {
+  uint16_t remaining = 0xFFFF - *value;
+  *value = amount > remaining ? 0xFFFF : *value + amount;
+}
+
+static uint8_t calcDensityLevel(uint16_t neighbors, uint16_t dup_rx, uint16_t unique_rx) {
+  uint32_t total = (uint32_t)dup_rx + unique_rx;
+  uint8_t dup_pct = total == 0 ? 0 : (uint8_t)(((uint32_t)dup_rx * 100) / total);
+  if (neighbors >= 24 || dup_pct >= 70) return 3;
+  if (neighbors >= 12 || dup_pct >= 50) return 2;
+  if (neighbors >= 4 || dup_pct >= 25) return 1;
+  return 0;
+}
+
+static uint8_t calcCongestionLevel(uint32_t airtime_rx_ms, uint32_t airtime_tx_ms, uint16_t suppressed_tx) {
+  uint32_t airtime_ms = airtime_rx_ms + airtime_tx_ms;
+  if (airtime_ms >= 20000 || suppressed_tx >= 96) return 3;
+  if (airtime_ms >= 8000 || suppressed_tx >= 32) return 2;
+  if (airtime_ms >= 2000 || suppressed_tx >= 8) return 1;
+  return 0;
+}
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -85,6 +116,89 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
   neighbour->heard_timestamp = getRTCClock()->getCurrentTime();
   neighbour->snr = (int8_t)(snr * 4);
 #endif
+}
+
+void MyMesh::rotateDenseStats() {
+  unsigned long now = _ms->getMillis();
+  if (dense_bucket_started == 0) dense_bucket_started = now;
+
+  while (now - dense_bucket_started >= DENSE_MESH_BUCKET_MS) {
+    dense_bucket_started += DENSE_MESH_BUCKET_MS;
+    dense_bucket_idx = (dense_bucket_idx + 1) % DENSE_MESH_BUCKETS;
+    memset(&dense_buckets[dense_bucket_idx], 0, sizeof(dense_buckets[dense_bucket_idx]));
+  }
+}
+
+void MyMesh::clearDenseStatsLocked() {
+  memset(&dense_stats, 0, sizeof(dense_stats));
+  memset(dense_buckets, 0, sizeof(dense_buckets));
+  dense_bucket_idx = 0;
+  dense_bucket_started = _ms->getMillis();
+}
+
+void MyMesh::recordDenseUniqueRx() {
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  addSaturating(&dense_buckets[dense_bucket_idx].unique_rx);
+  DENSE_STATS_UNLOCK();
+}
+
+void MyMesh::recordDenseDupRx() {
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  addSaturating(&dense_buckets[dense_bucket_idx].dup_rx);
+  DENSE_STATS_UNLOCK();
+}
+
+void MyMesh::recordDenseSuppressedTx() {
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  addSaturating(&dense_buckets[dense_bucket_idx].suppressed_tx);
+  DENSE_STATS_UNLOCK();
+}
+
+void MyMesh::recordDenseRxAirtime(uint32_t airtime_ms) {
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  dense_buckets[dense_bucket_idx].airtime_rx_ms += airtime_ms;
+  DENSE_STATS_UNLOCK();
+}
+
+void MyMesh::recordDenseTxAirtime(uint32_t airtime_ms) {
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  dense_buckets[dense_bucket_idx].airtime_tx_ms += airtime_ms;
+  DENSE_STATS_UNLOCK();
+}
+
+uint16_t MyMesh::getDenseNeighborCount() const {
+#if MAX_NEIGHBOURS
+  uint16_t count = 0;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp != 0) count++;
+  }
+  return count;
+#else
+  return 0;
+#endif
+}
+
+void MyMesh::getDenseStats(dense_mesh_stats_t* stats) {
+  memset(stats, 0, sizeof(*stats));
+  DENSE_STATS_LOCK();
+  rotateDenseStats();
+  for (int i = 0; i < DENSE_MESH_BUCKETS; i++) {
+    addSaturating(&stats->dup_rx, dense_buckets[i].dup_rx);
+    addSaturating(&stats->unique_rx, dense_buckets[i].unique_rx);
+    addSaturating(&stats->suppressed_tx, dense_buckets[i].suppressed_tx);
+    stats->airtime_rx_ms += dense_buckets[i].airtime_rx_ms;
+    stats->airtime_tx_ms += dense_buckets[i].airtime_tx_ms;
+  }
+  DENSE_STATS_UNLOCK();
+
+  stats->neighbors = getDenseNeighborCount();
+  stats->density_level = calcDensityLevel(stats->neighbors, stats->dup_rx, stats->unique_rx);
+  stats->congestion_level = calcCongestionLevel(stats->airtime_rx_ms, stats->airtime_tx_ms, stats->suppressed_tx);
 }
 
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
@@ -446,6 +560,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     float forward_prob = pow(_prefs.flood_advert_base, hops > 0 ? hops - 1 : 0);
     if (getRNG()->nextInt(0, 10000) >= (uint32_t)(forward_prob * 10000.0f)) {
       dense_stats.n_drop_flood_adverts++;
+      recordDenseSuppressedTx();
       return false;
     }
   }
@@ -460,6 +575,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     }
     if (isLooped(packet, maximums)) {
       MESH_DEBUG_PRINTLN("allowPacketForward: FLOOD packet loop detected!");
+      if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+      return false;
+    }
+  }
+  if (packet->isRouteFlood() && _prefs.flood_relay_prob < 255) {
+    if (_prefs.flood_relay_prob == 0 || getRNG()->nextInt(0, 256) >= _prefs.flood_relay_prob) {
+      recordDenseSuppressedTx();
       if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
       return false;
     }
@@ -546,6 +668,23 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
       f.close();
     }
+  }
+}
+
+void MyMesh::onRxAirTime(uint32_t air_time_ms) {
+  recordDenseRxAirtime(air_time_ms);
+}
+
+void MyMesh::onTxAirTime(uint32_t air_time_ms) {
+  recordDenseTxAirtime(air_time_ms);
+}
+
+void MyMesh::onPacketSeen(mesh::Packet* packet, bool duplicate) {
+  if (!packet->isRouteFlood()) return;
+  if (duplicate) {
+    recordDenseDupRx();
+  } else {
+    recordDenseUniqueRx();
   }
 }
 
@@ -886,7 +1025,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
-  memset(&dense_stats, 0, sizeof(dense_stats));
+  clearDenseStatsLocked();
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -910,6 +1049,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 0;  // disabled
   _prefs.flood_advert_base = 0.308f;
+  _prefs.flood_relay_prob = 255;
+  _prefs.flood_dynamic_enable = 0;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 
@@ -1173,15 +1314,27 @@ void MyMesh::formatPacketStatsReply(char *reply) {
 
 void MyMesh::formatDenseStatsReply(char *reply) {
   SimpleMeshTables *tables = (SimpleMeshTables *)getTables();
-  sprintf(reply,
-          "adv rx=%lu fwd=%lu drop=%lu\ncad busy=%lu timeout=%lu\ndup flood=%lu direct=%lu",
+  dense_mesh_stats_t stats;
+  getDenseStats(&stats);
+  snprintf(reply, 160,
+          "adv=%lu/%lu/%lu cad=%lu/%lu\nw n=%u u=%u d=%u s=%u fd=%lu dd=%lu\na=%lu/%lu c=%u d=%u p=%u y=%u",
           (unsigned long)dense_stats.n_recv_flood_adverts,
           (unsigned long)dense_stats.n_fwd_flood_adverts,
           (unsigned long)dense_stats.n_drop_flood_adverts,
           (unsigned long)getNumCADBusyEvents(),
           (unsigned long)getNumCADTimeoutEvents(),
+          (uint32_t)stats.neighbors,
+          (uint32_t)stats.unique_rx,
+          (uint32_t)stats.dup_rx,
+          (uint32_t)stats.suppressed_tx,
           (unsigned long)tables->getNumFloodDups(),
-          (unsigned long)tables->getNumDirectDups());
+          (unsigned long)tables->getNumDirectDups(),
+          (unsigned long)stats.airtime_rx_ms,
+          (unsigned long)stats.airtime_tx_ms,
+          (uint32_t)stats.congestion_level,
+          (uint32_t)stats.density_level,
+          (uint32_t)_prefs.flood_relay_prob,
+          (uint32_t)_prefs.flood_dynamic_enable);
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
@@ -1201,11 +1354,15 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
-  memset(&dense_stats, 0, sizeof(dense_stats));
+  DENSE_STATS_LOCK();
+  clearDenseStatsLocked();
+  DENSE_STATS_UNLOCK();
 }
 
 void MyMesh::clearDenseStats() {
-  memset(&dense_stats, 0, sizeof(dense_stats));
+  DENSE_STATS_LOCK();
+  clearDenseStatsLocked();
+  DENSE_STATS_UNLOCK();
   resetCADStats();
   ((SimpleMeshTables *)getTables())->resetStats();
 }

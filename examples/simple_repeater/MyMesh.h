@@ -63,6 +63,20 @@ struct DenseMeshStats {
   uint32_t n_drop_flood_adverts;
 };
 
+typedef struct {
+  uint16_t neighbors;
+  uint16_t dup_rx;
+  uint16_t unique_rx;
+  uint16_t suppressed_tx;
+  uint32_t airtime_rx_ms;
+  uint32_t airtime_tx_ms;
+  uint8_t congestion_level;
+  uint8_t density_level;
+} dense_mesh_stats_t;
+
+#define DENSE_MESH_BUCKETS      4
+#define DENSE_MESH_BUCKET_MS    15000UL
+
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
 #endif
@@ -104,6 +118,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
   DenseMeshStats dense_stats;
+  dense_mesh_stats_t dense_buckets[DENSE_MESH_BUCKETS];
+  uint8_t dense_bucket_idx;
+  unsigned long dense_bucket_started;
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   uint32_t pending_discover_tag;
@@ -136,6 +153,15 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   File openAppend(const char* fname);
   bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
+  void rotateDenseStats();
+  void clearDenseStatsLocked();
+  void recordDenseUniqueRx();
+  void recordDenseDupRx();
+  void recordDenseSuppressedTx();
+  void recordDenseRxAirtime(uint32_t airtime_ms);
+  void recordDenseTxAirtime(uint32_t airtime_ms);
+  uint16_t getDenseNeighborCount() const;
+  void getDenseStats(dense_mesh_stats_t* stats);
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -149,6 +175,9 @@ protected:
   void logRx(mesh::Packet* pkt, int len, float score) override;
   void logTx(mesh::Packet* pkt, int len) override;
   void logTxFail(mesh::Packet* pkt, int len) override;
+  void onRxAirTime(uint32_t air_time_ms) override;
+  void onTxAirTime(uint32_t air_time_ms) override;
+  void onPacketSeen(mesh::Packet* packet, bool duplicate) override;
   int calcRxDelay(float score, uint32_t air_time) const override;
 
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
