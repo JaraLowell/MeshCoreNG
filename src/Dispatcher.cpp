@@ -19,6 +19,7 @@ namespace mesh {
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
+  resetCADStats();
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
@@ -286,12 +287,14 @@ void Dispatcher::checkSend() {
   
   if (!millisHasNowPassed(next_tx_time)) return;
   if (_radio->isReceiving()) {
+    n_cad_busy_events++;
     if (cad_busy_start == 0) {
       cad_busy_start = _ms->getMillis();   // record when CAD busy state started
     }
 
     if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
+      n_cad_timeout_events++;
 
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
       // channel activity has gone on too long... (Radio might be in a bad state)

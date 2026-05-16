@@ -14,6 +14,10 @@ MeshCoreNG builds on the MeshCore firmware and protocol ecosystem. MeshCore prov
   * Devices can forward messages across multiple nodes, extending range beyond a single radio's reach.
   * Supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
   * Nodes use fixed roles where "Companion" nodes are not repeating messages at all to prevent adverse routing paths from being used.
+* Dense Mesh Repeater Tuning
+  * Repeater firmware can reduce flood advert airtime in busy networks with `flood.advert.base`.
+  * `get dense.stats` shows received, forwarded and dropped flood adverts, CAD busy/timeout events, and duplicate counters.
+  * Dense-mesh counters are RAM-only and can be reset with `clear dense.stats`.
 * Supports LoRa Radios – Works with Heltec, RAK Wireless, and other LoRa-based hardware.
 * Decentralized & Resilient – No central server or internet required; the network is self-healing.
 * Low Power Consumption – Ideal for battery-powered or solar-powered devices.
@@ -48,6 +52,21 @@ For developers;
   - [Simple Sensor](./examples/simple_sensor) - Remote sensor node with telemetry and alerting.
 
 The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
+
+## Dense Mesh v1
+
+MeshCoreNG starts dense-mesh improvement with simple measurement and manual tuning. The packet wire format is unchanged, so existing MeshCore clients remain compatible.
+
+For repeater firmware:
+
+- `get dense.stats` shows dense-mesh counters.
+- `clear dense.stats` resets the RAM-only dense-mesh counters.
+- `get flood.advert.base` shows the current flood advert forwarding base.
+- `set flood.advert.base 0` disables forwarding received flood adverts.
+- `set flood.advert.base 0.308` uses the MeshCoreNG dense-mesh default.
+- `set flood.advert.base 1` forwards every flood advert.
+
+More CLI details are in [CLI Commands](./docs/cli_commands.md).
 
 ## ⚡️ MeshCore Flasher
 

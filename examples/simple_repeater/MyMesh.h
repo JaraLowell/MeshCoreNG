@@ -57,6 +57,12 @@ struct RepeaterStats {
   uint32_t n_recv_errors;
 };
 
+struct DenseMeshStats {
+  uint32_t n_recv_flood_adverts;
+  uint32_t n_fwd_flood_adverts;
+  uint32_t n_drop_flood_adverts;
+};
+
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
 #endif
@@ -97,6 +103,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
+  DenseMeshStats dense_stats;
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   uint32_t pending_discover_tag;
@@ -214,6 +221,7 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void formatDenseStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;
@@ -222,6 +230,7 @@ public:
 
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
+  void clearDenseStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();

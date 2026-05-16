@@ -295,6 +295,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
       sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
+    } else if (memcmp(command, "clear dense.stats", 17) == 0) {
+      _callbacks->clearDenseStats();
+      strcpy(reply, "(OK - dense stats reset)");
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -769,6 +772,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "flood.advert.base", 17) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->flood_advert_base));
+  } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
+    _callbacks->formatDenseStatsReply(reply);
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
   } else if (memcmp(config, "guest.password", 14) == 0) {

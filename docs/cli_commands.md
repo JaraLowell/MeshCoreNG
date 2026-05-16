@@ -122,6 +122,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Dense Mesh Stats
+**Usage:**
+- `get dense.stats`
+- `clear dense.stats`
+
+Shows repeater dense-mesh counters in one place: flood adverts received, forwarded and dropped, CAD busy/timeout events, and flood/direct duplicate counters.
+
+**Serial Only:** `get dense.stats`
+
+---
+
 ### System Stats - Battery, Uptime, Queue Length and Debug Flags
 **Usage:** 
 - `stats-core`
@@ -615,6 +626,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
 - `value`: Probability base from `0` to `1`. Repeater forwarding probability is `value^(hops - 1)`.
+
+Simple start advice:
+- `0`: do not forward received flood adverts.
+- `0.308`: dense mesh default; quickly reduces advert noise as hop count grows.
+- `1`: forward every flood advert, matching unrestricted forwarding.
 
 **Default:** `0.308` (Repeater)
 

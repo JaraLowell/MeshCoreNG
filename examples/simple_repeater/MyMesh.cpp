@@ -427,16 +427,27 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
-  if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
-  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
-    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+  const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
+  if (_prefs.disable_fwd) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
   }
-  if (packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
+  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    return false;
+  }
+  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    return false;
+  }
+  if (is_flood_advert) {
     uint8_t hops = packet->getPathHashCount();
     float forward_prob = pow(_prefs.flood_advert_base, hops > 0 ? hops - 1 : 0);
-    if (getRNG()->nextInt(0, 10000) >= (uint32_t)(forward_prob * 10000.0f)) return false;
+    if (getRNG()->nextInt(0, 10000) >= (uint32_t)(forward_prob * 10000.0f)) {
+      dense_stats.n_drop_flood_adverts++;
+      return false;
+    }
   }
   if (packet->isRouteFlood() && _prefs.loop_detect != LOOP_DETECT_OFF) {
     const uint8_t* maximums;
@@ -449,9 +460,11 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     }
     if (isLooped(packet, maximums)) {
       MESH_DEBUG_PRINTLN("allowPacketForward: FLOOD packet loop detected!");
+      if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
       return false;
     }
   }
+  if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
   return true;
 }
 
@@ -551,6 +564,10 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
+  if (pkt->isRouteFlood() && pkt->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
+    dense_stats.n_recv_flood_adverts++;
+  }
+
   // just try to determine region for packet (apply later in allowPacketForward())
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -869,6 +886,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  memset(&dense_stats, 0, sizeof(dense_stats));
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -1153,6 +1171,19 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
+void MyMesh::formatDenseStatsReply(char *reply) {
+  SimpleMeshTables *tables = (SimpleMeshTables *)getTables();
+  sprintf(reply,
+          "adv rx=%lu fwd=%lu drop=%lu\ncad busy=%lu timeout=%lu\ndup flood=%lu direct=%lu",
+          (unsigned long)dense_stats.n_recv_flood_adverts,
+          (unsigned long)dense_stats.n_fwd_flood_adverts,
+          (unsigned long)dense_stats.n_drop_flood_adverts,
+          (unsigned long)getNumCADBusyEvents(),
+          (unsigned long)getNumCADTimeoutEvents(),
+          (unsigned long)tables->getNumFloodDups(),
+          (unsigned long)tables->getNumDirectDups());
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
@@ -1169,6 +1200,13 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
+  ((SimpleMeshTables *)getTables())->resetStats();
+  memset(&dense_stats, 0, sizeof(dense_stats));
+}
+
+void MyMesh::clearDenseStats() {
+  memset(&dense_stats, 0, sizeof(dense_stats));
+  resetCADStats();
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
