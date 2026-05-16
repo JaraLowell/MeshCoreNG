@@ -1026,6 +1026,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   clearDenseStatsLocked();
+  clearPowerStats();
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -1051,6 +1052,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_advert_base = 0.308f;
   _prefs.flood_relay_prob = 255;
   _prefs.flood_dynamic_enable = 0;
+  _prefs.powersaving_enabled = 0;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 
@@ -1337,6 +1339,26 @@ void MyMesh::formatDenseStatsReply(char *reply) {
           (uint32_t)_prefs.flood_dynamic_enable);
 }
 
+static const char* getPowerSavingSupport() {
+#if defined(NRF52_PLATFORM)
+  return "supported";
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1)
+  return "limited";
+#else
+  return "unknown";
+#endif
+}
+
+void MyMesh::formatPowerStatsReply(char *reply) {
+  snprintf(reply, 160,
+          "sleep attempts=%lu\nskip pending=%lu bridge=%lu\nwake rx=%lu support=%s",
+          (unsigned long)power_stats.sleep_attempts,
+          (unsigned long)power_stats.skip_pending_work,
+          (unsigned long)power_stats.skip_bridge_active,
+          (unsigned long)power_stats.wake_rx_packet,
+          getPowerSavingSupport());
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
@@ -1365,6 +1387,10 @@ void MyMesh::clearDenseStats() {
   DENSE_STATS_UNLOCK();
   resetCADStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+}
+
+void MyMesh::clearPowerStats() {
+  memset(&power_stats, 0, sizeof(power_stats));
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1503,10 +1529,37 @@ void MyMesh::loop() {
   last_millis = now;
 }
 
+bool MyMesh::isBridgeActive() const {
+#if defined(WITH_BRIDGE)
+  return bridge.isRunning();
+#else
+  return false;
+#endif
+}
+
+bool MyMesh::hasOutboundWork() const {
+  return _mgr->getOutboundTotal() > 0;
+}
+
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
-#if defined(WITH_BRIDGE)
-  if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
-#endif
-  return _mgr->getOutboundTotal() > 0;
+  return isBridgeActive() || hasOutboundWork();
+}
+
+void MyMesh::recordSleepAttempt() {
+  power_stats.sleep_attempts++;
+}
+
+void MyMesh::recordSleepSkipPendingWork() {
+  power_stats.skip_pending_work++;
+}
+
+void MyMesh::recordSleepSkipBridgeActive() {
+  power_stats.skip_bridge_active++;
+}
+
+void MyMesh::recordStartupWakeReason() {
+  if (board.getStartupReason() == BD_STARTUP_RX_PACKET) {
+    power_stats.wake_rx_packet++;
+  }
 }

@@ -22,6 +22,7 @@ static char command[160];
 // For power saving
 unsigned long lastActive = 0; // mark last active time
 unsigned long nextSleepinSecs = 120; // next sleep in seconds. The first sleep (if enabled) is after 2 minutes from boot
+static uint8_t lastPowerSkipReason = 0;
 
 #if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_)
 static unsigned long userBtnDownAt = 0;
@@ -94,6 +95,7 @@ void setup() {
   sensors.begin();
 
   the_mesh.begin(fs);
+  the_mesh.recordStartupWakeReason();
 
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
@@ -154,11 +156,33 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+  if (the_mesh.getNodePrefs()->powersaving_enabled) {
+    uint8_t skipReason = 0;
+    if (the_mesh.isBridgeActive()) {
+      skipReason = 1;
+    } else if (the_mesh.hasOutboundWork()) {
+      skipReason = 2;
+    }
+
+    if (skipReason != 0) {
+      if (skipReason != lastPowerSkipReason) {
+        if (skipReason == 1) {
+          the_mesh.recordSleepSkipBridgeActive();
+        } else {
+          the_mesh.recordSleepSkipPendingWork();
+        }
+      }
+      lastPowerSkipReason = skipReason;
+      return;
+    }
+
+    lastPowerSkipReason = 0;
     #if defined(NRF52_PLATFORM)
+    the_mesh.recordSleepAttempt();
     board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
     #else
     if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
+      the_mesh.recordSleepAttempt();
       board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
       nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
@@ -166,5 +190,7 @@ void loop() {
       nextSleepinSecs += 5; // When there is pending work, to work another 5s
     }
     #endif
+  } else {
+    lastPowerSkipReason = 0;
   }
 }

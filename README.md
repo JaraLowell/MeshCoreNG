@@ -120,6 +120,22 @@ The repeater now uses hardware CAD/channel scan where possible. That lets the fi
 
 This helps reduce collisions and unnecessary transmissions on a busy LoRa channel.
 
+### 6. Safer repeater power saving
+
+Power saving for repeaters is now clearer and easier to inspect.
+
+```text
+powersaving
+powersaving on
+powersaving off
+get power.stats
+clear power.stats
+```
+
+The default is `off`. That is intentional, because many repeaters are fixed relay or backbone nodes and should not suddenly start sleeping.
+
+When enabled, a repeater only sleeps when there is no outbound work waiting. Bridge/WiFi mode blocks sleep. ESP32 boards wake by LoRa DIO1/timer where supported. nRF52 boards use event/interrupt sleep.
+
 ## What Have We Deliberately Not Done Yet?
 
 We have not built an automatic "AI mesh" yet.

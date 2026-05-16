@@ -120,6 +120,22 @@ De repeater gebruikt nu hardware CAD/channel scan waar mogelijk. Daardoor kan de
 
 Dat helpt tegen botsingen en onnodig zenden op een bezet LoRa-kanaal.
 
+### 6. Veiligere power saving voor repeaters
+
+Power saving voor repeaters is nu duidelijker en beter te controleren.
+
+```text
+powersaving
+powersaving on
+powersaving off
+get power.stats
+clear power.stats
+```
+
+De standaard is `off`. Dat is bewust zo, want veel repeaters zijn vaste relay- of backbone-nodes en moeten niet ineens gaan slapen.
+
+Als je power saving aanzet, slaapt een repeater alleen wanneer er geen uitgaand werk klaarstaat. Bridge/WiFi-modus blokkeert slaap. ESP32-boards worden wakker via LoRa DIO1/timer waar dat ondersteund wordt. nRF52-boards gebruiken event/interrupt sleep.
+
 ## Wat is bewust nog niet gedaan?
 
 We hebben nog geen automatische “AI mesh” gebouwd.

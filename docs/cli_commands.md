@@ -135,6 +135,19 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 
 ---
 
+### Power Saving Stats
+**Usage:**
+- `get power.stats`
+- `clear power.stats`
+
+Shows repeater power-saving counters: sleep attempts, sleep skipped because outbound work was pending, sleep skipped because a bridge/WiFi mode was active, wakeups caused by LoRa RX when the board reports that reason, and a compact board support indicator.
+
+These counters are RAM-only and reset on reboot or with `clear power.stats`.
+
+**Serial Only:** `get power.stats`
+
+---
+
 ### System Stats - Battery, Uptime, Queue Length and Debug Flags
 **Usage:** 
 - `stats-core`
@@ -438,9 +451,11 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 - `on`: enable power saving
 - `off`: disable power saving
 
-**Default:** `on`
+**Default:** `off`
 
-**Note:** When enabled, device enters sleep mode between radio transmissions
+**Note:** Power saving is repeater-only. When enabled, sleep is attempted only when there is no pending outbound work. Bridge/WiFi modes prevent sleep because the bridge must stay awake.
+
+On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX or by timer. On nRF52 boards sleep is event/interrupt driven and the seconds parameter is ignored by the board sleep implementation.
 
 ---
 

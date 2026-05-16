@@ -63,6 +63,13 @@ struct DenseMeshStats {
   uint32_t n_drop_flood_adverts;
 };
 
+struct PowerSavingStats {
+  uint32_t sleep_attempts;
+  uint32_t skip_pending_work;
+  uint32_t skip_bridge_active;
+  uint32_t wake_rx_packet;
+};
+
 typedef struct {
   uint16_t neighbors;
   uint16_t dup_rx;
@@ -118,6 +125,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
   DenseMeshStats dense_stats;
+  PowerSavingStats power_stats;
   dense_mesh_stats_t dense_buckets[DENSE_MESH_BUCKETS];
   uint8_t dense_bucket_idx;
   unsigned long dense_bucket_started;
@@ -251,6 +259,7 @@ public:
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
   void formatDenseStatsReply(char *reply) override;
+  void formatPowerStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;
@@ -260,6 +269,7 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
   void clearDenseStats() override;
+  void clearPowerStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
@@ -285,7 +295,13 @@ public:
 #endif
 
   // To check if there is pending work
+  bool isBridgeActive() const;
+  bool hasOutboundWork() const;
   bool hasPendingWork() const;
+  void recordSleepAttempt();
+  void recordSleepSkipPendingWork();
+  void recordSleepSkipBridgeActive();
+  void recordStartupWakeReason();
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
   void setRxBoostedGain(bool enable) override;

@@ -309,6 +309,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "clear dense.stats", 17) == 0) {
       _callbacks->clearDenseStats();
       strcpy(reply, "(OK - dense stats reset)");
+    } else if (memcmp(command, "clear power.stats", 17) == 0) {
+      _callbacks->clearPowerStats();
+      strcpy(reply, "(OK - power stats reset)");
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -812,6 +815,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->flood_dynamic_enable ? "on" : "off");
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
+  } else if (sender_timestamp == 0 && memcmp(config, "power.stats", 11) == 0) {
+    _callbacks->formatPowerStatsReply(reply);
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
   } else if (memcmp(config, "guest.password", 14) == 0) {
