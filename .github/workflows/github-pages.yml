@@ -1,13 +1,23 @@
-name: Build and deploy Docs site to GitHub Pages
+name: Build Firmware Web Flasher and deploy GitHub Pages
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    tags:
+      - 'newrelease-*'
+      - 'v*'
+  release:
+    types:
+      - published
 
 permissions:
   contents: write
+
+concurrency:
+  group: github-pages-flasher
+  cancel-in-progress: false
 
 jobs:
   github-pages:
@@ -19,6 +29,18 @@ jobs:
 
       - name: Setup Build Environment
         uses: ./.github/actions/setup-build-environment
+
+      - name: Set firmware version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="web-${GITHUB_SHA::7}"
+          fi
+          echo "WEBFLASHER_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Setup Docs Dependencies
         uses: actions/setup-python@v5
@@ -32,7 +54,7 @@ jobs:
 
       - name: Build Web Flasher Firmwares
         env:
-          FIRMWARE_VERSION: web
+          FIRMWARE_VERSION: ${{ env.WEBFLASHER_VERSION }}
           DISABLE_DEBUG: "1"
         run: python3 tools/build_webflasher.py
 

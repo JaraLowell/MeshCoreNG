@@ -210,6 +210,8 @@ The firmware files used by the web flasher are built by GitHub Actions. The work
 
 To add another ESP32 board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `webflasher/boards.json`. GitHub will build it during the Pages workflow.
 
+When a new GitHub Release is published, the same GitHub Actions workflow builds fresh firmware using the release tag as the firmware version. The web flasher is then updated to use those newly built release files. You can also trigger the same flow with tags like `newrelease-*` or `v*`.
+
 ## MeshCore Flasher And Clients
 
 MeshCoreNG does not yet have its own clients.

@@ -210,6 +210,8 @@ De firmwarebestanden die de webflasher gebruikt worden door GitHub Actions gebou
 
 Wil je later nog een ESP32-board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `webflasher/boards.json`. GitHub bouwt die variant daarna mee in de Pages workflow.
 
+Wanneer er een nieuwe GitHub Release wordt gepubliceerd, bouwt dezelfde GitHub Actions workflow verse firmware met de release-tag als firmwareversie. Daarna wordt de webflasher bijgewerkt zodat hij die nieuw gebouwde releasebestanden gebruikt. Je kunt dezelfde flow ook starten met tags zoals `newrelease-*` of `v*`.
+
 ## MeshCore flasher en clients
 
 MeshCoreNG heeft nog geen eigen clients.
