@@ -1,13 +1,10 @@
-name: Build Firmware Web Flasher and deploy GitHub Pages
+name: Build Web Flasher from Release and deploy GitHub Pages
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-    tags:
-      - 'newrelease-*'
-      - 'v*'
   release:
     types:
       - published
@@ -27,20 +24,15 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-build-environment
-
-      - name: Set firmware version
+      - name: Select firmware release
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME}"
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
           else
-            VERSION="web-${GITHUB_SHA::7}"
+            RELEASE_TAG="latest"
           fi
-          echo "WEBFLASHER_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "WEBFLASHER_RELEASE_TAG=${RELEASE_TAG}" >> "$GITHUB_ENV"
 
       - name: Setup Docs Dependencies
         uses: actions/setup-python@v5
@@ -52,10 +44,10 @@ jobs:
           pip install mkdocs-material
           mkdocs build
 
-      - name: Build Web Flasher Firmwares
+      - name: Build Web Flasher from Release Assets
         env:
-          FIRMWARE_VERSION: ${{ env.WEBFLASHER_VERSION }}
-          DISABLE_DEBUG: "1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBFLASHER_RELEASE_TAG: ${{ env.WEBFLASHER_RELEASE_TAG }}
         run: python3 tools/build_webflasher.py
 
       - name: Deploy to GitHub Pages

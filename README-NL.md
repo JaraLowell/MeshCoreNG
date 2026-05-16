@@ -206,11 +206,11 @@ MeshCoreNG heeft nu een GitHub Pages webflasher voor ESP32 repeater builds:
 
 De flasher gebruikt ESP Web Tools en werkt vanuit Chrome of Edge met Web Serial. Hij is bedoeld voor ESP32-family boards. nRF52, RP2040 en STM32 boards gebruiken nog steeds hun normale firmwarebestanden en flashing tools.
 
-De firmwarebestanden die de webflasher gebruikt worden door GitHub Actions gebouwd. De workflow bouwt de ESP32 repeater-varianten uit [webflasher/boards.json](./webflasher/boards.json), maakt ESP Web Tools manifests, en publiceert alles naar GitHub Pages onder `/flasher/`.
+De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de ESP32 repeater-varianten, hangt de merged `.bin` bestanden aan de release, en de GitHub Pages workflow downloadt daarna die releasebestanden om de ESP Web Tools manifests onder `/flasher/` te maken.
 
-Wil je later nog een ESP32-board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `webflasher/boards.json`. GitHub bouwt die variant daarna mee in de Pages workflow.
+Wil je later nog een ESP32-board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `webflasher/boards.json`. De bijbehorende release asset moet een naam hebben zoals `<env>-*-merged.bin`.
 
-Wanneer er een nieuwe GitHub Release wordt gepubliceerd, bouwt dezelfde GitHub Actions workflow verse firmware met de release-tag als firmwareversie. Daarna wordt de webflasher bijgewerkt zodat hij die nieuw gebouwde releasebestanden gebruikt. Je kunt dezelfde flow ook starten met tags zoals `newrelease-*` of `v*`.
+Wanneer er een nieuwe GitHub Release wordt gepubliceerd, gebruikt de GitHub Pages workflow die release-tag, downloadt hij de firmware assets uit die release, en werkt hij de webflasher bij zodat precies die bestanden gebruikt worden. Bij een normale `main` build of handmatige Pages run gebruikt hij de nieuwste gepubliceerde release.
 
 ## MeshCore flasher en clients
 

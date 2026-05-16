@@ -206,11 +206,11 @@ MeshCoreNG now includes a GitHub Pages web flasher for ESP32-based repeater buil
 
 The flasher is built with ESP Web Tools and works from Chrome or Edge using Web Serial. It is meant for ESP32-family boards. nRF52, RP2040 and STM32 boards still use their normal flashing files and tools.
 
-The firmware files used by the web flasher are built by GitHub Actions. The workflow builds the ESP32 repeater variants listed in [webflasher/boards.json](./webflasher/boards.json), creates ESP Web Tools manifests for them, and publishes everything to GitHub Pages under `/flasher/`.
+The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the ESP32 repeater variants, attaches the merged `.bin` files to the release, and the GitHub Pages workflow downloads those release files to create the ESP Web Tools manifests under `/flasher/`.
 
-To add another ESP32 board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `webflasher/boards.json`. GitHub will build it during the Pages workflow.
+To add another ESP32 board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `webflasher/boards.json`. The matching release asset must be named like `<env>-*-merged.bin`.
 
-When a new GitHub Release is published, the same GitHub Actions workflow builds fresh firmware using the release tag as the firmware version. The web flasher is then updated to use those newly built release files. You can also trigger the same flow with tags like `newrelease-*` or `v*`.
+When a new GitHub Release is published, the GitHub Pages workflow uses that release tag, downloads the release firmware assets, and updates the web flasher to use exactly those files. On a normal `main` build or manual Pages run, it uses the latest published release.
 
 ## MeshCore Flasher And Clients
 

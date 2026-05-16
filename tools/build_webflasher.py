@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import os
+import re
 import shutil
-import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WEBFLASHER_DIR = ROOT / "webflasher"
-OUT_DIR = ROOT / "out"
 SITE_DIR = ROOT / "site" / "flasher"
 FIRMWARE_DIR = SITE_DIR / "firmware"
-
-
-def run(cmd, env=None):
-    subprocess.run(cmd, cwd=ROOT, env=env, check=True)
 
 
 def load_boards():
@@ -34,29 +32,47 @@ def copy_static():
         shutil.copy2(WEBFLASHER_DIR / name, SITE_DIR / name)
 
 
-def build_firmwares(boards):
-    env = os.environ.copy()
-    env.setdefault("FIRMWARE_VERSION", "web")
-    env.setdefault("DISABLE_DEBUG", "1")
-    if shutil.which("pio", path=env.get("PATH")) is None:
-        local_pio = Path.home() / ".platformio" / "penv" / "bin"
-        if (local_pio / "pio").exists():
-            env["PATH"] = f"{local_pio}{os.pathsep}{env.get('PATH', '')}"
-    targets = [board["env"] for board in boards]
-    run(["bash", "build.sh", "build-firmware", *targets], env=env)
+def github_request(url, token=None, accept="application/vnd.github+json"):
+    headers = {
+        "Accept": accept,
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "MeshCoreNG-WebFlasher",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as response:
+        return response.read()
 
 
-def find_merged_bin(env_name):
-    matches = sorted(OUT_DIR.glob(f"{env_name}-*-merged.bin"))
+def load_release(repo, tag, token):
+    if tag == "latest":
+        url = f"https://api.github.com/repos/{repo}/releases/latest"
+    else:
+        url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+    return json.loads(github_request(url, token).decode("utf-8"))
+
+
+def find_release_asset(release, env_name):
+    pattern = re.compile(rf"^{re.escape(env_name)}-.+-merged\.bin$")
+    matches = [asset for asset in release.get("assets", []) if pattern.match(asset.get("name", ""))]
     if not matches:
-        raise FileNotFoundError(f"No merged ESP32 firmware found for {env_name}")
+        raise FileNotFoundError(f"No release asset found for {env_name}-*-merged.bin")
+    matches.sort(key=lambda asset: asset.get("updated_at", ""))
     return matches[-1]
 
 
-def write_manifest(board, firmware_name):
+def download_asset(asset, destination, token):
+    data = github_request(asset["url"], token, accept="application/octet-stream")
+    with destination.open("wb") as f:
+        f.write(data)
+
+
+def write_manifest(board, firmware_name, version):
     manifest = {
         "name": board["name"],
-        "version": os.environ.get("FIRMWARE_VERSION", "web"),
+        "version": version,
         "new_install_prompt_erase": True,
         "builds": [
             {
@@ -76,16 +92,17 @@ def write_manifest(board, firmware_name):
         f.write("\n")
 
 
-def publish_firmwares(boards):
+def publish_release_firmwares(boards, release, token):
     published = []
+    version = release.get("tag_name", "release")
     for board in boards:
         env_name = board["env"]
-        firmware = find_merged_bin(env_name)
+        asset = find_release_asset(release, env_name)
         board_dir = FIRMWARE_DIR / env_name
         board_dir.mkdir(parents=True, exist_ok=True)
-        firmware_name = firmware.name
-        shutil.copy2(firmware, board_dir / firmware_name)
-        write_manifest(board, firmware_name)
+        firmware_name = asset["name"]
+        download_asset(asset, board_dir / firmware_name, token)
+        write_manifest(board, firmware_name, version)
         published.append({
             **board,
             "manifest": f"./firmware/{env_name}/manifest.json"
@@ -96,7 +113,23 @@ def publish_firmwares(boards):
         f.write("\n")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Build MeshCoreNG web flasher from GitHub release assets.")
+    parser.add_argument("--release-tag", default=os.environ.get("WEBFLASHER_RELEASE_TAG", "latest"),
+                        help="GitHub release tag to use, or 'latest'.")
+    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"),
+                        help="GitHub repository in owner/name form.")
+    parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN"),
+                        help="GitHub token used to read release assets.")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    if not args.repo:
+        print("Repository is required. Set GITHUB_REPOSITORY or pass --repo owner/name.", file=sys.stderr)
+        return 1
+
     boards = load_boards()
     if not boards:
         print("webflasher/boards.json does not contain any boards", file=sys.stderr)
@@ -104,8 +137,8 @@ def main():
 
     clean_site()
     copy_static()
-    build_firmwares(boards)
-    publish_firmwares(boards)
+    release = load_release(args.repo, args.release_tag, args.token)
+    publish_release_firmwares(boards, release, args.token)
     return 0
 
 
