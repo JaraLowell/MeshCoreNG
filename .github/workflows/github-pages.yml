@@ -17,20 +17,28 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Setup Docs Dependencies
         uses: actions/setup-python@v5
         with:
-          ruby-version: 3.x
+          python-version: '3.11'
 
-      - name: Build
+      - name: Build Docs
         run: |
           pip install mkdocs-material
           mkdocs build
+
+      - name: Build Web Flasher Firmwares
+        env:
+          FIRMWARE_VERSION: web
+          DISABLE_DEBUG: "1"
+        run: python3 tools/build_webflasher.py
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          cname: docs.meshcore.io
           publish_dir: ./site
           publish_branch: 'gh-pages'

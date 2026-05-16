@@ -198,9 +198,21 @@ For developers:
   - [Simple Secure Chat](./examples/simple_secure_chat)
   - [Simple Sensor](./examples/simple_sensor)
 
+## MeshCoreNG Web Flasher
+
+MeshCoreNG now includes a GitHub Pages web flasher for ESP32-based repeater builds:
+
+- MeshCoreNG web flasher: https://michtronics.github.io/MeshCoreNG/flasher/
+
+The flasher is built with ESP Web Tools and works from Chrome or Edge using Web Serial. It is meant for ESP32-family boards. nRF52, RP2040 and STM32 boards still use their normal flashing files and tools.
+
+The firmware files used by the web flasher are built by GitHub Actions. The workflow builds the ESP32 repeater variants listed in [webflasher/boards.json](./webflasher/boards.json), creates ESP Web Tools manifests for them, and publishes everything to GitHub Pages under `/flasher/`.
+
+To add another ESP32 board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `webflasher/boards.json`. GitHub will build it during the Pages workflow.
+
 ## MeshCore Flasher And Clients
 
-MeshCoreNG does not yet have its own public flasher or its own clients.
+MeshCoreNG does not yet have its own clients.
 
 For now, use the upstream MeshCore tools and clients:
 
