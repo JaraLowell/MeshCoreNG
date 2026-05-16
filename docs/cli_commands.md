@@ -568,7 +568,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Interference threshold value
 
-**Default:** `0.0`
+**Default:** `1` (Repeater) - `0` (other roles)
 
 ---
 
@@ -604,7 +604,19 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `hours`: Interval in hours (3-168)
 
-**Default:** `12` (Repeater) - `0` (Sensor)
+**Default:** `0`
+
+---
+
+#### View or change flood advert forwarding probability
+**Usage:**
+- `get flood.advert.base`
+- `set flood.advert.base <value>`
+
+**Parameters:**
+- `value`: Probability base from `0` to `1`. Repeater forwarding probability is `value^(hops - 1)`.
+
+**Default:** `0.308` (Repeater)
 
 ---
 

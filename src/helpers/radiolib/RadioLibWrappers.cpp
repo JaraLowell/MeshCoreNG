@@ -168,10 +168,20 @@ void RadioLibWrapper::onSendFinished() {
   state = STATE_IDLE;
 }
 
+int16_t RadioLibWrapper::performChannelScan() {
+  return _radio->scanChannel();
+}
+
 bool RadioLibWrapper::isChannelActive() {
-  return _threshold == 0 
-          ? false    // interference check is disabled
-          : getCurrentRSSI() > _noise_floor + _threshold;
+  if (_threshold == 0) return false;    // interference check is disabled
+
+  int16_t result = performChannelScan();
+  // scanChannel() raises the shared DIO interrupt used by RX/TX completion.
+  // Clear that state before RX resumes so recvRaw() does not count a CAD event
+  // as a packet-ready interrupt.
+  state = STATE_IDLE;
+  startRecv();
+  return result != RADIOLIB_CHANNEL_FREE;
 }
 
 float RadioLibWrapper::getLastRSSI() const {

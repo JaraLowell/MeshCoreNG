@@ -433,6 +433,11 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
+  if (packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
+    uint8_t hops = packet->getPathHashCount();
+    float forward_prob = pow(_prefs.flood_advert_base, hops > 0 ? hops - 1 : 0);
+    if (getRNG()->nextInt(0, 10000) >= (uint32_t)(forward_prob * 10000.0f)) return false;
+  }
   if (packet->isRouteFlood() && _prefs.loop_detect != LOOP_DETECT_OFF) {
     const uint8_t* maximums;
     if (_prefs.loop_detect == LOOP_DETECT_MINIMAL) {
@@ -550,7 +555,8 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
-    if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+    if ((pkt->getPayloadType() == PAYLOAD_TYPE_GRP_TXT || pkt->getPayloadType() == PAYLOAD_TYPE_GRP_DATA) &&
+        region_map.getWildcard().flags & REGION_DENY_FLOOD) {
       recv_pkt_region = NULL;
     } else {
       recv_pkt_region =  &region_map.getWildcard();
@@ -884,9 +890,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.flood_advert_interval = 0;  // disabled
+  _prefs.flood_advert_base = 0.308f;
   _prefs.flood_max = 64;
-  _prefs.interference_threshold = 0; // disabled
+  _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled

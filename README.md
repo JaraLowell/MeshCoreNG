@@ -1,11 +1,12 @@
-## About MeshCore
+## About MeshCoreNG
 
-MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.
+MeshCoreNG is a Next Gen firmware fork/variant based on MeshCore. It keeps the lightweight LoRa mesh routing foundation of MeshCore while experimenting with improvements for dense meshes, repeater behavior, firmware usability, and practical field deployment.
 
-## 🔍 What is MeshCore?
+MeshCoreNG is intended for developers and operators who want to test and iterate on resilient, decentralized communication networks that work without the internet.
 
-MeshCore now supports a range of LoRa devices, allowing for easy flashing without the need to compile firmware manually. Users can flash a pre-built binary using tools like Adafruit ESPTool and interact with the network through a serial console.
-MeshCore provides the ability to create wireless mesh networks, similar to Meshtastic and Reticulum but with a focus on lightweight multi-hop packet routing for embedded projects. Unlike Meshtastic, which is tailored for casual LoRa communication, or Reticulum, which offers advanced networking, MeshCore balances simplicity with scalability, making it ideal for custom embedded solutions., where devices (nodes) can communicate over long distances by relaying messages through intermediate nodes. This is especially useful in off-grid, emergency, or tactical situations where traditional communication infrastructure is unavailable.
+## 🔍 What is MeshCoreNG?
+
+MeshCoreNG builds on the MeshCore firmware and protocol ecosystem. MeshCore provides the ability to create wireless mesh networks, similar to Meshtastic and Reticulum but with a focus on lightweight multi-hop packet routing for embedded projects. Unlike Meshtastic, which is tailored for casual LoRa communication, or Reticulum, which offers advanced networking, MeshCore balances simplicity with scalability, making it ideal for custom embedded solutions, where devices (nodes) can communicate over long distances by relaying messages through intermediate nodes. This is especially useful in off-grid, emergency, or tactical situations where traditional communication infrastructure is unavailable.
 
 ## ⚡ Key Features
 
@@ -30,14 +31,14 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 
 - Watch the [MeshCore QuickStart Playlist](https://www.youtube.com/watch?v=iaFltojJrAc&list=PLshzThxhw4O4WU_iZo3NmNZOv6KMrUuF9) by The Comms Channel
 - Watch the [MeshCore Technical Presentation](https://www.youtube.com/watch?v=OwmkVkZQTf4) by Liam Cottle.
-- Read through our [Frequently Asked Questions](./docs/faq.md) and [Documentation](https://docs.meshcore.io).
-- Flash the MeshCore firmware on a supported device.
-- Connect with a supported client.
+- Read through the local [Frequently Asked Questions](./docs/faq.md) and upstream [MeshCore Documentation](https://docs.meshcore.io).
+- Flash MeshCoreNG or compatible MeshCore firmware on a supported device.
+- Connect with a supported MeshCore client.
 
 For developers;
 
 - Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
-- Clone and open the MeshCore repository in Visual Studio Code.
+- Clone and open the MeshCoreNG repository in Visual Studio Code.
 - See the example applications you can modify and run:
   - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or WiFi.
   - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
@@ -50,7 +51,7 @@ The Simple Secure Chat example can be interacted with through the Serial Monitor
 
 ## ⚡️ MeshCore Flasher
 
-We have prebuilt firmware ready to flash on supported devices.
+The upstream MeshCore ecosystem provides prebuilt firmware ready to flash on supported devices.
 
 - Launch https://meshcore.io/flasher
 - Select a supported device
@@ -59,6 +60,8 @@ We have prebuilt firmware ready to flash on supported devices.
 - Once flashing is complete, you can connect with one of the MeshCore clients below.
 
 ## 📱 MeshCore Clients
+
+MeshCoreNG remains compatible with the upstream MeshCore client ecosystem.
 
 **Companion Firmware**
 
@@ -80,11 +83,18 @@ They can also be managed via LoRa in the mobile app by using the Remote Manageme
 
 ## 🛠 Hardware Compatibility
 
-MeshCore is designed for devices listed in the [MeshCore Flasher](https://meshcore.io/flasher)
+MeshCoreNG follows the MeshCore hardware model and is designed around devices listed in the upstream [MeshCore Flasher](https://meshcore.io/flasher).
+
+## Credits / Acknowledgements
+
+MeshCoreNG exists because of the work done by the MeshCore community.
+
+- [MeshCore](https://github.com/meshcore-dev/MeshCore) is the original project, protocol, firmware base, and ecosystem this repository builds on.
+- [MeshCore-Evo](https://github.com/mattzzw/MeshCore-Evo) inspired dense-mesh repeater improvements and practical experiments around flood advert traffic and repeater behavior.
 
 ## 📜 License
 
-MeshCore is open-source software released under the MIT License. You are free to use, modify, and distribute it for personal and commercial projects.
+MeshCoreNG is based on MeshCore and is distributed under the MIT License. You are free to use, modify, and distribute it for personal and commercial projects.
 
 ## Contributing
 
