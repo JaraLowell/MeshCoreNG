@@ -58,6 +58,8 @@ def load_all_release_assets(repo, token):
         if not releases:
             break
         for release in releases:
+            if release.get("draft"):
+                continue
             for asset in release.get("assets", []):
                 name = asset.get("name", "")
                 if name not in assets:  # keep first (newest) occurrence
