@@ -17,6 +17,14 @@ Start the server on a machine that the bridge repeaters can reach. This can be a
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+For monitoring during testing, start it with status and heartbeat timeouts:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-timeout 90 --log-packets
+```
+
+TCP bridge firmware sends a heartbeat to the server every 30 seconds. The server uses normal packets and heartbeats to update the client's `idle` timer. If a node loses power and no heartbeat arrives before `--client-timeout`, the server disconnects that stale node.
+
 For local testing, use this machine's LAN IP address as `bridge.server`. For internet use, use a public IP address or domain name.
 
 ## 2. Connect to the repeater
@@ -145,6 +153,24 @@ Check:
 - The TCP bridge server is running.
 - The server is reachable from the same WiFi network or over the internet.
 - A firewall allows TCP port `4200`.
+
+### Server still shows a node after power is removed
+
+Use the heartbeat-aware timeout:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-timeout 90
+```
+
+The status line shows `idle`, `hb_age`, and `hb`. If `idle` grows beyond `--client-timeout`, the server disconnects the stale TCP session.
+
+For single-node-per-IP LAN testing you can also use:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --replace-same-ip
+```
+
+Do not use `--replace-same-ip` when multiple bridge nodes may connect from the same public IP or NAT.
 
 ### The TCP bridge is not encrypted
 

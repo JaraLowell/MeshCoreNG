@@ -4,6 +4,8 @@
 
 The easiest way is the [MeshCoreNG web flasher](/flasher/) for ESP32 boards.
 
+The web flasher lets you choose the firmware type, board variant, and firmware release version. The newest release is selected by default, but older published versions remain available when release assets exist for that board.
+
 For nRF52, RP2040 and STM32 boards, download the firmware from [GitHub Releases](https://github.com/MichTronics/MeshCoreNG/releases) and use the platform's normal flashing method (UF2, ZIP, HEX).
 
 ## Connect a client

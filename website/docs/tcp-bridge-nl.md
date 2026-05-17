@@ -17,6 +17,14 @@ Start de server op een machine die bereikbaar is vanaf de bridge-repeaters. Dat 
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+Voor testen en monitoren kun je de server starten met statusregels en heartbeat-timeout:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-timeout 90 --log-packets
+```
+
+De TCP bridge firmware stuurt elke 30 seconden een heartbeat naar de server. De server gebruikt normale pakketten en heartbeats om de `idle` timer van de client bij te werken. Als een node stroom verliest en er geen heartbeat meer binnenkomt voor `--client-timeout`, verbreekt de server die oude verbinding.
+
 Gebruik bij lokaal testen het LAN-IP van deze machine als `bridge.server`. Gebruik bij internetgebruik een publiek IP-adres of domeinnaam.
 
 ## 2. Verbind met de repeater
@@ -145,6 +153,24 @@ Controleer:
 - De TCP bridge server draait.
 - De server is bereikbaar vanaf hetzelfde WiFi-netwerk of via internet.
 - Een firewall laat TCP poort `4200` door.
+
+### Server blijft een node tonen nadat de stroom eraf is
+
+Gebruik de heartbeat-timeout:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-timeout 90
+```
+
+De statusregel toont `idle`, `hb_age` en `hb`. Als `idle` groter wordt dan `--client-timeout`, verbreekt de server de oude TCP sessie.
+
+Voor lokaal testen met maximaal een node per IP kun je ook dit gebruiken:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --replace-same-ip
+```
+
+Gebruik `--replace-same-ip` niet als meerdere bridge nodes vanaf hetzelfde publieke IP of achter dezelfde NAT kunnen verbinden.
 
 ### TCP bridge is niet versleuteld
 
