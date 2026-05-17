@@ -5,7 +5,7 @@
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <LilyGoTLoraBoard.h>
 #include <helpers/radiolib/CustomSX1276Wrapper.h>
-#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/ESP32Board.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
@@ -14,7 +14,7 @@
 
 extern LilyGoTLoraBoard board;
 extern WRAPPER_CLASS radio_driver;
-extern AutoDiscoverRTCClock rtc_clock;
+extern ESP32RTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS

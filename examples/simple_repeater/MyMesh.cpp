@@ -1060,7 +1060,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 
   // bridge defaults
+#if defined(WITH_TCP_BRIDGE)
+  _prefs.bridge_enabled = 0;    // configure WiFi/server before enabling TCP bridge
+#else
   _prefs.bridge_enabled = 1;    // enabled
+#endif
   _prefs.bridge_delay   = 500;  // milliseconds
   _prefs.bridge_pkt_src = 0;    // logTx
   _prefs.bridge_baud = 115200;  // baud rate

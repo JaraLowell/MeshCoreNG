@@ -66,6 +66,18 @@
     "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh Watch13."
   },
   {
+    "env": "Generic_E22_sx1262_companion_radio_ble",
+    "name": "Generic E22 SX1262 Companion Radio (BLE)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Generic E22 SX1262 (ESP32)."
+  },
+  {
+    "env": "Generic_E22_sx1262_companion_radio_usb",
+    "name": "Generic E22 SX1262 Companion Radio (USB)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Generic E22 SX1262 (ESP32)."
+  },
+  {
     "env": "Generic_E22_sx1262_repeater",
     "name": "Generic E22 SX1262 Repeater",
     "chipFamily": "ESP32",
@@ -82,6 +94,18 @@
     "name": "Generic E22 SX1262 Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Generic E22 SX1262 (ESP32)."
+  },
+  {
+    "env": "Generic_E22_sx1268_companion_radio_ble",
+    "name": "Generic E22 SX1268 Companion Radio (BLE)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Generic E22 SX1268 (ESP32)."
+  },
+  {
+    "env": "Generic_E22_sx1268_companion_radio_usb",
+    "name": "Generic E22 SX1268 Companion Radio (USB)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_repeater",

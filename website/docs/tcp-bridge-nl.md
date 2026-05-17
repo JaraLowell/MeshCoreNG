@@ -46,11 +46,11 @@ meshcli -s /dev/ttyACM0 -r
 Voer deze commando's in via `meshcli`:
 
 ```text
+set bridge.enabled off
 set wifi.ssid MijnWiFiNaam
 set wifi.password MijnWiFiWachtwoord
 set bridge.server 192.168.1.123
 set bridge.port 4200
-set bridge.enabled on
 ```
 
 Gebruik in plaats van `192.168.1.123` het IP-adres of de hostname van jouw TCP bridge server.
@@ -73,6 +73,12 @@ Verbind daarna opnieuw:
 
 ```bash
 meshcli -s /dev/ttyACM0 -r
+```
+
+Zet daarna de bridge aan:
+
+```text
+set bridge.enabled on
 ```
 
 ## 5. Controleer de instellingen
@@ -132,6 +138,7 @@ Gebruik daarna de juiste poort met `meshcli -s <poort> -r`.
 
 Controleer:
 
+- Als de CLI traag of rommelig wordt tijdens configureren, voer `set bridge.enabled off` uit, reboot, en stel daarna eerst WiFi en server in voordat je de bridge weer aanzet.
 - De repeater is herstart na het instellen van WiFi.
 - `get bridge.enabled` staat op `on`.
 - `get bridge.server` en `get bridge.port` kloppen.

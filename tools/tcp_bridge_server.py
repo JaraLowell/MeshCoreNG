@@ -21,6 +21,7 @@ Requires Python 3.7+, no external dependencies.
 
 import asyncio
 import argparse
+import binascii
 import logging
 import struct
 import time
@@ -34,6 +35,8 @@ log = logging.getLogger("tcp_bridge")
 
 BRIDGE_MAGIC = 0xC03E
 MAX_PAYLOAD = 256   # MAX_TRANS_UNIT + 1
+LOG_PACKETS = False
+LOG_HEX_BYTES = 32
 
 connected_clients: set["BridgeClient"] = set()
 
@@ -43,7 +46,15 @@ def fletcher16(data: bytes) -> int:
     for b in data:
         s1 = (s1 + b) % 255
         s2 = (s2 + s1) % 255
-    return (s1 << 8) | s2
+    return (s2 << 8) | s1
+
+
+def payload_preview(payload: bytes) -> str:
+    shown = payload[:LOG_HEX_BYTES]
+    text = binascii.hexlify(shown, sep=" ").decode("ascii")
+    if len(payload) > len(shown):
+        text += " ..."
+    return text
 
 
 class BridgeClient:
@@ -108,6 +119,8 @@ class BridgeClient:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
             self.packets_tx += 1
+            if LOG_PACKETS:
+                log.info("%s: TX %d bytes: %s", self.addr, len(payload), payload_preview(payload))
             return True
         except Exception:
             return False
@@ -155,6 +168,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if payload is None:
                 continue
             client.packets_rx += 1
+            if LOG_PACKETS:
+                log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
             log.debug("%s: RX %d bytes → broadcasting to %d peers",
                       client.addr, len(payload), len(connected_clients) - 1)
             await broadcast(payload, sender=client)
@@ -178,7 +193,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MeshCore TCP bridge server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=4200, help="TCP port (default: 4200)")
+    parser.add_argument("--log-packets", action="store_true",
+                        help="Log every received and forwarded mesh payload")
+    parser.add_argument("--log-hex-bytes", type=int, default=32,
+                        help="Number of payload bytes to show in packet logs (default: 32)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Enable debug logging")
     args = parser.parse_args()
+
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+    LOG_PACKETS = args.log_packets
+    LOG_HEX_BYTES = max(0, args.log_hex_bytes)
 
     try:
         asyncio.run(main(args.host, args.port))
