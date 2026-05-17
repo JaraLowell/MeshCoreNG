@@ -264,7 +264,7 @@
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec T190 (ESP32)."
   },
   {
-    "env": "Heltec_T190_repeater_bridge_tcp_",
+    "env": "Heltec_T190_repeater_bridge_tcp",
     "name": "Heltec T190 Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec T190 (ESP32)."
@@ -972,7 +972,7 @@
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo TLora C6."
   },
   {
-    "env": "LilyGo_Tlora_C6_repeater_bridge_tcp_",
+    "env": "LilyGo_Tlora_C6_repeater_bridge_tcp",
     "name": "LilyGo T-LoRa C6 Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-LoRa C6 (ESP32-C6)."
@@ -1176,7 +1176,7 @@
     "description": "MeshCoreNG Repeater firmware for Meshimi (ESP32-C6)."
   },
   {
-    "env": "Meshimi_repeater_bridge_tcp_",
+    "env": "Meshimi_repeater_bridge_tcp",
     "name": "Meshimi Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Meshimi (ESP32-C6)."
@@ -1698,7 +1698,7 @@
     "description": "MeshCoreNG Repeater firmware for WHY2025 Badge (ESP32-C6)."
   },
   {
-    "env": "WHY2025_badge_repeater_bridge_tcp_",
+    "env": "WHY2025_badge_repeater_bridge_tcp",
     "name": "WHY2025 Badge Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for WHY2025 Badge (ESP32-C6)."
@@ -1788,7 +1788,7 @@
     "description": "MeshCoreNG RS232 Bridge firmware for Xiao ESP32-C6."
   },
   {
-    "env": "Xiao_C6_repeater_bridge_tcp_",
+    "env": "Xiao_C6_repeater_bridge_tcp",
     "name": "Seeed XIAO ESP32-C6 Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
