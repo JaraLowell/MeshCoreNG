@@ -20,6 +20,8 @@ Everything else stays the same. Existing MeshCore clients, apps and firmware kee
 - [Getting started](/docs/getting-started)
 - [Dense mesh](/docs/dense-mesh)
 - [Internet bridge](/docs/bridge)
+- [Setting up the WiFi TCP bridge](/docs/tcp-bridge)
+- [WiFi TCP bridge instellen](/docs/tcp-bridge-nl)
 - [Power saving](/docs/power-saving)
 - [CLI reference](/docs/cli)
 - [Flash firmware](/flasher/)
