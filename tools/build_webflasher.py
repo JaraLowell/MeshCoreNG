@@ -45,8 +45,8 @@ def github_request(url, token=None, accept="application/vnd.github+json"):
 
 
 def load_all_release_assets(repo, token):
-    """Return dict of asset_name → asset metadata, across ALL releases."""
-    assets = {}
+    """Return a list of release asset metadata across ALL releases."""
+    assets = []
     page = 1
     while True:
         url = f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}"
@@ -62,21 +62,23 @@ def load_all_release_assets(repo, token):
                 continue
             for asset in release.get("assets", []):
                 name = asset.get("name", "")
-                if name not in assets:  # keep first (newest) occurrence
-                    assets[name] = asset
+                item = dict(asset)
+                item["release_tag"] = release.get("tag_name", "")
+                item["release_name"] = release.get("name", "")
+                item["release_prerelease"] = bool(release.get("prerelease"))
+                item["release_published_at"] = release.get("published_at") or asset.get("updated_at", "")
+                assets.append(item)
         page += 1
     print(f"Collected {len(assets)} release assets total.", file=sys.stderr)
     return assets
 
 
-def find_asset_for_env(all_assets, env_name):
-    """Find a '*-merged.bin' asset matching env_name, or None."""
+def find_assets_for_env(all_assets, env_name):
+    """Find all '*-merged.bin' assets matching env_name, newest first."""
     pattern = re.compile(rf"^{re.escape(env_name)}-.+-merged\.bin$")
-    matches = [a for name, a in all_assets.items() if pattern.match(name)]
-    if not matches:
-        return None
-    matches.sort(key=lambda a: a.get("updated_at", ""))
-    return matches[-1]
+    matches = [a for a in all_assets if pattern.match(a.get("name", ""))]
+    matches.sort(key=lambda a: a.get("release_published_at") or a.get("updated_at", ""), reverse=True)
+    return matches
 
 
 def download_asset(asset, destination, token):
@@ -85,7 +87,7 @@ def download_asset(asset, destination, token):
         f.write(data)
 
 
-def write_manifest(board, firmware_name, version):
+def write_manifest(board, firmware_name, version, manifest_name):
     manifest = {
         "name": board["name"],
         "version": version,
@@ -97,11 +99,12 @@ def write_manifest(board, firmware_name, version):
             }
         ],
     }
-    manifest_path = FIRMWARE_DIR / board["env"] / "manifest.json"
+    manifest_path = FIRMWARE_DIR / board["env"] / manifest_name
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     with manifest_path.open("w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
+    return manifest_path
 
 
 def get_category(env_name):
@@ -130,26 +133,41 @@ def build_flasher(boards, all_assets):
 
     for board in boards:
         env_name = board["env"]
-        asset = find_asset_for_env(all_assets, env_name)
-        if asset is None:
+        assets = find_assets_for_env(all_assets, env_name)
+        if not assets:
             skipped.append(env_name)
             continue
 
-        # Determine version from asset's release tag
-        version = asset.get("updated_at", "release")[:10]
-
         board_dir = FIRMWARE_DIR / env_name
         board_dir.mkdir(parents=True, exist_ok=True)
-        firmware_name = asset["name"]
 
-        print(f"  Downloading {firmware_name} ...", file=sys.stderr)
-        download_asset(asset, board_dir / firmware_name, args_token)
-        write_manifest(board, firmware_name, version)
+        releases = []
+        for asset in assets:
+            firmware_name = asset["name"]
+            version = asset.get("release_tag") or asset.get("updated_at", "release")[:10]
+            manifest_name = f"{firmware_name}.manifest.json"
+
+            print(f"  Downloading {firmware_name} ...", file=sys.stderr)
+            download_asset(asset, board_dir / firmware_name, args_token)
+            write_manifest(board, firmware_name, version, manifest_name)
+
+            releases.append({
+                "version": version,
+                "name": asset.get("release_name") or version,
+                "published_at": asset.get("release_published_at") or asset.get("updated_at", ""),
+                "prerelease": bool(asset.get("release_prerelease")),
+                "firmware": firmware_name,
+                "manifest": f"./firmware/{env_name}/{manifest_name}",
+            })
+
+        latest = releases[0]
 
         published.append({
             **board,
             "category": get_category(env_name),
-            "manifest": f"./firmware/{env_name}/manifest.json",
+            "version": latest["version"],
+            "manifest": latest["manifest"],
+            "releases": releases,
         })
 
     with (SITE_FLASHER / "boards.json").open("w", encoding="utf-8") as f:
