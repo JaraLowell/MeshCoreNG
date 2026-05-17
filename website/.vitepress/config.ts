@@ -3,13 +3,13 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'MeshCoreNG',
   description: 'Next-generation LoRa mesh firmware — smarter repeaters for denser networks',
-  base: '/',
+  base: '/MeshCoreNG/',
 
   // /flasher/ is a static HTML page in public/ — not a VitePress page.
   ignoreDeadLinks: [/\/flasher\//],
 
   head: [
-    ['link', { rel: 'icon', href: '/favicon.svg' }],
+    ['link', { rel: 'icon', href: '/MeshCoreNG/favicon.svg' }],
   ],
 
   themeConfig: {
@@ -17,7 +17,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Docs',     link: '/docs/' },
-      { text: 'Flash',    link: '/flasher/', target: '_self' },
+      { text: 'Flash',    link: '/MeshCoreNG/flasher/', target: '_self' },
       { text: 'GitHub',   link: 'https://github.com/MichTronics/MeshCoreNG' },
       { text: 'Releases', link: 'https://github.com/MichTronics/MeshCoreNG/releases' },
     ],
