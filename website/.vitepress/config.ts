@@ -18,6 +18,7 @@ export default defineConfig({
     nav: [
       { text: 'Docs',     link: '/docs/' },
       { text: 'Flash',    link: '/flasher/', target: '_self' },
+      { text: 'CLI App',  link: '/docs/cli-app' },
       { text: 'GitHub',   link: 'https://github.com/MichTronics/MeshCoreNG' },
       { text: 'Releases', link: 'https://github.com/MichTronics/MeshCoreNG/releases' },
     ],
@@ -33,6 +34,7 @@ export default defineConfig({
             { text: 'Internet bridge', link: '/docs/bridge' },
             { text: 'Power saving',    link: '/docs/power-saving' },
             { text: 'CLI reference',   link: '/docs/cli' },
+            { text: 'CLI App',         link: '/docs/cli-app' },
           ],
         },
       ],

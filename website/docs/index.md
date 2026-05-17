@@ -24,6 +24,7 @@ Everything else stays the same. Existing MeshCore clients, apps and firmware kee
 - [WiFi TCP bridge instellen](/docs/tcp-bridge-nl)
 - [Power saving](/docs/power-saving)
 - [CLI reference](/docs/cli)
+- [CLI App — downloads & releases](/docs/cli-app)
 - [Flash firmware](/flasher/)
 - [GitHub repository](https://github.com/MichTronics/MeshCoreNG)
 - [MeshCore upstream docs](https://docs.meshcore.io)
