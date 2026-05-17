@@ -17,7 +17,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Docs',     link: '/docs/' },
-      { text: 'Flash',    link: '/MeshCoreNG/flasher/', target: '_self' },
+      { text: 'Flash',    link: '/flasher/', target: '_self' },
       { text: 'GitHub',   link: 'https://github.com/MichTronics/MeshCoreNG' },
       { text: 'Releases', link: 'https://github.com/MichTronics/MeshCoreNG/releases' },
     ],
