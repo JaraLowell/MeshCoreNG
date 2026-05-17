@@ -18,6 +18,12 @@
     "description": "MeshCoreNG Repeater firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
+    "env": "Ebyte_EoRa-S3_Repeater_bridge_rs232",
+    "name": "Ebyte EoRa-S3 RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ebyte EoRa-S3."
+  },
+  {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_tcp",
     "name": "Ebyte EoRa-S3 Repeater (TCP Bridge)",
     "chipFamily": "ESP32-S3",
@@ -34,6 +40,30 @@
     "name": "Ebyte EoRa-S3 Terminal Chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for Ebyte EoRa-S3 (ESP32-S3)."
+  },
+  {
+    "env": "GAT562_30S_Mesh_Kit_repeater_bridge_rs232",
+    "name": "GAT562 30S Mesh Kit RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for GAT562 30S Mesh Kit."
+  },
+  {
+    "env": "GAT562_Mesh_EVB_Pro_repeater_bridge_rs232",
+    "name": "GAT562 Mesh EVB Pro RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh EVB Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Tracker_Pro_repeater_bridge_rs232",
+    "name": "GAT562 Mesh Tracker Pro RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh Tracker Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Watch13_repeater_bridge_rs232",
+    "name": "GAT562 Mesh Watch13 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh Watch13."
   },
   {
     "env": "Generic_E22_sx1262_repeater",
@@ -204,6 +234,12 @@
     "description": "MeshCoreNG Room Server firmware for Heltec E290 (ESP32)."
   },
   {
+    "env": "Heltec_mesh_solar_repeater_bridge_rs232",
+    "name": "Heltec Mesh Solar RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec Mesh Solar."
+  },
+  {
     "env": "Heltec_T190_companion_radio_ble_",
     "name": "Heltec T190 Companion Radio (BLE)",
     "chipFamily": "ESP32",
@@ -268,6 +304,12 @@
     "name": "Heltec Tracker V2 Repeater (ESPNow Bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec Tracker V2 (ESP32)."
+  },
+  {
+    "env": "heltec_tracker_v2_repeater_bridge_rs232",
+    "name": "Heltec Wireless Tracker v2 RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec Wireless Tracker v2."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_tcp",
@@ -438,6 +480,12 @@
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
+    "env": "heltec_v4_repeater_bridge_rs232",
+    "name": "Heltec LoRa32 v4 OLED RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec LoRa32 v4 OLED."
+  },
+  {
     "env": "heltec_v4_repeater_bridge_tcp",
     "name": "Heltec LoRa V4 Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
@@ -490,6 +538,12 @@
     "name": "Heltec LoRa V4 TFT Repeater (ESPNow Bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V4 TFT (ESP32)."
+  },
+  {
+    "env": "heltec_v4_tft_repeater_bridge_rs232",
+    "name": "Heltec LoRa32 v4 TFT RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec LoRa32 v4 TFT."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_tcp",
@@ -642,6 +696,78 @@
     "description": "MeshCoreNG Sensor firmware for Heltec WSL3 (ESP32)."
   },
   {
+    "env": "ikoka_handheld_nrf_e22_22dbm_repeater_bridge_rs232",
+    "name": "Ikoka Handheld nRF E22 22dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 22dBm."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_repeater_bridge_rs232",
+    "name": "Ikoka Handheld nRF E22 30dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 30dBm."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_33dbm_repeater_bridge_rs232",
+    "name": "Ikoka Handheld nRF E22 33dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 33dBm."
+  },
+  {
+    "env": "ikoka_nano_nrf_22dbm_repeater_bridge_rs232",
+    "name": "Ikoka Nano nRF 22dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 22dBm."
+  },
+  {
+    "env": "ikoka_nano_nrf_30dbm_repeater_bridge_rs232",
+    "name": "Ikoka Nano nRF 30dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 30dBm."
+  },
+  {
+    "env": "ikoka_nano_nrf_33dbm_repeater_bridge_rs232",
+    "name": "Ikoka Nano nRF 33dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 33dBm."
+  },
+  {
+    "env": "ikoka_stick_nrf_22dbm_repeater_bridge_rs232",
+    "name": "Ikoka Stick nRF 22dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 22dBm."
+  },
+  {
+    "env": "ikoka_stick_nrf_30dbm_repeater_bridge_rs232",
+    "name": "Ikoka Stick nRF 30dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 30dBm."
+  },
+  {
+    "env": "ikoka_stick_nrf_33dbm_repeater_bridge_rs232",
+    "name": "Ikoka Stick nRF 33dBm RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 33dBm."
+  },
+  {
+    "env": "KeepteenLT1_repeater_bridge_rs232",
+    "name": "KeepteenLT1 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for KeepteenLT1."
+  },
+  {
+    "env": "LilyGo_T-Echo-Lite_repeater_bridge_rs232",
+    "name": "LilyGo T-Echo Lite RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Echo Lite."
+  },
+  {
+    "env": "LilyGo_T-Echo_repeater_bridge_rs232",
+    "name": "LilyGo T-Echo RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Echo."
+  },
+  {
     "env": "LilyGo_T3S3_sx1262_companion_radio_ble",
     "name": "LilyGo T3S3 SX1262 Companion Radio (BLE)",
     "chipFamily": "ESP32-S3",
@@ -756,6 +882,12 @@
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
+    "env": "LilyGo_TBeam_1W_repeater_bridge_rs232",
+    "name": "LilyGo T-Beam 1W RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Beam 1W."
+  },
+  {
     "env": "LilyGo_TBeam_1W_repeater_bridge_tcp",
     "name": "LilyGo T-Beam 1W Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
@@ -786,6 +918,12 @@
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Deck (ESP32)."
   },
   {
+    "env": "LilyGo_TDeck_repeater_bridge_rs232",
+    "name": "LilyGo T-Deck RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Deck."
+  },
+  {
     "env": "LilyGo_TDeck_repeater_bridge_tcp",
     "name": "LilyGo T-Deck Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
@@ -810,6 +948,12 @@
     "description": "MeshCoreNG Repeater firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
+    "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_rs232",
+    "name": "LilyGo T-ETH Elite RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-ETH Elite."
+  },
+  {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_tcp",
     "name": "LilyGo T-ETH Elite SX1262 Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
@@ -832,6 +976,12 @@
     "name": "LilyGo T-LoRa C6 Repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-LoRa C6 (ESP32-C6)."
+  },
+  {
+    "env": "LilyGo_Tlora_C6_repeater_bridge_rs232_",
+    "name": "LilyGo TLora C6 RS232 Bridge",
+    "chipFamily": "ESP32-C6",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo TLora C6."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_tcp_",
@@ -918,6 +1068,12 @@
     "description": "MeshCoreNG Repeater firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
+    "env": "M5Stack_Unit_C6L_repeater_bridge_rs232",
+    "name": "M5Stack Unit C6L RS232 Bridge",
+    "chipFamily": "ESP32-C6",
+    "description": "MeshCoreNG RS232 Bridge firmware for M5Stack Unit C6L."
+  },
+  {
     "env": "M5Stack_Unit_C6L_repeater_bridge_tcp",
     "name": "M5Stack Unit C6L Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
@@ -928,6 +1084,12 @@
     "name": "M5Stack Unit C6L Room Server",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Room Server firmware for M5Stack Unit C6L (ESP32-C6)."
+  },
+  {
+    "env": "Mesh_pocket_repeater_bridge_rs232",
+    "name": "Heltec Mesh Pocket RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec Mesh Pocket."
   },
   {
     "env": "Meshadventurer_sx1262_companion_radio_ble",
@@ -1032,6 +1194,24 @@
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Meshimi (ESP32-C6)."
   },
   {
+    "env": "Meshtiny_repeater_bridge_rs232",
+    "name": "Meshtiny RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Meshtiny."
+  },
+  {
+    "env": "Minewsemi_me25ls01_repeater_bridge_rs232",
+    "name": "Minewsemi ME25LS01 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Minewsemi ME25LS01."
+  },
+  {
+    "env": "Nano_G2_Ultra_repeater_bridge_rs232",
+    "name": "Nano G2 Ultra RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Nano G2 Ultra."
+  },
+  {
     "env": "nibble_screen_connect_companion_radio_ble",
     "name": "Nibble Screen Connect Companion Radio (BLE)",
     "chipFamily": "ESP32",
@@ -1062,6 +1242,12 @@
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Nibble Screen Connect (ESP32)."
   },
   {
+    "env": "nibble_screen_connect_repeater_bridge_rs232",
+    "name": "Nibble Screen Connect RS232 Bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Nibble Screen Connect."
+  },
+  {
     "env": "nibble_screen_connect_repeater_bridge_tcp",
     "name": "Nibble Screen Connect Repeater (TCP Bridge)",
     "chipFamily": "ESP32",
@@ -1078,6 +1264,18 @@
     "name": "Nibble Screen Connect Terminal Chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Nibble Screen Connect (ESP32)."
+  },
+  {
+    "env": "PicoW_repeater_bridge_rs232",
+    "name": "Raspberry Pi Pico W RS232 Bridge",
+    "chipFamily": "RP2040",
+    "description": "MeshCoreNG RS232 Bridge firmware for Raspberry Pi Pico W."
+  },
+  {
+    "env": "R1Neo_repeater_bridge_rs232",
+    "name": "Muziworks R1 Neo RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Muziworks R1 Neo."
   },
   {
     "env": "RAK_3112_companion_radio_ble",
@@ -1138,6 +1336,30 @@
     "name": "RAK3112 Terminal Chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for RAK3112 (ESP32)."
+  },
+  {
+    "env": "RAK_3401_repeater_bridge_rs232",
+    "name": "RAK3401 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for RAK3401."
+  },
+  {
+    "env": "RAK_3x72_repeater_bridge_rs232",
+    "name": "RAK3x72 RS232 Bridge",
+    "chipFamily": "STM32",
+    "description": "MeshCoreNG RS232 Bridge firmware for RAK3x72."
+  },
+  {
+    "env": "RAK_WisMesh_Tag_repeater_bridge_rs232",
+    "name": "RAK WisMesh Tag RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for RAK WisMesh Tag."
+  },
+  {
+    "env": "SenseCap_Solar_repeater_bridge_rs232",
+    "name": "SenseCap Solar RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for SenseCap Solar."
   },
   {
     "env": "SenseCapIndicator-ESPNow_comp_radio_usb",
@@ -1204,6 +1426,12 @@
     "name": "Station G2 Room Server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Station G2 (ESP32)."
+  },
+  {
+    "env": "t1000e_repeater_bridge_rs232",
+    "name": "T1000-E RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for T1000-E."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_companion_radio_ble",
@@ -1338,6 +1566,12 @@
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Tenstar C3 SX1268 (ESP32-C3)."
   },
   {
+    "env": "ThinkNode_M1_Repeater_bridge_rs232",
+    "name": "ThinkNode M1 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M1."
+  },
+  {
     "env": "ThinkNode_M2_companion_radio_ble",
     "name": "ThinkNode M2 Companion Radio (BLE)",
     "chipFamily": "ESP32",
@@ -1390,6 +1624,12 @@
     "name": "ThinkNode M2 Terminal Chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for ThinkNode M2 (ESP32)."
+  },
+  {
+    "env": "ThinkNode_M3_Repeater_bridge_rs232",
+    "name": "ThinkNode M3 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M5_companion_radio_ble",
@@ -1446,6 +1686,18 @@
     "description": "MeshCoreNG Terminal Chat firmware for ThinkNode M5 (ESP32)."
   },
   {
+    "env": "ThinkNode_M6_Repeater_bridge_rs232",
+    "name": "ThinkNode M6 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M6."
+  },
+  {
+    "env": "Tiny_Relay_repeater_bridge_rs232",
+    "name": "Tiny Relay RS232 Bridge",
+    "chipFamily": "STM32",
+    "description": "MeshCoreNG RS232 Bridge firmware for Tiny Relay."
+  },
+  {
     "env": "WHY2025_badge_companion_radio_ble_",
     "name": "WHY2025 Badge Companion Radio (BLE)",
     "chipFamily": "ESP32-C6",
@@ -1462,6 +1714,30 @@
     "name": "WHY2025 Badge Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for WHY2025 Badge (ESP32-C6)."
+  },
+  {
+    "env": "wio-e5-mini_repeater_bridge_rs232",
+    "name": "Wio-E5 Mini RS232 Bridge",
+    "chipFamily": "STM32",
+    "description": "MeshCoreNG RS232 Bridge firmware for Wio-E5 Mini."
+  },
+  {
+    "env": "wio_wm1110_repeater_bridge_rs232",
+    "name": "Wio WM1110 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Wio WM1110."
+  },
+  {
+    "env": "WioTrackerL1_repeater_bridge_rs232",
+    "name": "Wio Tracker L1 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Wio Tracker L1."
+  },
+  {
+    "env": "WioTrackerL1Eink_repeater_bridge_rs232",
+    "name": "Wio Tracker L1 E-Ink RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Wio Tracker L1 E-Ink."
   },
   {
     "env": "Xiao_C3_companion_radio_ble",
@@ -1488,6 +1764,12 @@
     "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
+    "env": "Xiao_C3_repeater_bridge_rs232",
+    "name": "Xiao ESP32-C3 RS232 Bridge",
+    "chipFamily": "ESP32-C3",
+    "description": "MeshCoreNG RS232 Bridge firmware for Xiao ESP32-C3."
+  },
+  {
     "env": "Xiao_C3_repeater_bridge_tcp",
     "name": "Seeed XIAO ESP32-C3 Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C3",
@@ -1512,10 +1794,28 @@
     "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
   {
+    "env": "Xiao_C6_repeater_bridge_rs232",
+    "name": "Xiao ESP32-C6 RS232 Bridge",
+    "chipFamily": "ESP32-C6",
+    "description": "MeshCoreNG RS232 Bridge firmware for Xiao ESP32-C6."
+  },
+  {
     "env": "Xiao_C6_repeater_bridge_tcp_",
     "name": "Seeed XIAO ESP32-C6 Repeater (TCP Bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
+  },
+  {
+    "env": "Xiao_nrf52_repeater_bridge_rs232",
+    "name": "Xiao nRF52 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Xiao nRF52."
+  },
+  {
+    "env": "Xiao_rp2040_repeater_bridge_rs232",
+    "name": "Xiao RP2040 RS232 Bridge",
+    "chipFamily": "RP2040",
+    "description": "MeshCoreNG RS232 Bridge firmware for Xiao RP2040."
   },
   {
     "env": "Xiao_S3_WIO_companion_radio_ble",
