@@ -696,22 +696,10 @@
     "description": "MeshCoreNG Sensor firmware for Heltec WSL3 (ESP32)."
   },
   {
-    "env": "ikoka_handheld_nrf_e22_22dbm_repeater_bridge_rs232",
-    "name": "Ikoka Handheld nRF E22 22dBm RS232 Bridge",
-    "chipFamily": "nRF52",
-    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 22dBm."
-  },
-  {
     "env": "ikoka_handheld_nrf_e22_30dbm_repeater_bridge_rs232",
     "name": "Ikoka Handheld nRF E22 30dBm RS232 Bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 30dBm."
-  },
-  {
-    "env": "ikoka_handheld_nrf_e22_33dbm_repeater_bridge_rs232",
-    "name": "Ikoka Handheld nRF E22 33dBm RS232 Bridge",
-    "chipFamily": "nRF52",
-    "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 33dBm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_repeater_bridge_rs232",
