@@ -117,6 +117,10 @@ public:
     // no op by default
   }
 
+  virtual void formatTcpBridgeStatusReply(char *reply) {
+    reply[0] = 0;
+  }
+
   virtual void setBridgeState(bool enable) {
     // no op by default
   };

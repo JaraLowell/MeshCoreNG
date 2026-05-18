@@ -207,4 +207,19 @@ void TCPBridge::onPacketReceived(mesh::Packet *packet) {
   handleReceivedPacket(packet);
 }
 
+void TCPBridge::getStatusStr(char *reply) const {
+  bool wifiOk = (WiFi.status() == WL_CONNECTED);
+  bool serverOk = _client.connected();
+
+  if (!wifiOk) {
+    sprintf(reply, "> WiFi: disconnected | Server: disconnected");
+    return;
+  }
+
+  char ip[16];
+  WiFi.localIP().toString().toCharArray(ip, sizeof(ip));
+  sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s",
+          ip, WiFi.RSSI(), serverOk ? "connected" : "disconnected");
+}
+
 #endif

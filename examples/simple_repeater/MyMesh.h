@@ -297,6 +297,12 @@ public:
   }
 #endif
 
+#if defined(WITH_TCP_BRIDGE)
+  void formatTcpBridgeStatusReply(char *reply) override {
+    bridge.getStatusStr(reply);
+  }
+#endif
+
   // To check if there is pending work
   bool isBridgeActive() const;
   bool hasOutboundWork() const;

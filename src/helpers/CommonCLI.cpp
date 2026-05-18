@@ -962,6 +962,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->wifi_ssid);
   } else if (memcmp(config, "wifi.password", 13) == 0) {
     strcpy(reply, "> ***");
+  } else if (memcmp(config, "wifi.status", 11) == 0) {
+    _callbacks->formatTcpBridgeStatusReply(reply);
   } else if (memcmp(config, "bridge.server", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_server);
   } else if (memcmp(config, "bridge.port", 11) == 0) {

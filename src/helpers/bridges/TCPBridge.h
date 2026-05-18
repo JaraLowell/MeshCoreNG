@@ -39,6 +39,7 @@ public:
   void loop() override;
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
+  void getStatusStr(char *reply) const;
 
 private:
   static constexpr uint16_t TCP_OVERHEAD =
