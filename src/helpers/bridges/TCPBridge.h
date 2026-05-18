@@ -45,22 +45,31 @@ private:
   static constexpr uint16_t TCP_OVERHEAD =
       BRIDGE_MAGIC_SIZE + BRIDGE_LENGTH_SIZE + BRIDGE_CHECKSUM_SIZE;
   static constexpr uint16_t MAX_TCP_PACKET_SIZE = (MAX_TRANS_UNIT + 1) + TCP_OVERHEAD;
-  static constexpr uint32_t RECONNECT_INTERVAL_MS = 5000;
-  static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000;
-  static constexpr uint32_t HEARTBEAT_INTERVAL_MS = 30000;
-  static constexpr uint8_t CONTROL_TYPE_HEARTBEAT = 0x01;
+  static constexpr uint32_t RECONNECT_INTERVAL_MS    = 5000;
+  static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS  = 15000;
+  static constexpr uint32_t SERVER_CONNECT_TIMEOUT_MS = 3000;
+  static constexpr uint32_t HEARTBEAT_INTERVAL_MS    = 30000;
+  static constexpr uint8_t  CONTROL_TYPE_HEARTBEAT   = 0x01;
 
-  uint8_t _rx_buffer[MAX_TCP_PACKET_SIZE];
-  uint16_t _rx_buffer_pos = 0;
+  enum class State : uint8_t {
+    IDLE,           // waiting for reconnect timer
+    WIFI_WAIT,      // WiFi.begin() called, polling for connection
+    SERVER_WAIT,    // calling _client.connect() (brief blocking)
+    RUNNING,        // fully connected, normal operation
+  };
+
+  State    _state          = State::IDLE;
   uint32_t _last_reconnect_ms = 0;
+  uint32_t _wifi_start_ms  = 0;
   uint32_t _last_heartbeat_ms = 0;
 
-  void tryConnect();
-  bool connectWifi();
-  bool connectServer();
+  uint8_t  _rx_buffer[MAX_TCP_PACKET_SIZE];
+  uint16_t _rx_buffer_pos = 0;
+
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   void sendHeartbeat();
   bool isControlPayload(const uint8_t *payload, uint16_t len) const;
+  void readIncoming();
 };
 
 #endif

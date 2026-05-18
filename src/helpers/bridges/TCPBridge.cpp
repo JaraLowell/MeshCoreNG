@@ -11,52 +11,12 @@ static WiFiClient _client;
 TCPBridge::TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc) {}
 
-bool TCPBridge::connectWifi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
-  if (_prefs->wifi_ssid[0] == '\0') {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: wifi.ssid not configured\n");
-    return false;
-  }
-  BRIDGE_DEBUG_PRINTLN("TCP bridge: connecting to WiFi '%s'...\n", _prefs->wifi_ssid);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(_prefs->wifi_ssid, _prefs->wifi_password);
-
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    if (millis() - start > WIFI_CONNECT_TIMEOUT_MS) {
-      BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connect timeout\n");
-      return false;
-    }
-    delay(200);
-  }
-  BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
-  return true;
-}
-
-bool TCPBridge::connectServer() {
-  if (_prefs->bridge_server[0] == '\0') {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: bridge.server not configured\n");
-    return false;
-  }
-  BRIDGE_DEBUG_PRINTLN("TCP bridge: connecting to %s:%d...\n", _prefs->bridge_server, _prefs->bridge_port);
-  if (_client.connect(_prefs->bridge_server, _prefs->bridge_port)) {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
-    _last_heartbeat_ms = 0;
-    return true;
-  }
-  BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
-  return false;
-}
-
-void TCPBridge::tryConnect() {
-  if (connectWifi()) {
-    connectServer();
-  }
-}
-
 void TCPBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: starting...\n");
-  tryConnect();
+  _state = State::IDLE;
+  _rx_buffer_pos = 0;
+  _last_reconnect_ms = millis() - RECONNECT_INTERVAL_MS;  // connect on first loop()
+  _last_heartbeat_ms = 0;
   _initialized = true;
 }
 
@@ -64,30 +24,87 @@ void TCPBridge::end() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: stopping...\n");
   _client.stop();
   WiFi.disconnect(true);
+  _state = State::IDLE;
   _initialized = false;
 }
 
 void TCPBridge::loop() {
   if (!_initialized) return;
 
-  // Reconnect if needed
-  if (!_client.connected()) {
-    uint32_t now = millis();
-    if (now - _last_reconnect_ms >= RECONNECT_INTERVAL_MS) {
+  uint32_t now = millis();
+
+  switch (_state) {
+
+    case State::IDLE:
+      if (now - _last_reconnect_ms < RECONNECT_INTERVAL_MS) return;
       _last_reconnect_ms = now;
       _rx_buffer_pos = 0;
-      tryConnect();
-    }
-    return;
-  }
 
-  uint32_t now = millis();
-  if (_last_heartbeat_ms == 0 || now - _last_heartbeat_ms >= HEARTBEAT_INTERVAL_MS) {
-    sendHeartbeat();
-    _last_heartbeat_ms = now;
-  }
+      if (_prefs->wifi_ssid[0] == '\0') return;
 
-  // Read incoming bytes and assemble packets (same state machine as RS232Bridge)
+      if (WiFi.status() == WL_CONNECTED) {
+        _state = State::SERVER_WAIT;
+      } else {
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(_prefs->wifi_ssid, _prefs->wifi_password);
+        _wifi_start_ms = now;
+        _state = State::WIFI_WAIT;
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: connecting to WiFi '%s'...\n", _prefs->wifi_ssid);
+      }
+      break;
+
+    case State::WIFI_WAIT:
+      if (WiFi.status() == WL_CONNECTED) {
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connected, IP=%s\n",
+                             WiFi.localIP().toString().c_str());
+        _state = State::SERVER_WAIT;
+      } else if (now - _wifi_start_ms >= WIFI_CONNECT_TIMEOUT_MS) {
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connect timeout\n");
+        WiFi.disconnect(false);
+        _state = State::IDLE;
+        _last_reconnect_ms = now;
+      }
+      break;
+
+    case State::SERVER_WAIT:
+      if (_prefs->bridge_server[0] == '\0') {
+        _state = State::IDLE;
+        return;
+      }
+      BRIDGE_DEBUG_PRINTLN("TCP bridge: connecting to %s:%d...\n",
+                           _prefs->bridge_server, _prefs->bridge_port);
+      if (_client.connect(_prefs->bridge_server, _prefs->bridge_port,
+                          SERVER_CONNECT_TIMEOUT_MS)) {
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
+        _last_heartbeat_ms = 0;
+        _state = State::RUNNING;
+      } else {
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
+        _state = State::IDLE;
+        _last_reconnect_ms = now;
+      }
+      break;
+
+    case State::RUNNING:
+      if (!_client.connected()) {
+        BRIDGE_DEBUG_PRINTLN("TCP bridge: connection lost\n");
+        _client.stop();
+        _state = State::IDLE;
+        _last_reconnect_ms = now - RECONNECT_INTERVAL_MS;  // retry soon
+        return;
+      }
+
+      if (_last_heartbeat_ms == 0 || now - _last_heartbeat_ms >= HEARTBEAT_INTERVAL_MS) {
+        sendHeartbeat();
+        _last_heartbeat_ms = now;
+      }
+
+      readIncoming();
+      break;
+  }
+}
+
+void TCPBridge::readIncoming() {
   while (_client.available()) {
     uint8_t b = (uint8_t)_client.read();
 
@@ -114,15 +131,18 @@ void TCPBridge::loop() {
         }
 
         if (_rx_buffer_pos == len + TCP_OVERHEAD) {
-          uint16_t received_checksum = (_rx_buffer[4 + len] << 8) | _rx_buffer[5 + len];
+          uint16_t received_checksum =
+              (_rx_buffer[4 + len] << 8) | _rx_buffer[5 + len];
 
           if (validateChecksum(_rx_buffer + 4, len, received_checksum)) {
             if (isControlPayload(_rx_buffer + 4, len)) {
-              BRIDGE_DEBUG_PRINTLN("TCP bridge: RX control len=%d crc=0x%04x\n", len, received_checksum);
+              BRIDGE_DEBUG_PRINTLN("TCP bridge: RX control len=%d crc=0x%04x\n",
+                                   len, received_checksum);
               _rx_buffer_pos = 0;
               continue;
             }
-            BRIDGE_DEBUG_PRINTLN("TCP bridge: RX len=%d crc=0x%04x\n", len, received_checksum);
+            BRIDGE_DEBUG_PRINTLN("TCP bridge: RX len=%d crc=0x%04x\n", len,
+                                 received_checksum);
             mesh::Packet *pkt = _mgr->allocNew();
             if (pkt) {
               if (pkt->readFrom(_rx_buffer + 4, len)) {
@@ -135,7 +155,8 @@ void TCPBridge::loop() {
               BRIDGE_DEBUG_PRINTLN("TCP bridge: RX failed to allocate packet\n");
             }
           } else {
-            BRIDGE_DEBUG_PRINTLN("TCP bridge: RX checksum mismatch, rcv=0x%04x\n", received_checksum);
+            BRIDGE_DEBUG_PRINTLN("TCP bridge: RX checksum mismatch, rcv=0x%04x\n",
+                                 received_checksum);
           }
           _rx_buffer_pos = 0;
         }
@@ -181,12 +202,13 @@ void TCPBridge::sendHeartbeat() {
 }
 
 bool TCPBridge::isControlPayload(const uint8_t *payload, uint16_t len) const {
-  return len >= 5 && payload[0] == 'M' && payload[1] == 'C' && payload[2] == 'N' && payload[3] == 'G';
+  return len >= 5 && payload[0] == 'M' && payload[1] == 'C' &&
+         payload[2] == 'N' && payload[3] == 'G';
 }
 
 void TCPBridge::sendPacket(mesh::Packet *packet) {
   if (!_initialized || !packet) return;
-  if (!_client.connected()) return;
+  if (_state != State::RUNNING) return;
 
   if (!_seen_packets.hasSeen(packet)) {
     uint8_t payload[MAX_TRANS_UNIT + 1];
@@ -209,17 +231,21 @@ void TCPBridge::onPacketReceived(mesh::Packet *packet) {
 
 void TCPBridge::getStatusStr(char *reply) const {
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
-  bool serverOk = _client.connected();
+  bool serverOk = (_state == State::RUNNING);
 
   if (!wifiOk) {
-    sprintf(reply, "> WiFi: disconnected | Server: disconnected");
+    const char *stateStr = (_state == State::WIFI_WAIT) ? "connecting..." : "disconnected";
+    sprintf(reply, "> WiFi: %s | Server: disconnected", stateStr);
     return;
   }
 
   char ip[16];
   WiFi.localIP().toString().toCharArray(ip, sizeof(ip));
+  const char *serverStr = serverOk ? "connected"
+                        : (_state == State::SERVER_WAIT) ? "connecting..."
+                        : "disconnected";
   sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s",
-          ip, WiFi.RSSI(), serverOk ? "connected" : "disconnected");
+          ip, WiFi.RSSI(), serverStr);
 }
 
 #endif
