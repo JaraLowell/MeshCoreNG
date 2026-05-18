@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://raw.githubusercontent.com/meshcore-dev/flasher.meshcore.io/main/lib/esp32.js)",
+      "Bash(curl -s \"https://unpkg.com/esptool-js@0.6.0/bundle.js\")",
+      "Bash(curl -s \"https://unpkg.com/esptool-js@0.6.0\")",
+      "Bash(curl -sL https://raw.githubusercontent.com/meshcore-dev/flasher.meshcore.io/main/lib/esp32.js -o /home/michel/source/MeshCoreNG/website/public/flasher/esp32.js)"
+    ]
+  }
+}
