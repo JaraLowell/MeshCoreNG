@@ -45,7 +45,9 @@ void TCPBridge::loop() {
       if (WiFi.status() == WL_CONNECTED) {
         _state = State::SERVER_WAIT;
       } else {
+        WiFi.persistent(false);
         WiFi.mode(WIFI_STA);
+        WiFi.setSleep(false);
         WiFi.begin(_prefs->wifi_ssid, _prefs->wifi_password);
         _wifi_start_ms = now;
         _state = State::WIFI_WAIT;
