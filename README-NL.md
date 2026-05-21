@@ -198,6 +198,29 @@ De standaard is `off`. Dat is bewust zo, want veel repeaters zijn vaste relay- o
 
 Als je power saving aanzet, slaapt een repeater alleen wanneer er geen uitgaand werk klaarstaat. Bridge/WiFi-modus blokkeert slaap. ESP32-boards worden wakker via LoRa DIO1/timer waar dat ondersteund wordt. nRF52-boards gebruiken event/interrupt sleep.
 
+### 8. Nederlandse regio-database
+
+MeshCoreNG heeft nu een compacte Nederlandse regio-database, gegenereerd uit de MeshWiki-lijst met Nederlandse regio's.
+
+De database bevat 2484 Nederlandse plaatsen verdeeld over 12 provincies, met primaire en extra MeshCore regiocodes. De database wordt als statische data in de firmware-flash gecompileerd. Hij wordt dus niet in RAM geladen, gebruikt geen runtime JSON parsing, en gebruikt geen dynamische `String` of `std::vector` opslag.
+
+Dit is handig voor:
+
+- de juiste Nederlandse regiocode opzoeken via de CLI
+- companion apps die locatie-gebaseerde regioselectie willen aanbieden
+- toekomstige OTA updates, omdat de database bij compile-time opnieuw gegenereerd wordt en in de firmware image zit
+
+Voorbeelden:
+
+```text
+regiondb info
+regiondb provinces
+regiondb find gron
+regiondb get 45
+```
+
+Alle technische details staan in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
+
 ## Wat is bewust nog niet gedaan?
 
 We hebben nog geen automatische “AI mesh” gebouwd.
@@ -255,6 +278,16 @@ set bridge.server <hostnaam of IP>
 set bridge.port   4200
 set bridge.enabled on
 get bridge.type
+```
+
+**Nederlandse regio-database:**
+
+```text
+regiondb info
+regiondb provinces
+regiondb find <prefix>
+regiondb get <index>
+regiondb code <code_id>
 ```
 
 Meer CLI-uitleg staat in [docs/cli_commands.md](./docs/cli_commands.md).

@@ -45,3 +45,20 @@ powersaving on|off
 get power.stats
 clear power.stats
 ```
+
+### Dutch region database
+
+The Dutch region database is a generated, read-only lookup table stored in firmware flash. It can be used by the CLI or a companion app to find Dutch location region codes without loading a database into RAM.
+
+```
+regiondb                  — show database metadata
+regiondb info             — show entries, provinces, code count and source revision
+regiondb provinces        — list province abbreviations and counts
+regiondb find <prefix>    — find a location by name prefix
+regiondb get <index>      — show all codes for a location
+regiondb code <code_id>   — resolve an internal region-code ID
+```
+
+The full generated-format documentation is maintained in the repository:
+
+- [Dutch Region Database](https://github.com/MichTronics/MeshCoreNG/blob/main/docs/dutch_region_db.md)

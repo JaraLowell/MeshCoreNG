@@ -201,6 +201,29 @@ The default is `off`. That is intentional, because many repeaters are fixed rela
 
 When enabled, a repeater only sleeps when there is no outbound work waiting. Bridge/WiFi mode blocks sleep. ESP32 boards wake by LoRa DIO1/timer where supported. nRF52 boards use event/interrupt sleep.
 
+### 8. Dutch region database
+
+MeshCoreNG now includes a compact Dutch Region Database generated from the MeshWiki list of Dutch regions.
+
+It contains 2484 Dutch locations across 12 provinces, with primary and extra MeshCore region codes. The database is compiled into firmware flash as static data. It is not loaded into RAM, does not use runtime JSON parsing, and does not use dynamic `String` or `std::vector` storage.
+
+This is useful for:
+
+- looking up the correct Dutch region code from the CLI
+- helping companion apps offer location-based region selection
+- future OTA updates, because the database is regenerated at compile time and shipped inside the firmware image
+
+Example CLI commands:
+
+```text
+regiondb info
+regiondb provinces
+regiondb find gron
+regiondb get 45
+```
+
+Full details are in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
+
 ## What Have We Deliberately Not Done Yet?
 
 We have not built an automatic "AI mesh" yet.
@@ -258,6 +281,16 @@ set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.enabled on
 get bridge.type
+```
+
+**Dutch region database:**
+
+```text
+regiondb info
+regiondb provinces
+regiondb find <prefix>
+regiondb get <index>
+regiondb code <code_id>
 ```
 
 More CLI details are in [docs/cli_commands.md](./docs/cli_commands.md).

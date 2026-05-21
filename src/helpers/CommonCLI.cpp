@@ -391,6 +391,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           *(dp-1) = 0; // remove last CR
         }
       }
+    } else if (memcmp(command, "regiondb", 8) == 0) {
+      handleDutchRegionDbCmd(command, reply);
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
 #if ENV_INCLUDE_GPS == 1
@@ -1016,6 +1018,89 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #endif
   } else {
     sprintf(reply, "??: %s", config);
+  }
+}
+
+static char* appendCodeText(char* dp, const char* end, uint16_t code_id) {
+  const char* code = DutchRegionDb::codeText(code_id);
+  if (!code || dp >= end) return dp;
+  int written = snprintf(dp, end - dp, "%s%s", dp[-1] == ' ' ? "" : ",", code);
+  if (written <= 0) return dp;
+  return dp + min(written, (int)(end - dp));
+}
+
+void CommonCLI::handleDutchRegionDbCmd(char* command, char* reply) {
+  reply[0] = 0;
+
+  const char* parts[4];
+  int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
+  if (n == 1 || (n >= 2 && strcmp(parts[1], "info") == 0)) {
+    sprintf(reply, "nl-db entries=%u provinces=%u codes=%u rev=%u modified=%s",
+      DutchRegionDb::entryCount(),
+      DutchRegionDb::provinceCount(),
+      DutchRegionDb::regionCodeCount(),
+      DutchRegionDb::sourceRevision(),
+      DutchRegionDb::sourceModified());
+  } else if (n >= 2 && strcmp(parts[1], "provinces") == 0) {
+    char* dp = reply;
+    char* end = reply + 160;
+    for (uint16_t i = 1; i <= DutchRegionDb::provinceCount(); i++) {
+      const DutchRegionDbProvince* province = DutchRegionDb::provinceById(i);
+      if (province) {
+        int written = snprintf(dp, end - dp, "%s%s:%u", i == 1 ? "" : ",", province->abbr, DutchRegionDb::countByProvince(i));
+        if (written <= 0 || written >= end - dp) break;
+        dp += written;
+      }
+    }
+  } else if (n >= 3 && strcmp(parts[1], "code") == 0) {
+    uint16_t code_id = _atoi(parts[2]);
+    const char* code = DutchRegionDb::codeText(code_id);
+    if (code) {
+      sprintf(reply, "%u %s", code_id, code);
+    } else {
+      strcpy(reply, "Err - unknown code");
+    }
+  } else if (n >= 3 && strcmp(parts[1], "find") == 0) {
+    uint16_t start = n >= 4 ? _atoi(parts[3]) : 0;
+    int index = DutchRegionDb::findByNamePrefix(parts[2], start);
+    if (index >= 0) {
+      DutchRegionDbRecord record;
+      DutchRegionDb::readRecord(index, record);
+      const DutchRegionDbProvince* province = DutchRegionDb::provinceById(record.province_id);
+      const char* primary = DutchRegionDb::codeText(record.primary_region);
+      sprintf(reply, "%d %s [%s] %s +%u",
+        index,
+        record.name,
+        province ? province->abbr : "??",
+        primary ? primary : "-",
+        record.extra_count);
+    } else {
+      strcpy(reply, "Err - not found");
+    }
+  } else if (n >= 3 && strcmp(parts[1], "get") == 0) {
+    uint16_t index = _atoi(parts[2]);
+    DutchRegionDbEntry entry;
+    DutchRegionDbRecord record;
+    if (DutchRegionDb::readEntry(index, entry) && DutchRegionDb::readRecord(index, record)) {
+      const DutchRegionDbProvince* province = DutchRegionDb::provinceById(record.province_id);
+      char* dp = reply;
+      char* end = reply + 160;
+      int written = snprintf(dp, end - dp, "%u %s [%s] ",
+        index,
+        record.name,
+        province ? province->abbr : "??");
+      if (written > 0) {
+        dp += min(written, (int)(end - dp));
+        dp = appendCodeText(dp, end, entry.primary_region);
+        for (uint8_t i = 0; i < entry.extra_count && dp < end - 1; i++) {
+          dp = appendCodeText(dp, end, DutchRegionDb::extraRegionCode(entry, i));
+        }
+      }
+    } else {
+      strcpy(reply, "Err - not found");
+    }
+  } else {
+    strcpy(reply, "Err - use info, provinces, find, get, code");
   }
 }
 

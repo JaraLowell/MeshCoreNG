@@ -351,6 +351,33 @@ Byte 0: 0x14
 
 ## Channel Management
 
+### Dutch Region Database Lookup
+
+Companion apps can use the firmware CLI transport to query the Dutch Region Database. The database is compiled into firmware flash and is safe to query on low-memory devices because it does not allocate or parse JSON at runtime.
+
+Use this flow when offering Dutch region-code selection in an app:
+
+1. Send `regiondb info` and cache the `rev` and `modified` values.
+2. Use `regiondb find <prefix>` while the user searches.
+3. If another matching location is needed, repeat with `regiondb find <prefix> <next_index>`.
+4. Send `regiondb get <index>` after the user selects a location.
+5. Apply the returned region codes only after explicit user confirmation.
+
+Useful command responses:
+
+```text
+regiondb info
+nl-db entries=2484 provinces=12 codes=1611 rev=100 modified=2026-03-23T14:07:28Z
+
+regiondb find gron
+45 Groningen [gr] nl-grq +1
+
+regiondb get 45
+45 Groningen [gr] nl-grq,nl-gr-grq
+```
+
+The `regiondb` namespace is lookup-only. It does not modify the runtime region map. See [Dutch Region Database](./dutch_region_db.md) and [CLI Commands](./cli_commands.md#dutch-region-database) for details.
+
 ### Channel Types
 
 1. **Public Channel**

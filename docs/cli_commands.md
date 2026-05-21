@@ -15,7 +15,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [Routing](#routing)
   - [ACL](#acl)
   - [Region Management](#region-management-v110)
-    - [Region Examples](#region-examples)
+  - [Dutch Region Database](#dutch-region-database)
+  - [Region Examples](#region-examples)
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
@@ -858,6 +859,65 @@ Simple start advice:
 - `region`
 
 **Serial Only:** For firmware older than 1.12.0
+
+---
+
+### Dutch Region Database
+
+The Dutch region database is a read-only flash lookup table generated from MeshWiki. It does not consume heap memory and does not change the editable region map until a client chooses to apply a returned code. See [Dutch Region Database](./dutch_region_db.md) for the generated format and maintainer workflow.
+
+#### Database metadata
+**Usage:**
+- `regiondb`
+- `regiondb info`
+
+**Example response:**
+```
+nl-db entries=2484 provinces=12 codes=1611 rev=100 modified=2026-03-23T14:07:28Z
+```
+
+#### List province counts
+**Usage:**
+- `regiondb provinces`
+
+**Example response:**
+```
+gr:197,fr:413,dr:225,ov:178,fl:19,ge:330,ut:104,nh:238,zh:184,ze:126,nb:279,li:191
+```
+
+#### Find a Dutch location by name prefix
+**Usage:**
+- `regiondb find <prefix> [start_index]`
+
+**Example:**
+- `regiondb find gron`
+
+**Example response:**
+```
+45 Groningen [gr] nl-grq +1
+```
+
+Use `start_index` to continue searching after a previous match.
+
+#### Read a Dutch location by index
+**Usage:**
+- `regiondb get <index>`
+
+**Example response:**
+```
+45 Groningen [gr] nl-grq,nl-gr-grq
+```
+
+#### Resolve an internal code ID
+**Usage:**
+- `regiondb code <code_id>`
+
+**Example response:**
+```
+1 nl-grq
+```
+
+**Note:** `regiondb` is lookup-only. Use the normal `region` commands to change the runtime region map.
 
 ---
 
