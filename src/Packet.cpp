@@ -8,6 +8,7 @@ Packet::Packet() {
   header = 0;
   path_len = 0;
   payload_len = 0;
+  _dup_rx_count = 0;
 }
 
 bool Packet::isValidPathLen(uint8_t path_len) {
@@ -63,6 +64,7 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
 }
 
 bool Packet::readFrom(const uint8_t src[], uint8_t len) {
+  _dup_rx_count = 0;
   uint8_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {

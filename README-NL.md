@@ -146,7 +146,24 @@ Praktisch tunen:
 | Hoge / backbone repeater | Een hogere `txdelay` geeft lokale repeaters eerst kans om lokaal verkeer af te handelen. |
 | Erg drukke stadsmesh | Laat `txdelay` aan zodat random spreiding plus node-offset gelijktijdige retransmits vermindert. |
 
-### 7. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
+### 7. Duplicate-hearing retransmit suppression
+
+Dense meshes hebben ook voordeel van het annuleren van werk dat niet meer nodig is. Als een repeater een flood retransmit plant en daarna genoeg andere repeaters hetzelfde packet hoort doorsturen voordat zijn eigen timer afloopt, kan MeshCoreNG die geplande retransmit onderdrukken.
+
+Simpel voorbeeld:
+
+```text
+nieuw flood packet gehoord
+retransmit gepland
+twee duplicate forwards van hetzelfde packet gehoord
+eigen retransmit annuleren
+```
+
+De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord worden voordat de retransmit wordt geannuleerd. Als er geen duplicates binnenkomen, zendt de repeater gewoon zoals voorheen. Sparse netwerken houden dus hun bereik. Lokaal gemaakte packets, direct routing, ACKs, path/control packets en trace/control verkeer worden niet onderdrukt.
+
+Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra packets, zonder synchronisatie, en zonder protocolwijziging.
+
+### 8. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
 
 LoRa is geweldig voor lokale meshnetwerken, maar het heeft een fysieke grens. Als twee groepen gebruikers te ver van elkaar zitten om via LoRa contact te maken — andere steden, andere bergen, ander land — dan zijn ze gewoon eilanden. Ze kunnen elkaar niet bereiken, hoe goed hun repeaters ook werken.
 
@@ -208,7 +225,7 @@ python3 tools/tcp_bridge_server.py --port 4200
 
 Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde server verbonden zijn.
 
-### 8. Veiligere power saving voor repeaters
+### 9. Veiligere power saving voor repeaters
 
 Power saving voor repeaters is nu duidelijker en beter te controleren.
 
@@ -224,7 +241,7 @@ De standaard is `off`. Dat is bewust zo, want veel repeaters zijn vaste relay- o
 
 Als je power saving aanzet, slaapt een repeater alleen wanneer er geen uitgaand werk klaarstaat. Bridge/WiFi-modus blokkeert slaap. ESP32-boards worden wakker via LoRa DIO1/timer waar dat ondersteund wordt. nRF52-boards gebruiken event/interrupt sleep.
 
-### 9. Nederlandse regio-database
+### 10. Nederlandse regio-database
 
 MeshCoreNG heeft nu een compacte Nederlandse regio-database, gegenereerd uit de MeshWiki-lijst met Nederlandse regio's.
 
@@ -250,7 +267,7 @@ regiondb get 45
 Alle technische details staan in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
 De Nederlandse community heeft ook een praktische tool voor regiocodes op [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
 
-### 10. Regionale mesh filtering
+### 11. Regionale mesh filtering
 
 MeshCoreNG ondersteunt ook een praktisch hiërarchisch regio-systeem voor repeaters. Een regio is een naam voor een radioscope, zoals `eu`, `nl`, `nl-nh` of `nl-nh-bov`. Een repeater kan ingesteld worden om alleen de scopes door te sturen die logisch zijn voor zijn locatie en rol.
 

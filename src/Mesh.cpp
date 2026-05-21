@@ -1,6 +1,10 @@
 #include "Mesh.h"
 //#include <Arduino.h>
 
+#ifndef MESH_DUP_SUPPRESS_THRESHOLD
+#define MESH_DUP_SUPPRESS_THRESHOLD 2
+#endif
+
 namespace mesh {
 
 static uint32_t fnv1a32(const uint8_t* data, size_t len) {
@@ -26,8 +30,71 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
 
 bool Mesh::hasSeen(Packet* packet) {
   bool seen = _tables->hasSeen(packet);
+  if (seen) recordDuplicateForSuppression(packet);
   onPacketSeen(packet, seen);
   return seen;
+}
+
+bool Mesh::isSuppressibleRetransmit(const Packet* packet) const {
+  if (!packet->isRouteFlood()) return false;
+  if (packet->getPathHashCount() == 0) return false;  // locally-originated flood
+
+  switch (packet->getPayloadType()) {
+    case PAYLOAD_TYPE_ACK:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_TRACE:
+    case PAYLOAD_TYPE_CONTROL:
+      return false;
+    default:
+      return true;
+  }
+}
+
+void Mesh::recordDuplicateForSuppression(const Packet* packet) {
+#if MESH_DUP_SUPPRESS_THRESHOLD > 0
+  if (!packet->isRouteFlood()) return;
+
+  uint8_t duplicate_hash[MAX_HASH_SIZE];
+  packet->calculatePacketHash(duplicate_hash);
+
+  for (int i = 0; i < _mgr->getOutboundTotal(); ) {
+    Packet* pending = _mgr->getOutboundByIdx(i);
+    if (pending == NULL) {
+      i++;
+      continue;
+    }
+
+    if (!isSuppressibleRetransmit(pending)) {
+      i++;
+      continue;
+    }
+
+    uint8_t pending_hash[MAX_HASH_SIZE];
+    pending->calculatePacketHash(pending_hash);
+    if (memcmp(duplicate_hash, pending_hash, MAX_HASH_SIZE) != 0) {
+      i++;
+      continue;
+    }
+
+    pending->incrementDuplicateRxCount();
+    uint8_t duplicate_count = pending->getDuplicateRxCount();
+    if (duplicate_count >= MESH_DUP_SUPPRESS_THRESHOLD) {
+      Packet* suppressed = _mgr->removeOutboundByIdx(i);
+      MESH_DEBUG_PRINTLN("%s Mesh::recordDuplicateForSuppression(): SUPPRESS type=%u duplicates=%u",
+          getLogDateTime(),
+          (uint32_t)pending->getPayloadType(),
+          (uint32_t)duplicate_count);
+      releasePacket(suppressed);
+      continue;
+    }
+
+    MESH_DEBUG_PRINTLN("%s Mesh::recordDuplicateForSuppression(): KEEP type=%u duplicates=%u",
+        getLogDateTime(),
+        (uint32_t)pending->getPayloadType(),
+        (uint32_t)duplicate_count);
+    i++;
+  }
+#endif
 }
 
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 

@@ -49,6 +49,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  uint8_t _dup_rx_count;
 
   /**
    * \brief calculate the hash of payload + type
@@ -88,6 +89,10 @@ public:
 
   void markDoNotRetransmit() { header = 0xFF; }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
+
+  void clearDuplicateRxCount() { _dup_rx_count = 0; }
+  uint8_t getDuplicateRxCount() const { return _dup_rx_count; }
+  void incrementDuplicateRxCount() { if (_dup_rx_count < 0xFF) _dup_rx_count++; }
 
   float getSNR() const { return ((float)_snr) / 4.0f; }
 

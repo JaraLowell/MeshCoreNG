@@ -30,6 +30,8 @@ class Mesh : public Dispatcher {
 
   void removeSelfFromPath(Packet* packet);
   bool hasSeen(Packet* packet);
+  bool isSuppressibleRetransmit(const Packet* packet) const;
+  void recordDuplicateForSuppression(const Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);

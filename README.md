@@ -146,7 +146,24 @@ Practical tuning:
 | High-site / backbone repeater | Higher `txdelay` gives nearby repeaters a chance to handle local traffic first. |
 | Very dense city group | Keep `txdelay` enabled so random spread plus node offset reduces synchronized retransmits. |
 
-### 7. Internet bridge — connecting distant LoRa islands
+### 7. Duplicate-hearing retransmit suppression
+
+Dense meshes also benefit from cancelling work that is no longer needed. When a repeater schedules a flood retransmit and then hears enough other repeaters forwarding the same packet before its own timer expires, MeshCoreNG can suppress its pending retransmit.
+
+Simple example:
+
+```text
+hear new flood packet
+schedule retransmit
+hear two duplicate forwards of the same packet
+cancel local retransmit
+```
+
+The default threshold is conservative: two duplicate forwards must be heard before cancellation. If no duplicates are heard, the retransmit still happens normally, so sparse networks keep their reach. Locally generated packets, direct routing, ACKs, path/control packets and trace/control traffic are not suppressed.
+
+This reduces duplicate flooding, airtime waste and collision probability without extra packets, without synchronization, and without changing the protocol.
+
+### 8. Internet bridge — connecting distant LoRa islands
 
 LoRa is great for local mesh networks, but it has a physical limit. When two groups of LoRa users are too far apart to hear each other — different cities, different hills, different countries — they become isolated islands.
 
@@ -211,7 +228,7 @@ python3 tools/tcp_bridge_server.py --port 4200
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same server simultaneously.
 
-### 8. Safer repeater power saving
+### 9. Safer repeater power saving
 
 Power saving for repeaters is now clearer and easier to inspect.
 
@@ -227,7 +244,7 @@ The default is `off`. That is intentional, because many repeaters are fixed rela
 
 When enabled, a repeater only sleeps when there is no outbound work waiting. Bridge/WiFi mode blocks sleep. ESP32 boards wake by LoRa DIO1/timer where supported. nRF52 boards use event/interrupt sleep.
 
-### 9. Dutch region database
+### 10. Dutch region database
 
 MeshCoreNG now includes a compact Dutch Region Database generated from the MeshWiki list of Dutch regions.
 
@@ -253,7 +270,7 @@ regiondb get 45
 Full details are in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
 The Dutch community also provides a practical region-code setup tool at [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
 
-### 10. Regional mesh filtering
+### 11. Regional mesh filtering
 
 MeshCoreNG also supports a practical hierarchical region system for repeaters. A region is a named radio scope, such as `eu`, `nl`, `nl-nh`, or `nl-nh-bov`. Repeaters can be configured to forward only the scopes that make sense for their location and role.
 

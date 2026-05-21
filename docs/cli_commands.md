@@ -528,6 +528,8 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 `set txdelay 0` keeps the previous zero-delay behavior and does not add the node offset. CAD retry is separate: it happens after the radio detects a busy channel, with the current retry window of 120-360 ms.
 
+MeshCoreNG also performs duplicate-hearing suppression for queued flood retransmits. If a repeater hears two duplicate forwards of the same packet before its own scheduled retransmit fires, that pending retransmit is cancelled. This has no CLI setting by default; the compile-time threshold is `MESH_DUP_SUPPRESS_THRESHOLD`.
+
 ---
 
 #### View or change the retransmit delay factor for direct traffic

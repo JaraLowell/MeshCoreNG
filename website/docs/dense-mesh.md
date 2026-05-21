@@ -95,6 +95,22 @@ Suggested tuning:
 | High-site / backbone repeater | Use a higher `txdelay` so nearby repeaters can handle local traffic first. |
 | Dense city group | Keep `txdelay` enabled to combine random spread with the stable node offset. |
 
+## Duplicate-hearing suppression
+
+In a dense mesh, a repeater may schedule a flood retransmit and then hear nearby repeaters forwarding the same packet before its own timer expires. MeshCoreNG uses that duplicate-hearing signal to cancel redundant retransmits.
+
+Default behavior:
+
+| Case | Result |
+|---|---|
+| No duplicates heard | Retransmit still happens. |
+| One duplicate heard | Retransmit is kept. |
+| Two or more duplicates heard | Pending retransmit is cancelled. |
+
+Only queued retransmits of received flood packets are suppressible. Locally generated packets, ACKs, direct packets, path/control packets and trace/control traffic are kept. This keeps sparse networks working while reducing duplicate floods in dense groups.
+
+The threshold is compile-time configurable with `MESH_DUP_SUPPRESS_THRESHOLD`; the default is `2`.
+
 ## Dynamic mode
 
 Dynamic mode is available but does not yet change behavior automatically. Enable it to collect data:
