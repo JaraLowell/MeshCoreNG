@@ -120,7 +120,33 @@ De repeater gebruikt nu hardware CAD/channel scan waar mogelijk. Daardoor kan de
 
 Dat helpt tegen botsingen en onnodig zenden op een bezet LoRa-kanaal.
 
-### 6. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
+### 6. Node-based retransmit spreading
+
+In een dense repeatergroep kunnen repeaters nog steeds te netjes tegelijk lopen: meerdere repeaters ontvangen hetzelfde pakket op hetzelfde moment, maken een vergelijkbare `txdelay` keuze, en beginnen bijna tegelijk opnieuw te zenden. MeshCoreNG telt daarom nu een heel kleine deterministische node-offset op bij de bestaande random retransmit delay voor flood verkeer.
+
+De flood retransmit delay is nu:
+
+```text
+random txdelay spreiding + stabiele node-offset
+```
+
+Die stabiele offset komt uit de node-identiteit die al in de firmware staat. Hij blijft gelijk na een reboot, veroorzaakt geen extra netwerkverkeer, verandert niets aan het protocol of packet format, en wordt alleen gebruikt voor flood retransmit scheduling. Als `txdelay` op `0` staat, wordt de offset niet toegevoegd. Het oude zero-delay gedrag blijft dus beschikbaar.
+
+Dit is iets anders dan CAD retry timing:
+
+- `txdelay` spreidt repeaters voordat een flood packet in de TX queue komt.
+- De node-offset voorkomt dat repeaters steeds precies in hetzelfde ritme blijven hangen.
+- CAD retry gebeurt later, nadat de radio ziet dat het kanaal bezet is. De huidige CAD retry window is 120-360 ms.
+
+Praktisch tunen:
+
+| Repeaterrol | Advies |
+|---|---|
+| Lokale / lage repeater | Een lagere `txdelay` houdt de lokale mesh sneller. |
+| Hoge / backbone repeater | Een hogere `txdelay` geeft lokale repeaters eerst kans om lokaal verkeer af te handelen. |
+| Erg drukke stadsmesh | Laat `txdelay` aan zodat random spreiding plus node-offset gelijktijdige retransmits vermindert. |
+
+### 7. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
 
 LoRa is geweldig voor lokale meshnetwerken, maar het heeft een fysieke grens. Als twee groepen gebruikers te ver van elkaar zitten om via LoRa contact te maken — andere steden, andere bergen, ander land — dan zijn ze gewoon eilanden. Ze kunnen elkaar niet bereiken, hoe goed hun repeaters ook werken.
 
@@ -182,7 +208,7 @@ python3 tools/tcp_bridge_server.py --port 4200
 
 Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde server verbonden zijn.
 
-### 7. Veiligere power saving voor repeaters
+### 8. Veiligere power saving voor repeaters
 
 Power saving voor repeaters is nu duidelijker en beter te controleren.
 
@@ -198,7 +224,7 @@ De standaard is `off`. Dat is bewust zo, want veel repeaters zijn vaste relay- o
 
 Als je power saving aanzet, slaapt een repeater alleen wanneer er geen uitgaand werk klaarstaat. Bridge/WiFi-modus blokkeert slaap. ESP32-boards worden wakker via LoRa DIO1/timer waar dat ondersteund wordt. nRF52-boards gebruiken event/interrupt sleep.
 
-### 8. Nederlandse regio-database
+### 9. Nederlandse regio-database
 
 MeshCoreNG heeft nu een compacte Nederlandse regio-database, gegenereerd uit de MeshWiki-lijst met Nederlandse regio's.
 
@@ -224,7 +250,7 @@ regiondb get 45
 Alle technische details staan in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
 De Nederlandse community heeft ook een praktische tool voor regiocodes op [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
 
-### 9. Regionale mesh filtering
+### 10. Regionale mesh filtering
 
 MeshCoreNG ondersteunt ook een praktisch hiërarchisch regio-systeem voor repeaters. Een regio is een naam voor een radioscope, zoals `eu`, `nl`, `nl-nh` of `nl-nh-bov`. Een repeater kan ingesteld worden om alleen de scopes door te sturen die logisch zijn voor zijn locatie en rol.
 

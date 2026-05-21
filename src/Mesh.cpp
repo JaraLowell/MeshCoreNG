@@ -3,6 +3,15 @@
 
 namespace mesh {
 
+static uint32_t fnv1a32(const uint8_t* data, size_t len) {
+  uint32_t hash = 2166136261UL;
+  for (size_t i = 0; i < len; i++) {
+    hash ^= data[i];
+    hash *= 16777619UL;
+  }
+  return hash;
+}
+
 void Mesh::begin() {
   Dispatcher::begin();
 }
@@ -25,6 +34,31 @@ uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getRawLength()) * 52 / 50) / 2;
 
   return _rng->nextInt(0, 5)*t;
+}
+uint32_t Mesh::getNodeDelayOffsetMs(uint32_t airtime_ms) const {
+  if (airtime_ms == 0) return 0;
+
+  uint32_t max_offset_ms = airtime_ms / 4;
+  if (max_offset_ms < 20) max_offset_ms = 20;
+  if (max_offset_ms > 100) max_offset_ms = 100;
+
+  return fnv1a32(self_id.pub_key, PUB_KEY_SIZE) % (max_offset_ms + 1);
+}
+uint32_t Mesh::addNodeDelayOffsetMs(uint32_t airtime_ms, float tx_delay_factor, uint32_t random_delay_ms) {
+  if (tx_delay_factor <= 0.0f) return random_delay_ms;
+
+  uint32_t node_offset_ms = getNodeDelayOffsetMs(airtime_ms);
+  uint32_t final_delay_ms = random_delay_ms + node_offset_ms;
+
+  MESH_DEBUG_PRINTLN("%s Mesh::addNodeDelayOffsetMs(): airtime_ms=%lu txdelay_x1000=%ld random_delay_ms=%lu node_offset_ms=%lu final_delay_ms=%lu",
+      getLogDateTime(),
+      (unsigned long)airtime_ms,
+      (long)(tx_delay_factor * 1000.0f),
+      (unsigned long)random_delay_ms,
+      (unsigned long)node_offset_ms,
+      (unsigned long)final_delay_ms);
+
+  return final_delay_ms;
 }
 uint32_t Mesh::getDirectRetransmitDelay(const Packet* packet) {
   return 0;  // by default, no delay

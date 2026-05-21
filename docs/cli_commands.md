@@ -524,6 +524,10 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 **Default:** `0.5`
 
+**Dense mesh behavior:** This delay is applied before a flood packet is queued for transmit. When `txdelay` is above `0`, MeshCoreNG also adds a small stable per-node offset derived from the node identity. This keeps nearby repeaters from becoming synchronized while preserving the existing random `txdelay` spread.
+
+`set txdelay 0` keeps the previous zero-delay behavior and does not add the node offset. CAD retry is separate: it happens after the radio detects a busy channel, with the current retry window of 120-360 ms.
+
 ---
 
 #### View or change the retransmit delay factor for direct traffic

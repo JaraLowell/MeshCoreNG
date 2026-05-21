@@ -64,6 +64,16 @@ protected:
   virtual uint32_t getRetransmitDelay(const Packet* packet);
 
   /**
+   * \returns  stable per-node offset for flood retransmit scheduling.
+   */
+  uint32_t getNodeDelayOffsetMs(uint32_t airtime_ms) const;
+
+  /**
+   * \brief  Adds the stable per-node offset when tx_delay_factor is enabled.
+   */
+  uint32_t addNodeDelayOffsetMs(uint32_t airtime_ms, float tx_delay_factor, uint32_t random_delay_ms);
+
+  /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet, for DIRECT mode.
    */
   virtual uint32_t getDirectRetransmitDelay(const Packet* packet);

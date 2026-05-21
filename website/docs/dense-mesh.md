@@ -68,6 +68,33 @@ set flood.relay.prob <0 .. 255>
 | `128` | Relay approximately half |
 | `255` | Relay everything allowed (default) |
 
+## Retransmit spreading
+
+`txdelay` spreads flood retransmits before packets enter the TX queue:
+
+```
+get txdelay
+set txdelay <0.0 .. 2.0>
+```
+
+When `txdelay` is above `0`, MeshCoreNG adds a small deterministic per-node offset on top of the existing random delay:
+
+```
+final flood delay = random txdelay spread + stable node offset
+```
+
+The offset is based on the node identity already stored in firmware, so it is stable across reboot and does not require extra traffic, a protocol change, or a packet format change. It is deliberately small and only applies to flood retransmit scheduling. `set txdelay 0` keeps zero-delay behavior and disables the node offset.
+
+CAD retry is a different layer. CAD retry happens after the radio has detected a busy channel; the current retry window is 120-360 ms. The node offset helps earlier by preventing repeaters that heard the same packet at the same time from lining up perfectly.
+
+Suggested tuning:
+
+| Repeater role | Guidance |
+|---|---|
+| Local / low-site repeater | Use a lower `txdelay` for local responsiveness. |
+| High-site / backbone repeater | Use a higher `txdelay` so nearby repeaters can handle local traffic first. |
+| Dense city group | Keep `txdelay` enabled to combine random spread with the stable node offset. |
+
 ## Dynamic mode
 
 Dynamic mode is available but does not yet change behavior automatically. Enable it to collect data:
