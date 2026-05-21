@@ -9,6 +9,7 @@ on:
       - 'variants/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
+      - '.github/workflows/build-bridge-espnow-firmwares.yml'
   push:
     branches: [main, dev]
     paths:
@@ -17,6 +18,7 @@ on:
       - 'variants/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
+      - '.github/workflows/build-bridge-espnow-firmwares.yml'
 
 jobs:
   build:
@@ -28,6 +30,7 @@ jobs:
           # ESP32-S3 (most common platform)
           - Heltec_v3_companion_radio_ble
           - Heltec_v3_repeater
+          - Heltec_v3_repeater_bridge_espnow
           - Heltec_v3_room_server
           # nRF52
           - RAK_4631_companion_radio_ble

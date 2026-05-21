@@ -16,6 +16,7 @@ Commands:
   build-room-server-firmwares: Build all chat room server firmwares for all build targets.
   build-bridge-tcp-firmwares: Build all TCP internet bridge repeater firmwares (ESP32 with WiFi).
   build-bridge-rs232-firmwares: Build all RS232/USB bridge repeater firmwares (all platforms).
+  build-bridge-espnow-firmwares: Build all ESPNow bridge repeater firmwares (ESP32 with ESPNow).
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
@@ -32,6 +33,9 @@ $ sh build.sh build-repeater-firmwares
 
 Build all chat room server firmwares
 $ sh build.sh build-room-server-firmwares
+
+Build all ESPNow bridge firmwares
+$ sh build.sh build-bridge-espnow-firmwares
 
 Environment Variables:
   DISABLE_DEBUG=1: Disables all debug logging flags (MESH_DEBUG, MESH_PACKET_LOGGING, etc.)
@@ -255,12 +259,21 @@ build_bridge_rs232_firmwares() {
 
 }
 
+build_bridge_espnow_firmwares() {
+
+  # build all ESPNow bridge repeater firmwares (ESP32 with ESPNow)
+  build_all_firmwares_by_suffix "_repeater_bridge_espnow"
+  build_all_firmwares_by_suffix "_repeater_bridge_espnow_"
+
+}
+
 build_firmwares() {
   build_companion_firmwares
   build_repeater_firmwares
   build_room_server_firmwares
   build_bridge_tcp_firmwares
   build_bridge_rs232_firmwares
+  build_bridge_espnow_firmwares
 }
 
 # clean build dir
@@ -297,4 +310,6 @@ elif [[ $1 == "build-bridge-tcp-firmwares" ]]; then
   build_bridge_tcp_firmwares
 elif [[ $1 == "build-bridge-rs232-firmwares" ]]; then
   build_bridge_rs232_firmwares
+elif [[ $1 == "build-bridge-espnow-firmwares" ]]; then
+  build_bridge_espnow_firmwares
 fi

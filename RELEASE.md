@@ -7,6 +7,9 @@ It will automatically build firmware when one of the following tag formats are p
 - `companion-v1.0.0`
 - `repeater-v1.0.0`
 - `room-server-v1.0.0`
+- `bridge-tcp-v1.0.0`
+- `bridge-rs232-v1.0.0`
+- `bridge-espnow-v1.0.0`
 
 > NOTE: replace `v1.0.0` with the version you want to release as.
 
