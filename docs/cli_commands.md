@@ -747,6 +747,23 @@ Simple start advice:
 
 ### Region Management (v1.10.+)
 
+Regions form a local forwarding hierarchy. They let repeaters decide which flood scopes they should carry, so dense meshes can keep local traffic local and reserve wide-area forwarding for repeaters that are meant to act as backbone nodes.
+
+Example hierarchy:
+
+```text
+eu
+└── nl
+    ├── nl-nh
+    │   ├── nl-nh-sbc
+    │   └── nl-nh-bov
+    └── nl-hhw
+```
+
+`region allowf <name>` allows flood forwarding for that region on this repeater. `region denyf <name>` blocks flood forwarding for that region on this repeater. Use `region home <name>` to mark the node's own most specific region.
+
+Parent-child regions express scope inheritance: `nl-nh-bov` belongs inside `nl-nh`, which belongs inside `nl`. Forwarding flags are still explicit per region, so allow the parent, child, or both based on the repeater's intended role.
+
 #### Bulk-load region lists
 **Usage:** 
 - `region load`
@@ -767,6 +784,10 @@ Simple start advice:
 **Usage:** 
 - `region save`
 
+**Purpose:** Persist the current region map, forwarding flags, home region and default region to local storage.
+
+**Behavior:** Region changes are RAM-only until saved. Run this after a working configuration is confirmed.
+
 ---
 
 #### Allow a region
@@ -775,6 +796,11 @@ Simple start advice:
 
 **Parameters:** 
 - `name`: Region name (or `*` for wildcard)
+
+**Purpose:** Allow this node to forward flood packets for the selected region.
+
+**Example:**
+- `region allowf nl-nh-bov`
 
 **Note:** Setting on wildcard `*` allows packets without region transport codes
 
@@ -786,6 +812,11 @@ Simple start advice:
 
 **Parameters:** 
 - `name`: Region name (or `*` for wildcard)
+
+**Purpose:** Stop this node from forwarding flood packets for the selected region.
+
+**Example:**
+- `region denyf eu`
 
 **Note:** Setting on wildcard `*` drops packets without region transport codes
 
@@ -808,6 +839,11 @@ Simple start advice:
 **Parameters:**
 - `name`: Region name
 
+**Purpose:** Mark this node's own region. Use the most specific correct region for the repeater's physical location.
+
+**Example:**
+- `region home nl-nh-bov`
+
 ---
 
 #### View or change the default scope region for this node
@@ -827,6 +863,14 @@ Simple start advice:
 **Parameters:**
 - `name`: Region name
 - `parent_name`: Parent region name (optional, defaults to wildcard)
+
+**Purpose:** Add a region to the hierarchy. Parent-child relationships make the tree readable for operators and tools.
+
+**Examples:**
+- `region put eu`
+- `region put nl eu`
+- `region put nl-nh nl`
+- `region put nl-nh-bov nl-nh`
 
 ---
 
@@ -857,14 +901,43 @@ Simple start advice:
 #### Dump all defined regions and flood permissions
 **Usage:** 
 - `region`
+- `region tree`
+
+**Purpose:** Show the configured region hierarchy. `F` means flood forwarding is allowed for that region. `^` marks the home region.
 
 **Serial Only:** For firmware older than 1.12.0
 
 ---
 
+#### Example Dutch hierarchy
+**Usage:**
+```
+region put eu
+region put nl eu
+region put nl-nh nl
+region put nl-hhw nl
+region put nl-nh-sbc nl-nh
+region put nl-nh-bov nl-nh
+
+region allowf eu
+region allowf nl
+region allowf nl-nh
+region allowf nl-hhw
+region allowf nl-nh-sbc
+region allowf nl-nh-bov
+
+region home nl-nh-bov
+region tree
+region save
+```
+
+**Operational note:** Local repeaters can deny broad regions such as `eu` or `nl` to save airtime. Backbone repeaters can intentionally allow broader regions to connect local meshes.
+
+---
+
 ### Dutch Region Database
 
-The Dutch region database is a read-only flash lookup table generated from MeshWiki. It does not consume heap memory and does not change the editable region map until a client chooses to apply a returned code. See [Dutch Region Database](./dutch_region_db.md) for the generated format and maintainer workflow.
+The Dutch region database is a read-only flash lookup table generated from MeshWiki. It does not consume heap memory and does not change the editable region map until a client chooses to apply a returned code. It is enabled by the `WITH_DUTCH_REGION_DB` build flag. See [Dutch Region Database](./dutch_region_db.md) for the generated format and maintainer workflow.
 
 #### Database metadata
 **Usage:**
@@ -983,7 +1056,7 @@ region save
 **Explanation:**
 - Creates `#Europe` region with flooding enabled
 - Adds nested child regions (`#UK`, `#France`)
-- All nested regions inherit the flooding flag from parent
+- The nesting records the intended hierarchy; set `F` or use `region allowf` on child regions that should also forward flood traffic
 
 ---
 

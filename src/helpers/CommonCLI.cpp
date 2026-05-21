@@ -391,8 +391,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           *(dp-1) = 0; // remove last CR
         }
       }
-    } else if (memcmp(command, "regiondb", 8) == 0) {
+    } else if (memcmp(command, "regiondb", 8) == 0 && (command[8] == 0 || command[8] == ' ')) {
+#if WITH_DUTCH_REGION_DB
       handleDutchRegionDbCmd(command, reply);
+#else
+      strcpy(reply, "Err - Dutch region database disabled");
+#endif
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
 #if ENV_INCLUDE_GPS == 1
@@ -1021,6 +1025,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   }
 }
 
+#if WITH_DUTCH_REGION_DB
 static char* appendCodeText(char* dp, const char* end, uint16_t code_id) {
   const char* code = DutchRegionDb::codeText(code_id);
   if (!code || dp >= end) return dp;
@@ -1103,13 +1108,14 @@ void CommonCLI::handleDutchRegionDbCmd(char* command, char* reply) {
     strcpy(reply, "Err - use info, provinces, find, get, code");
   }
 }
+#endif
 
 void CommonCLI::handleRegionCmd(char* command, char* reply) {
   reply[0] = 0;
 
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
-  if (n == 1) {
+  if (n == 1 || (n == 2 && strcmp(parts[1], "tree") == 0)) {
     _region_map->exportTo(reply, 160);
   } else if (n >= 2 && strcmp(parts[1], "load") == 0) {
     _callbacks->startRegionsLoad();

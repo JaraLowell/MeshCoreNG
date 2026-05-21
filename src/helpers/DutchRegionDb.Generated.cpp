@@ -1,5 +1,7 @@
 #include "DutchRegionDb.Generated.h"
 
+#if WITH_DUTCH_REGION_DB
+
 namespace DutchRegionDbData {
 
 const uint8_t kNamePool[] PROGMEM = {
@@ -6901,3 +6903,5 @@ const uint16_t kExtraRegionCodes[] PROGMEM = {
 };
 
 }  // namespace DutchRegionDbData
+
+#endif

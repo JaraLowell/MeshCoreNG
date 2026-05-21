@@ -214,6 +214,8 @@ constexpr uint16_t kCodePoolSize = %d;
     with source.open("w", encoding="utf-8") as f:
         f.write("""#include "DutchRegionDb.Generated.h"
 
+#if WITH_DUTCH_REGION_DB
+
 namespace DutchRegionDbData {
 
 """)
@@ -231,7 +233,7 @@ namespace DutchRegionDbData {
         f.write("};\n\nconst uint16_t kExtraRegionCodes[] PROGMEM = {\n")
         for i in range(0, len(extra_ids), 16):
             f.write("  " + ", ".join(str(v) for v in extra_ids[i : i + 16]) + ",\n")
-        f.write("};\n\n}  // namespace DutchRegionDbData\n")
+        f.write("};\n\n}  // namespace DutchRegionDbData\n\n#endif\n")
 
     manifest = {
         "source_url": SOURCE_URL,

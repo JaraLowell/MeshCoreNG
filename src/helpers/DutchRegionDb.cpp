@@ -1,4 +1,6 @@
 #include "DutchRegionDb.h"
+
+#if WITH_DUTCH_REGION_DB
 #include "DutchRegionDb.Generated.h"
 
 #include <ctype.h>
@@ -109,3 +111,18 @@ uint16_t DutchRegionDb::countByProvince(uint16_t province_id) {
   }
   return count;
 }
+#else
+uint16_t DutchRegionDb::sourceRevision() { return 0; }
+const char* DutchRegionDb::sourceModified() { return ""; }
+uint16_t DutchRegionDb::provinceCount() { return 0; }
+uint16_t DutchRegionDb::regionCodeCount() { return 0; }
+uint16_t DutchRegionDb::entryCount() { return 0; }
+const DutchRegionDbProvince* DutchRegionDb::provinceById(uint16_t province_id) { return NULL; }
+const char* DutchRegionDb::codeText(uint16_t region_code_id) { return NULL; }
+bool DutchRegionDb::readEntry(uint16_t index, DutchRegionDbEntry& dest) { return false; }
+bool DutchRegionDb::readRecord(uint16_t index, DutchRegionDbRecord& dest) { return false; }
+uint16_t DutchRegionDb::extraRegionCode(const DutchRegionDbEntry& entry, uint8_t extra_index) { return 0; }
+int DutchRegionDb::findByName(const char* name) { return -1; }
+int DutchRegionDb::findByNamePrefix(const char* prefix, uint16_t start_index) { return -1; }
+uint16_t DutchRegionDb::countByProvince(uint16_t province_id) { return 0; }
+#endif

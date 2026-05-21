@@ -207,6 +207,8 @@ MeshCoreNG now includes a compact Dutch Region Database generated from the MeshW
 
 It contains 2484 Dutch locations across 12 provinces, with primary and extra MeshCore region codes. The database is compiled into firmware flash as static data. It is not loaded into RAM, does not use runtime JSON parsing, and does not use dynamic `String` or `std::vector` storage.
 
+It is enabled by the shared PlatformIO build flag `WITH_DUTCH_REGION_DB=1`, so normal MeshCoreNG variants get the same default. Constrained variants can disable it by overriding that flag.
+
 This is useful for:
 
 - looking up the correct Dutch region code from the CLI
@@ -223,6 +225,166 @@ regiondb get 45
 ```
 
 Full details are in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
+The Dutch community also provides a practical region-code setup tool at [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
+
+### 9. Regional mesh filtering
+
+MeshCoreNG also supports a practical hierarchical region system for repeaters. A region is a named radio scope, such as `eu`, `nl`, `nl-nh`, or `nl-nh-bov`. Repeaters can be configured to forward only the scopes that make sense for their location and role.
+
+This is separate from the Dutch lookup database above. The database helps you find valid region codes; the region tree tells your repeater what it should forward.
+
+#### Why regions matter
+
+Without regions, a flood mesh is simple:
+
+```text
+every repeater hears traffic
+every repeater repeats traffic
+the same packet appears again and again
+```
+
+That works in a small network. In a dense mesh, it becomes expensive. Airtime is limited, especially on EU868. If repeaters in Noord-Holland, Zuid-Holland, Friesland and Limburg all forward every local message, the channel fills up with traffic that is not useful for most listeners.
+
+With regions, traffic can stay local when possible:
+
+- local messages stay in the local mesh
+- regional traffic can still move through a province
+- national or European traffic can be forwarded by backbone repeaters
+- dense city networks create fewer duplicate retransmissions
+- remote areas can still use broader scopes when they need reach
+
+The idea is not to make the network smaller. The idea is to stop every repeater from doing every job.
+
+#### Dense mesh scaling
+
+Dense meshes fail gradually: first messages become slower, then collisions rise, then repeaters waste more airtime forwarding duplicates than useful packets. Regional filtering gives operators a manual tool to reduce that load.
+
+For example:
+
+| Repeater role | Typical allowed regions | Why |
+| --- | --- | --- |
+| Local city repeater | local region only | Keeps neighbourhood traffic local |
+| Province repeater | local + province | Connects nearby local meshes |
+| Backbone repeater | local + province + country | Carries wider traffic intentionally |
+| Gateway or hilltop | country or Europe when needed | Bridges larger areas with a clear purpose |
+
+This makes a nationwide mesh more realistic: not every repeater has to be a national backbone.
+
+#### Example Dutch region hierarchy
+
+Example hierarchy:
+
+```text
+eu
+└── nl
+    ├── nl-nh
+    │   ├── nl-nh-sbc
+    │   └── nl-nh-bov
+    └── nl-hhw
+```
+
+Meaning:
+
+| Region | Meaning |
+| --- | --- |
+| `eu` | Europe |
+| `nl` | Netherlands |
+| `nl-nh` | Noord-Holland |
+| `nl-hhw` | Heerhugowaard / local area |
+| `nl-nh-sbc` | Schagen/Bergen/Castricum style local region |
+| `nl-nh-bov` | Specific local region |
+
+Parent-child regions give the tree structure. In practice, you add broad regions first, then provinces, then local areas. A child belongs under a parent, so operators and tools can understand the intended scope.
+
+Think of this as scope inheritance: `nl-nh-bov` is a local region inside `nl-nh`, which is inside `nl`, which is inside `eu`. The tree tells humans and future routing logic that relationship. Forwarding policy is still explicit: allow the parent, the child, or both depending on what this repeater should carry.
+
+#### Region forwarding filters
+
+Forwarding is controlled per region:
+
+| Command | Purpose | Example |
+| --- | --- | --- |
+| `region put <name> [parent]` | Add a region and optionally place it under a parent | `region put nl-nh nl` |
+| `region allowf <name>` | Allow flood forwarding for that region | `region allowf nl-nh` |
+| `region denyf <name>` | Block flood forwarding for that region | `region denyf eu` |
+| `region home <name>` | Mark this node's own home region | `region home nl-nh-bov` |
+| `region tree` | Show the configured hierarchy and flags | `region tree` |
+| `region save` | Persist changes after reboot | `region save` |
+
+`allowf` means this repeater may forward flood packets for that region. `denyf` means it should not forward that region's flood traffic. This is the main airtime-saving mechanism.
+
+Important: configure the levels you actually want to carry. If a local repeater should only help `nl-nh-bov`, allow only that local region. If a backbone repeater should also carry `nl` or `eu`, allow those broader regions intentionally.
+
+#### Home region
+
+The home region is the region this node belongs to. It helps operators, tooling and future routing logic understand where the repeater lives.
+
+Example:
+
+```text
+region home nl-nh-bov
+```
+
+For a normal local repeater, set the most specific correct region as the home region. For a high-site backbone repeater, still choose the local physical region, then separately allow the wider regions it is supposed to forward.
+
+#### Example configuration
+
+The following example creates a small Dutch hierarchy and allows forwarding for each level:
+
+```text
+region put eu
+region put nl eu
+region put nl-nh nl
+region put nl-hhw nl
+region put nl-nh-sbc nl-nh
+region put nl-nh-bov nl-nh
+
+region allowf eu
+region allowf nl
+region allowf nl-nh
+region allowf nl-hhw
+region allowf nl-nh-sbc
+region allowf nl-nh-bov
+
+region home nl-nh-bov
+
+region tree
+region save
+```
+
+For a busy local repeater, you may choose a narrower filter:
+
+```text
+region allowf nl-nh-bov
+region denyf eu
+region denyf nl
+region save
+```
+
+That repeater now spends less airtime forwarding wide-area traffic. A nearby backbone repeater can still carry broader regions.
+
+#### Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Region disappears after reboot | Run `region save` after changes |
+| Repeater forwards too much traffic | Use `region tree` and deny broad regions that are not needed |
+| Local traffic does not travel far enough | Make sure nearby repeaters allow the same local region |
+| Backbone traffic is missing | Check that at least some intentional backbone repeaters allow `nl` or `eu` |
+| Wrong parent in the tree | Re-run `region put <child> <correct-parent>` and save |
+
+#### Future smart routing
+
+The region tree is also a foundation for smarter firmware later:
+
+- smart repeaters that change filters under congestion
+- regional routing instead of pure flooding
+- automatic filtering based on observed airtime
+- GPS-assisted region suggestions
+- dense nationwide meshes with local, provincial and national layers
+- airtime-aware forwarding where backbone repeaters carry more and local repeaters stay calm
+
+For now, MeshCoreNG keeps this manual and predictable. Operators can build a useful hierarchy today, and future firmware can learn from that structure later.
 
 ## What Have We Deliberately Not Done Yet?
 
@@ -235,7 +397,7 @@ Not automatic yet:
 - changing relay delays
 - using node roles
 - making route choices based on link quality
-- adding zones or regions to the packet protocol
+- changing the packet protocol for zones or regions
 
 That is intentional. First we measure, then we automate.
 
@@ -291,6 +453,17 @@ regiondb provinces
 regiondb find <prefix>
 regiondb get <index>
 regiondb code <code_id>
+```
+
+**Regional mesh filtering:**
+
+```text
+region put <name> [parent]
+region allowf <name>
+region denyf <name>
+region home <name>
+region tree
+region save
 ```
 
 More CLI details are in [docs/cli_commands.md](./docs/cli_commands.md).

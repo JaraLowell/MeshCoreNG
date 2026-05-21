@@ -5,7 +5,12 @@
 #include <helpers/SensorManager.h>
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
+#ifndef WITH_DUTCH_REGION_DB
+#define WITH_DUTCH_REGION_DB 0
+#endif
+#if WITH_DUTCH_REGION_DB
 #include <helpers/DutchRegionDb.h>
+#endif
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE)
 #define WITH_BRIDGE
@@ -150,7 +155,9 @@ class CommonCLI {
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 
   void handleRegionCmd(char* command, char* reply);
+#if WITH_DUTCH_REGION_DB
   void handleDutchRegionDbCmd(char* command, char* reply);
+#endif
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
 

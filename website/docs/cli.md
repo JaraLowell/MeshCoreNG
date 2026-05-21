@@ -48,7 +48,7 @@ clear power.stats
 
 ### Dutch region database
 
-The Dutch region database is a generated, read-only lookup table stored in firmware flash. It can be used by the CLI or a companion app to find Dutch location region codes without loading a database into RAM.
+The Dutch region database is a generated, read-only lookup table stored in firmware flash. It can be used by the CLI or a companion app to find Dutch location region codes without loading a database into RAM. It is controlled by the `WITH_DUTCH_REGION_DB` build flag.
 
 ```
 regiondb                  — show database metadata

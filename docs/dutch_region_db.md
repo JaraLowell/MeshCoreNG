@@ -12,6 +12,27 @@ The database is intended for location lookup, CLI assistance, and companion-app 
 - Avoid heap fragmentation by returning pointers into static pools and caller-provided stack records.
 - Keep the generated source deterministic so OTA firmware updates can replace the database as part of a normal firmware image.
 
+## Build Flag
+
+The database is controlled by:
+
+```ini
+-D WITH_DUTCH_REGION_DB=1
+```
+
+MeshCoreNG enables this flag in the shared `arduino_base` PlatformIO profile, so every normal variant inherits the same default. Firmware that includes `CommonCLI` exposes the `regiondb` commands. Builds that do not use `CommonCLI` may still include the flash database while the flag is enabled.
+
+To disable the database for a constrained variant, override the inherited flag in that variant:
+
+```ini
+build_flags =
+  ${some_base.build_flags}
+  -UWITH_DUTCH_REGION_DB
+  -D WITH_DUTCH_REGION_DB=0
+```
+
+When disabled, the generated database arrays and `regiondb` CLI handler are compiled out.
+
 ## Generated Files
 
 The generator is:

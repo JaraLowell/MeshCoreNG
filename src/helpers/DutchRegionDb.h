@@ -2,6 +2,10 @@
 
 #include <Arduino.h>
 
+#ifndef WITH_DUTCH_REGION_DB
+#define WITH_DUTCH_REGION_DB 0
+#endif
+
 #if defined(__GNUC__)
 #define DUTCH_REGION_DB_PACKED __attribute__((packed))
 #else

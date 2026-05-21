@@ -204,6 +204,8 @@ MeshCoreNG heeft nu een compacte Nederlandse regio-database, gegenereerd uit de 
 
 De database bevat 2484 Nederlandse plaatsen verdeeld over 12 provincies, met primaire en extra MeshCore regiocodes. De database wordt als statische data in de firmware-flash gecompileerd. Hij wordt dus niet in RAM geladen, gebruikt geen runtime JSON parsing, en gebruikt geen dynamische `String` of `std::vector` opslag.
 
+Hij staat standaard aan via de gedeelde PlatformIO buildflag `WITH_DUTCH_REGION_DB=1`, waardoor normale MeshCoreNG-varianten dezelfde default krijgen. Krappe varianten kunnen hem uitzetten door die flag te overriden.
+
 Dit is handig voor:
 
 - de juiste Nederlandse regiocode opzoeken via de CLI
@@ -220,6 +222,166 @@ regiondb get 45
 ```
 
 Alle technische details staan in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
+De Nederlandse community heeft ook een praktische tool voor regiocodes op [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
+
+### 9. Regionale mesh filtering
+
+MeshCoreNG ondersteunt ook een praktisch hiërarchisch regio-systeem voor repeaters. Een regio is een naam voor een radioscope, zoals `eu`, `nl`, `nl-nh` of `nl-nh-bov`. Een repeater kan ingesteld worden om alleen de scopes door te sturen die logisch zijn voor zijn locatie en rol.
+
+Dit staat los van de Nederlandse regio-database hierboven. De database helpt je om geldige regiocodes te vinden; de regio-tree bepaalt wat jouw repeater wel of niet doorstuurt.
+
+#### Waarom regio's belangrijk zijn
+
+Zonder regio's werkt een flood mesh heel simpel:
+
+```text
+elke repeater hoort verkeer
+elke repeater herhaalt verkeer
+hetzelfde pakket komt steeds opnieuw voorbij
+```
+
+Dat werkt prima in een klein netwerk. In een druk meshnetwerk wordt het duur. Airtime is beperkt, zeker op EU868. Als repeaters in Noord-Holland, Zuid-Holland, Friesland en Limburg allemaal elk lokaal bericht blijven doorsturen, raakt het kanaal vol met verkeer dat voor de meeste luisteraars niet nuttig is.
+
+Met regio's kan verkeer lokaal blijven wanneer dat kan:
+
+- lokale berichten blijven in de lokale mesh
+- regionaal verkeer kan nog steeds door een provincie heen
+- nationaal of Europees verkeer kan bewust door backbone-repeaters gedragen worden
+- drukke stedelijke netwerken krijgen minder dubbele heruitzendingen
+- rustige buitengebieden kunnen nog steeds bredere scopes gebruiken wanneer bereik belangrijk is
+
+Het doel is dus niet om het netwerk kleiner te maken. Het doel is dat niet elke repeater elke taak hoeft te doen.
+
+#### Dense mesh scaling
+
+Een dense mesh gaat meestal langzaam slechter werken: eerst worden berichten trager, daarna nemen botsingen toe, en uiteindelijk besteden repeaters meer airtime aan dubbele pakketten dan aan nuttig verkeer. Regionale filtering geeft beheerders een handmatige manier om die druk te verminderen.
+
+Voorbeeld:
+
+| Repeaterrol | Typisch toegestane regio's | Waarom |
+| --- | --- | --- |
+| Lokale stadsrepeater | alleen lokale regio | Houdt buurtverkeer lokaal |
+| Provincie-repeater | lokaal + provincie | Verbindt lokale meshes in de buurt |
+| Backbone-repeater | lokaal + provincie + land | Draagt bewust breder verkeer |
+| Gateway of hoog punt | land of Europa waar nodig | Verbindt grotere gebieden met een duidelijke rol |
+
+Zo wordt een landelijk meshnetwerk realistischer: niet elke repeater hoeft een nationale backbone te zijn.
+
+#### Voorbeeld van een Nederlandse regio-tree
+
+Voorbeeldhiërarchie:
+
+```text
+eu
+└── nl
+    ├── nl-nh
+    │   ├── nl-nh-sbc
+    │   └── nl-nh-bov
+    └── nl-hhw
+```
+
+Betekenis:
+
+| Regio | Betekenis |
+| --- | --- |
+| `eu` | Europa |
+| `nl` | Nederland |
+| `nl-nh` | Noord-Holland |
+| `nl-hhw` | Heerhugowaard / lokale omgeving |
+| `nl-nh-sbc` | Schagen/Bergen/Castricum-achtige lokale regio |
+| `nl-nh-bov` | Specifieke lokale regio |
+
+Parent-child regio's vormen de boomstructuur. In de praktijk voeg je eerst brede regio's toe, daarna provincies, daarna lokale gebieden. Een child hangt onder een parent, zodat beheerders en tools kunnen begrijpen welke scope bedoeld is.
+
+Zie dit als scope-inheritance: `nl-nh-bov` is een lokale regio binnen `nl-nh`, die weer binnen `nl` valt, die weer binnen `eu` valt. De boom maakt die relatie duidelijk voor mensen, tools en toekomstige routinglogica. Het forwarding-beleid blijft bewust expliciet: je staat de parent, de child of allebei toe afhankelijk van wat deze repeater moet dragen.
+
+#### Forwarding filters
+
+Doorsturen wordt per regio ingesteld:
+
+| Command | Doel | Voorbeeld |
+| --- | --- | --- |
+| `region put <naam> [parent]` | Voeg een regio toe en hang hem eventueel onder een parent | `region put nl-nh nl` |
+| `region allowf <naam>` | Sta flood forwarding toe voor die regio | `region allowf nl-nh` |
+| `region denyf <naam>` | Blokkeer flood forwarding voor die regio | `region denyf eu` |
+| `region home <naam>` | Stel de thuisregio van deze node in | `region home nl-nh-bov` |
+| `region tree` | Toon de ingestelde boom en flags | `region tree` |
+| `region save` | Sla wijzigingen op zodat ze na reboot blijven bestaan | `region save` |
+
+`allowf` betekent dat deze repeater flood packets voor die regio mag doorsturen. `denyf` betekent dat hij flood traffic voor die regio niet moet doorsturen. Dit is de belangrijkste airtime-besparing.
+
+Belangrijk: zet bewust aan welke niveaus je echt wilt dragen. Een lokale repeater die alleen `nl-nh-bov` hoeft te helpen, hoeft alleen die lokale regio toe te staan. Een backbone-repeater die ook `nl` of `eu` moet dragen, krijgt die bredere regio's bewust toegestaan.
+
+#### Home region
+
+De home region is de regio waar deze node bij hoort. Dat helpt beheerders, tools en toekomstige routinglogica om te begrijpen waar de repeater staat.
+
+Voorbeeld:
+
+```text
+region home nl-nh-bov
+```
+
+Voor een gewone lokale repeater kies je de meest specifieke juiste regio als home region. Voor een backbone-repeater op een hoog punt kies je nog steeds de fysieke lokale regio als home region; daarna sta je apart de bredere regio's toe die hij moet doorsturen.
+
+#### Voorbeeldconfiguratie
+
+Dit voorbeeld maakt een kleine Nederlandse hiërarchie en staat forwarding toe voor elk niveau:
+
+```text
+region put eu
+region put nl eu
+region put nl-nh nl
+region put nl-hhw nl
+region put nl-nh-sbc nl-nh
+region put nl-nh-bov nl-nh
+
+region allowf eu
+region allowf nl
+region allowf nl-nh
+region allowf nl-hhw
+region allowf nl-nh-sbc
+region allowf nl-nh-bov
+
+region home nl-nh-bov
+
+region tree
+region save
+```
+
+Voor een drukke lokale repeater kun je smaller filteren:
+
+```text
+region allowf nl-nh-bov
+region denyf eu
+region denyf nl
+region save
+```
+
+Die repeater besteedt dan minder airtime aan breed verkeer. Een nabijgelegen backbone-repeater kan de bredere regio's nog steeds dragen.
+
+#### Problemen oplossen
+
+| Probleem | Controleer |
+| --- | --- |
+| Regio is weg na reboot | Voer `region save` uit na wijzigingen |
+| Repeater stuurt te veel verkeer door | Gebruik `region tree` en blokkeer brede regio's die niet nodig zijn |
+| Lokaal verkeer komt niet ver genoeg | Controleer of nabijgelegen repeaters dezelfde lokale regio toestaan |
+| Backbone-verkeer ontbreekt | Controleer of minstens enkele bewuste backbone-repeaters `nl` of `eu` toestaan |
+| Verkeerde parent in de boom | Voer `region put <child> <juiste-parent>` opnieuw uit en sla op |
+
+#### Toekomstige slimme routing
+
+De regio-tree is ook een basis voor slimmere firmware later:
+
+- slimme repeaters die filters aanpassen bij drukte
+- regionale routing in plaats van alleen pure flooding
+- automatische filtering op basis van gemeten airtime
+- GPS-geholpen regio-suggesties
+- dicht landelijk meshnetwerk met lokale, provinciale en nationale lagen
+- airtime-aware forwarding waarbij backbone-repeaters meer dragen en lokale repeaters rustiger blijven
+
+Voor nu houdt MeshCoreNG dit handmatig en voorspelbaar. Beheerders kunnen vandaag al een nuttige hiërarchie bouwen, en toekomstige firmware kan later van die structuur gebruikmaken.
 
 ## Wat is bewust nog niet gedaan?
 
@@ -232,7 +394,7 @@ Nog niet automatisch:
 - relay delay aanpassen
 - node roles gebruiken
 - routekeuzes maken op link quality
-- zones of regions in het packet protocol toevoegen
+- het packet protocol aanpassen voor zones of regio's
 
 Dat is bewust. Eerst meten, dan pas automatisch sturen.
 
@@ -288,6 +450,17 @@ regiondb provinces
 regiondb find <prefix>
 regiondb get <index>
 regiondb code <code_id>
+```
+
+**Regionale mesh filtering:**
+
+```text
+region put <naam> [parent]
+region allowf <naam>
+region denyf <naam>
+region home <naam>
+region tree
+region save
 ```
 
 Meer CLI-uitleg staat in [docs/cli_commands.md](./docs/cli_commands.md).
