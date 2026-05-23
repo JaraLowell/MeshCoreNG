@@ -117,7 +117,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
       _prefs->bridge_port = bridge_port;                                                         // 457
     }
-    // next: 459
+    uint8_t malformed_drop = _prefs->malformed_drop;
+    if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
+      _prefs->malformed_drop = malformed_drop;                                                    // 459
+    }
+    // next: 460
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -142,6 +146,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
+    _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -220,7 +225,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 329
     file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 393
     file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 457
-    // next: 459
+    file.write((uint8_t *)&_prefs->malformed_drop, sizeof(_prefs->malformed_drop));                // 459
+    // next: 460
 
     file.close();
   }
@@ -598,6 +604,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
     savePrefs();
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
+  } else if (memcmp(config, "malformed.drop ", 15) == 0) {
+    _prefs->malformed_drop = memcmp(&config[15], "on", 2) == 0 || memcmp(&config[15], "drop", 4) == 0;
+    savePrefs();
+    strcpy(reply, _prefs->malformed_drop ? "OK - malformed chat drop is ON" : "OK - malformed chat drop is OFF");
+  } else if (memcmp(config, "malformed ", 10) == 0) {
+    _prefs->malformed_drop = memcmp(&config[10], "on", 2) == 0 || memcmp(&config[10], "drop", 4) == 0;
+    savePrefs();
+    strcpy(reply, _prefs->malformed_drop ? "OK - malformed chat drop is ON" : "OK - malformed chat drop is OFF");
 #if defined(USE_SX1262) || defined(USE_SX1268)
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     _prefs->rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
@@ -882,6 +896,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->node_name);
   } else if (memcmp(config, "repeat", 6) == 0) {
     sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
+  } else if (memcmp(config, "malformed.drop", 14) == 0 || memcmp(config, "malformed", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->malformed_drop ? "on" : "off");
   } else if (memcmp(config, "lat", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {

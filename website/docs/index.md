@@ -12,6 +12,7 @@ MeshCoreNG adds:
 - **USB bridge** — connect repeaters without WiFi via a USB relay script.
 - **Better channel detection** — hardware CAD scan before transmitting.
 - **Power saving** — configurable sleep with transparent controls.
+- **Malformed chat filtering** — sanitize companion chat display and drop malformed public chat at repeaters by default without breaking binary payloads.
 
 Everything else stays the same. Existing MeshCore clients, apps and firmware keep working.
 

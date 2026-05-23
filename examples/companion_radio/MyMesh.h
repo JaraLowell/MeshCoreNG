@@ -136,8 +136,12 @@ protected:
                          const char *text) override;
   void onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const uint8_t *sender_prefix, const char *text) override;
+  void onMalformedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
+                              const char *reason, uint8_t score) override;
   void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                             const char *text) override;
+  void onMalformedChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+                                     const char *reason, uint8_t score) override;
   void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
                          const uint8_t *data, size_t data_len) override;
 

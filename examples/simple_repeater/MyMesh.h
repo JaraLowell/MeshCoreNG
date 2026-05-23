@@ -173,6 +173,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void recordDenseTxAirtime(uint32_t airtime_ms);
   uint16_t getDenseNeighborCount() const;
   void getDenseStats(dense_mesh_stats_t* stats);
+  bool shouldDropMalformedGroupText(mesh::Packet* pkt);
 
 protected:
   float getAirtimeBudgetFactor() const override {

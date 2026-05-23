@@ -1,4 +1,6 @@
 #include "TxtDataHelpers.h"
+#include <math.h>
+#include <string.h>
 
 void StrHelper::strncpy(char* dest, const char* src, size_t buf_sz) {
   while (buf_sz > 1 && *src) {
@@ -171,4 +173,145 @@ uint32_t StrHelper::fromHex(const char* src) {
     src++;
   }
   return n;
+}
+
+static size_t boundedTextLen(const uint8_t* data, size_t len) {
+  size_t n = 0;
+  while (n < len && data[n] != 0) n++;
+  return n;
+}
+
+bool StrHelper::isValidUTF8(const uint8_t* data, size_t len) {
+  size_t i = 0;
+  while (i < len) {
+    uint8_t c = data[i++];
+    if (c == 0) break;
+    if (c < 0x80) continue;
+
+    uint32_t codepoint;
+    uint8_t needed;
+    if ((c & 0xE0) == 0xC0) {
+      codepoint = c & 0x1F;
+      needed = 1;
+      if (codepoint == 0) return false; // overlong ASCII
+    } else if ((c & 0xF0) == 0xE0) {
+      codepoint = c & 0x0F;
+      needed = 2;
+    } else if ((c & 0xF8) == 0xF0) {
+      codepoint = c & 0x07;
+      needed = 3;
+    } else {
+      return false;
+    }
+
+    if (i + needed > len) return false;
+    for (uint8_t j = 0; j < needed; j++) {
+      uint8_t cc = data[i++];
+      if ((cc & 0xC0) != 0x80) return false;
+      codepoint = (codepoint << 6) | (cc & 0x3F);
+    }
+
+    if (needed == 1 && codepoint < 0x80) return false;
+    if (needed == 2 && codepoint < 0x0800) return false;
+    if (needed == 3 && codepoint < 0x10000) return false;
+    if (codepoint > 0x10FFFF) return false;
+    if (codepoint >= 0xD800 && codepoint <= 0xDFFF) return false;
+    if (codepoint >= 0xFDD0 && codepoint <= 0xFDEF) return false;
+    if ((codepoint & 0xFFFE) == 0xFFFE) return false;
+  }
+  return true;
+}
+
+bool StrHelper::isTimestampSane(uint32_t timestamp, uint32_t now) {
+  if (timestamp == 0) return false;
+  if (timestamp < 1577836800UL) return false; // 2020-01-01, before MeshCore-era public chat.
+  if (now >= 1577836800UL && timestamp > now + (2UL * 24UL * 60UL * 60UL)) return false;
+  return true;
+}
+
+uint8_t StrHelper::messageConfidenceScore(const uint8_t* data, size_t len, uint32_t timestamp, uint32_t now,
+                                          TextQualityMetrics* metrics) {
+  TextQualityMetrics m;
+  memset(&m, 0, sizeof(m));
+  m.payload_len = len;
+  m.text_len = boundedTextLen(data, len);
+  m.valid_utf8 = isValidUTF8(data, m.text_len);
+  m.timestamp_sane = isTimestampSane(timestamp, now);
+  for (size_t i = m.text_len + 1; i < len; i++) {
+    if (data[i] != 0 && m.trailing_nonzero < 0xFFFF) m.trailing_nonzero++;
+  }
+
+  uint8_t counts[256];
+  memset(counts, 0, sizeof(counts));
+  for (size_t i = 0; i < m.text_len; i++) {
+    uint8_t c = data[i];
+    if (counts[c] < 255) counts[c]++;
+    if (c >= 0x20 && c <= 0x7E) {
+      m.printable_ascii++;
+      if (c == ' ') m.whitespace++;
+    } else if (c == '\t' || c == '\n' || c == '\r') {
+      m.whitespace++;
+    } else if (c < 0x20 || c == 0x7F) {
+      m.control_chars++;
+    } else {
+      m.non_ascii++;
+    }
+    if (c == 0xEF && i + 2 < m.text_len && data[i + 1] == 0xBF && data[i + 2] == 0xBD) {
+      m.replacement_chars++;
+    }
+  }
+
+  double entropy = 0.0;
+  if (m.text_len > 0) {
+    for (int i = 0; i < 256; i++) {
+      if (counts[i] == 0) continue;
+      double p = ((double)counts[i]) / ((double)m.text_len);
+      entropy -= p * (log(p) / log(2.0));
+    }
+  }
+  m.entropy_score = entropy >= 8.0 ? 100 : (uint8_t)((entropy * 100.0) / 8.0);
+
+  int score = 100;
+  if (m.text_len == 0) score -= 45;
+  if (!m.valid_utf8) score -= 65;
+  if (!m.timestamp_sane) score -= 15;
+  if (m.trailing_nonzero > 0) score -= 35;
+
+  if (m.text_len > 0) {
+    uint32_t printable_ratio = ((uint32_t)m.printable_ascii * 100UL) / m.text_len;
+    uint32_t whitespace_ratio = ((uint32_t)m.whitespace * 100UL) / m.text_len;
+    uint32_t control_ratio = ((uint32_t)m.control_chars * 100UL) / m.text_len;
+    uint32_t replacement_ratio = ((uint32_t)m.replacement_chars * 100UL) / m.text_len;
+
+    if (printable_ratio < 50 && m.non_ascii < m.printable_ascii) score -= 25;
+    if (whitespace_ratio > 45) score -= 15;
+    if (control_ratio > 0) score -= (control_ratio > 10) ? 45 : 25;
+    if (replacement_ratio > 0) score -= (replacement_ratio > 5) ? 45 : 25;
+    if (m.entropy_score > 72 && printable_ratio < 75) score -= 25;
+  }
+
+  if (metrics) *metrics = m;
+  if (score < 0) return 0;
+  if (score > 100) return 100;
+  return (uint8_t)score;
+}
+
+void StrHelper::sanitizeTextForDisplay(char* text) {
+  char* start = text;
+  char* dst = text;
+  bool last_space = false;
+  while (*text) {
+    uint8_t c = (uint8_t)*text++;
+    if (c < 0x20 || c == 0x7F) {
+      if (!last_space) {
+        *dst++ = ' ';
+        last_space = true;
+      }
+      continue;
+    }
+    *dst++ = (char)c;
+    last_space = (c == ' ');
+  }
+  while (dst > start && dst[-1] == ' ') dst--;
+  *dst = 0;
 }

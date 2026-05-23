@@ -245,6 +245,11 @@ protected:
   void onSignedMessageRecv(const ContactInfo& from, mesh::Packet* pkt, uint32_t sender_timestamp, const uint8_t *sender_prefix, const char *text) override {
   }
 
+  void onMalformedMessageRecv(const ContactInfo& from, mesh::Packet* pkt, uint32_t sender_timestamp, const char* reason, uint8_t score) override {
+    Serial.printf("(%s) MSG -> from %s\n", pkt->isRouteDirect() ? "DIRECT" : "FLOOD", from.name);
+    Serial.printf("   %s (%s, score %u)\n", TXT_MALFORMED_PLACEHOLDER, reason, (uint32_t)score);
+  }
+
   void onChannelMessageRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t timestamp, const char *text) override {
     if (pkt->isRouteDirect()) {
       Serial.printf("PUBLIC CHANNEL MSG -> (Direct!)\n");
@@ -252,6 +257,15 @@ protected:
       Serial.printf("PUBLIC CHANNEL MSG -> (Flood) hops %d\n", pkt->path_len);
     }
     Serial.printf("   %s\n", text);
+  }
+
+  void onMalformedChannelMessageRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t timestamp, const char* reason, uint8_t score) override {
+    if (pkt->isRouteDirect()) {
+      Serial.printf("PUBLIC CHANNEL MSG -> (Direct!)\n");
+    } else {
+      Serial.printf("PUBLIC CHANNEL MSG -> (Flood) hops %d\n", pkt->path_len);
+    }
+    Serial.printf("   %s (%s, score %u)\n", TXT_MALFORMED_PLACEHOLDER, reason, (uint32_t)score);
   }
 
   uint8_t onContactRequest(const ContactInfo& contact, uint32_t sender_timestamp, const uint8_t* data, uint8_t len, uint8_t* reply) override {

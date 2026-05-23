@@ -91,6 +91,12 @@ static uint8_t calcCongestionLevel(uint32_t airtime_rx_ms, uint32_t airtime_tx_m
   return 0;
 }
 
+static const uint8_t public_group_secret[PUB_KEY_SIZE] = {
+  0x8B, 0x33, 0x87, 0xE9, 0xC5, 0xCD, 0xEA, 0x6A,
+  0xC9, 0xE5, 0xED, 0xBA, 0xA1, 0x15, 0xCD, 0x72,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -693,6 +699,56 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
 }
 
+bool MyMesh::shouldDropMalformedGroupText(mesh::Packet* pkt) {
+  if (!_prefs.malformed_drop || !pkt->isRouteFlood() || pkt->getPayloadType() != PAYLOAD_TYPE_GRP_TXT) {
+    return false;
+  }
+  if (pkt->payload_len <= PATH_HASH_SIZE + CIPHER_MAC_SIZE) return false;
+
+  uint8_t public_hash[PATH_HASH_SIZE];
+  mesh::Utils::sha256(public_hash, sizeof(public_hash), public_group_secret, 16);
+  if (memcmp(pkt->payload, public_hash, sizeof(public_hash)) != 0) return false;
+
+  uint8_t data[MAX_PACKET_PAYLOAD + 1];
+  int len = mesh::Utils::MACThenDecrypt(public_group_secret, data, &pkt->payload[PATH_HASH_SIZE], pkt->payload_len - PATH_HASH_SIZE);
+  if (len <= 0) return false;
+  if (len < 5) return true;
+
+  uint8_t txt_type = data[4];
+  if ((txt_type >> 2) != 0) return true;
+
+  uint32_t timestamp;
+  memcpy(&timestamp, data, 4);
+  data[len] = 0;
+
+  TextQualityMetrics metrics;
+  uint8_t score = StrHelper::messageConfidenceScore(&data[5], len - 5, timestamp, getRTCClock()->getCurrentTime(), &metrics);
+  uint32_t now = getRTCClock()->getCurrentTime();
+  const char* reason = NULL;
+  if (metrics.text_len == 0) {
+    reason = "empty_text";
+  } else if (!metrics.valid_utf8) {
+    reason = "invalid_utf8";
+  } else if (timestamp == 0 || (now >= 1577836800UL && timestamp > now + (2UL * 24UL * 60UL * 60UL))) {
+    reason = "timestamp";
+  } else if (score < MIN_CHAT_MESSAGE_CONFIDENCE) {
+    reason = "low_confidence";
+  }
+
+  if (reason) {
+    MESH_DEBUG_PRINTLN("[MALFORMED] scope=repeater_group reason=%s score=%u entropy=%u payload_len=%u text_len=%u trailing=%u timestamp=%lu",
+                       reason,
+                       (uint32_t)score,
+                       (uint32_t)metrics.entropy_score,
+                       (uint32_t)(len - 5),
+                       (uint32_t)metrics.text_len,
+                       (uint32_t)metrics.trailing_nonzero,
+                       (unsigned long)timestamp);
+    return true;
+  }
+  return false;
+}
+
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
@@ -705,6 +761,11 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   if (pkt->isRouteFlood() && pkt->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
     dense_stats.n_recv_flood_adverts++;
+  }
+
+  if (shouldDropMalformedGroupText(pkt)) {
+    recordDenseSuppressedTx();
+    return true;
   }
 
   // just try to determine region for packet (apply later in allowPacketForward())
@@ -1056,6 +1117,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_relay_prob = 255;
   _prefs.flood_dynamic_enable = 0;
   _prefs.powersaving_enabled = 0;
+  _prefs.malformed_drop = 1;     // default on for inspectable malformed public chat
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 

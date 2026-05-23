@@ -4,6 +4,8 @@ MeshCoreNG is a Next Gen variant of MeshCore.
 
 In simple terms: MeshCore lets LoRa devices pass messages to each other without the internet. MeshCoreNG builds on that and focuses on making repeaters smarter, so larger and busier networks can keep working better.
 
+Website and web flasher: https://michtronics.github.io/MeshCoreNG/
+
 The goal is not to rebuild MeshCore from scratch. The goal is to add improvements step by step, without breaking existing clients or the existing protocol.
 
 ## Why This Matters In The Netherlands
@@ -466,6 +468,22 @@ region tree
 region save
 ```
 
+**Malformed chat handling:**
+
+Companion radio firmware validates human-readable chat before it is shown to apps or displays. Invalid UTF-8, binary-looking text, excessive control characters, replacement characters, impossible timestamps and very low-confidence text are filtered at the chat rendering boundary. Binary datagrams, raw/custom packets, requests, responses and future packet types remain binary-safe.
+
+By default malformed companion chat is shown as a compact filtered placeholder, so garbage text is not rendered in the Android/app side. Payloads that cannot be inspected, binary channel datagrams and unknown/future packet types are not blindly dropped.
+
+Repeater firmware can be configured to drop malformed default-public-channel group text before retransmission:
+
+```text
+get malformed.drop
+set malformed.drop on
+set malformed.drop off
+```
+
+This is enabled by default on repeaters. Repeaters only drop text packets they can inspect and classify as malformed. Encrypted/private group text that the repeater cannot decrypt, binary datagrams and unknown/future packet types are still relayed according to the normal forwarding rules.
+
 More CLI details are in [docs/cli_commands.md](./docs/cli_commands.md).
 
 ## Compatibility
@@ -473,6 +491,7 @@ More CLI details are in [docs/cli_commands.md](./docs/cli_commands.md).
 MeshCoreNG remains compatible with the existing MeshCore ecosystem.
 
 - No packet format change for these dense-mesh steps.
+- Chat sanitation is applied only to human-readable chat display/forwarding policy; binary transport stays supported.
 - Existing MeshCore clients keep working.
 - Existing MeshCore firmware can still talk to MeshCoreNG.
 - The default settings remain safe for normal and sparse networks.
@@ -501,8 +520,11 @@ For developers:
 MeshCoreNG now includes a GitHub Pages web flasher for ESP32-based repeater builds:
 
 - MeshCoreNG web flasher: https://michtronics.github.io/MeshCoreNG/flasher/
+- MeshCoreNG website and docs: https://michtronics.github.io/MeshCoreNG/
 
 The flasher is built with ESP Web Tools and works from Chrome or Edge using Web Serial. It is meant for ESP32-family boards. nRF52, RP2040 and STM32 boards still use their normal flashing files and tools.
+
+ESP32 repeater builds flashed from this site have malformed public chat dropping enabled by default. Check or change it after flashing with `get malformed.drop`, `set malformed.drop on`, or `set malformed.drop off`.
 
 The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the ESP32 repeater variants, attaches the merged `.bin` files to the release, and the GitHub Pages workflow downloads those release files to create the ESP Web Tools manifests under `/flasher/`.
 

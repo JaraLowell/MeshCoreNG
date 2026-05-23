@@ -174,6 +174,8 @@ txt_type
 | `0x01` | CLI command               | the command text of the message                            |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
 
+Human-readable text payloads are validated before firmware UI/app callbacks render them. Implementations may reject or hide malformed UTF-8, excessive replacement/control characters, binary-looking high-entropy text and impossible timestamps. This validation is a display/forwarding policy for text payloads only; it does not change the packet format and does not apply to binary datagram, raw/custom, request, response or unknown/future payload types.
+
 # Anonymous request
 
 | Field            | Size (bytes)    | Description                               |
@@ -235,6 +237,8 @@ txt_type
 | ciphertext   | rest of payload | encrypted message, see below for details   |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
+
+Nodes that can decrypt a group text packet may apply the same human-readable text validation before displaying or forwarding it. Companion radio firmware sanitizes malformed decryptable group text before queuing it to the app and does not expose a separate malformed-drop command. Repeater firmware can be configured with `set malformed.drop on` to drop malformed decryptable default-public-channel group text before retransmission. Group datagrams remain binary payloads and are not subject to this text filter.
 
 # Group datagram
 

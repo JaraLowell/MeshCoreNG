@@ -11,6 +11,18 @@
 
 #define MAX_SEARCH_RESULTS   8
 
+#ifndef MIN_CHAT_MESSAGE_CONFIDENCE
+#define MIN_CHAT_MESSAGE_CONFIDENCE 55
+#endif
+
+#ifndef MALFORMED_DISPLAY_SUPPRESS_COUNT
+#define MALFORMED_DISPLAY_SUPPRESS_COUNT 5
+#endif
+
+#ifndef MALFORMED_NODE_STATS_SIZE
+#define MALFORMED_NODE_STATS_SIZE 4
+#endif
+
 #define MSG_SEND_FAILED       0
 #define MSG_SEND_SENT_FLOOD   1
 #define MSG_SEND_SENT_DIRECT  2
@@ -49,6 +61,13 @@ struct ConnectionInfo {
   uint32_t expected_ack;
 };
 
+struct MalformedNodeStats {
+  uint8_t pub_key_prefix[4];
+  uint16_t malformed_packets;
+  uint16_t invalid_utf8;
+  uint16_t rejected_messages;
+};
+
 #include "ChannelDetails.h"
 
 /**
@@ -70,9 +89,12 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  MalformedNodeStats malformed_stats[MALFORMED_NODE_STATS_SIZE];
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
+  MalformedNodeStats* getMalformedNodeStats(const ContactInfo& contact, bool allocate);
+  const MalformedNodeStats* getMalformedNodeStats(const ContactInfo& contact) const;
 
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
@@ -86,12 +108,20 @@ protected:
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
     memset(connections, 0, sizeof(connections));
+    memset(malformed_stats, 0, sizeof(malformed_stats));
   }
 
   void bootstrapRTCfromContacts();
   void resetContacts() { num_contacts = 0; }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(); // helper to find slot for new contact
+  bool validateChatText(ContactInfo* contact, mesh::Packet* pkt, const char* scope, uint32_t timestamp,
+                        uint8_t* text, size_t text_len);
+  void noteMalformedText(ContactInfo* contact, mesh::Packet* pkt, const char* scope, const char* reason,
+                         uint32_t timestamp, size_t payload_len, const TextQualityMetrics& metrics,
+                         uint8_t score);
+  bool isDisplaySuppressed(const ContactInfo& contact) const;
+  virtual bool shouldDropMalformedMessages() const { return false; }
 
   // 'UI' concepts, for sub-classes to implement
   virtual bool isAutoAddEnabled() const { return true; }
@@ -107,10 +137,14 @@ protected:
   virtual void onMessageRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text) = 0;
   virtual void onCommandDataRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text) = 0;
   virtual void onSignedMessageRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const uint8_t *sender_prefix, const char *text) = 0;
+  virtual void onMalformedMessageRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp,
+                                      const char* reason, uint8_t score) {}
   virtual uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const = 0;
   virtual uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const = 0;
   virtual void onSendTimeout() = 0;
   virtual void onChannelMessageRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t timestamp, const char *text) = 0;
+  virtual void onMalformedChannelMessageRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t timestamp,
+                                             const char* reason, uint8_t score) {}
   virtual void onChannelDataRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint16_t data_type,
                                  const uint8_t* data, size_t data_len) {}
   virtual uint8_t onContactRequest(const ContactInfo& contact, uint32_t sender_timestamp, const uint8_t* data, uint8_t len, uint8_t* reply) = 0;

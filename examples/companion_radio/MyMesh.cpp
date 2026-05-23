@@ -530,6 +530,14 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
   queueMessage(from, TXT_TYPE_SIGNED_PLAIN, pkt, sender_timestamp, sender_prefix, 4, text);
 }
 
+void MyMesh::onMalformedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
+                                    const char *reason, uint8_t score) {
+  (void)reason;
+  (void)score;
+  markConnectionActive(from);
+  queueMessage(from, TXT_TYPE_PLAIN, pkt, sender_timestamp, NULL, 0, TXT_MALFORMED_PLACEHOLDER);
+}
+
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
   int i = 0;
@@ -575,6 +583,13 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
 #endif
+}
+
+void MyMesh::onMalformedChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+                                           const char *reason, uint8_t score) {
+  (void)reason;
+  (void)score;
+  onChannelMessageRecv(channel, pkt, timestamp, TXT_MALFORMED_PLACEHOLDER);
 }
 
 void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
@@ -925,7 +940,6 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
-
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
 #ifdef DISPLAY_CLASS
