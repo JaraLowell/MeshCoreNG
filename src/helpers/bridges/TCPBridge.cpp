@@ -15,6 +15,7 @@ void TCPBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: starting...\n");
   _state = State::IDLE;
   _rx_buffer_pos = 0;
+  _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
   _last_reconnect_ms = millis() - RECONNECT_INTERVAL_MS;  // connect on first loop()
   _last_heartbeat_ms = 0;
   _initialized = true;
@@ -36,8 +37,9 @@ void TCPBridge::loop() {
   switch (_state) {
 
     case State::IDLE:
-      if (now - _last_reconnect_ms < RECONNECT_INTERVAL_MS) return;
+      if (now - _last_reconnect_ms < _reconnect_interval_ms) return;
       _last_reconnect_ms = now;
+      _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
       _rx_buffer_pos = 0;
 
       if (_prefs->wifi_ssid[0] == '\0') return;
@@ -65,6 +67,7 @@ void TCPBridge::loop() {
         WiFi.disconnect(false);
         _state = State::IDLE;
         _last_reconnect_ms = now;
+        _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
       }
       break;
 
@@ -80,10 +83,12 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
         _last_heartbeat_ms = 0;
         _state = State::RUNNING;
+        sendNodeInfo();
       } else {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
         _state = State::IDLE;
         _last_reconnect_ms = now;
+        _reconnect_interval_ms = SERVER_RECONNECT_INTERVAL_MS;
       }
       break;
 
@@ -183,6 +188,26 @@ bool TCPBridge::sendPayloadFrame(const uint8_t *payload, uint16_t len) {
   buffer[5 + len] = checksum & 0xFF;
 
   return _client.write(buffer, len + TCP_OVERHEAD) == len + TCP_OVERHEAD;
+}
+
+void TCPBridge::sendNodeInfo() {
+  uint8_t payload[6 + sizeof(_prefs->node_name)];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_NODE_INFO;
+
+  size_t name_len = 0;
+  while (name_len < sizeof(_prefs->node_name) && _prefs->node_name[name_len] != '\0') {
+    name_len++;
+  }
+  payload[5] = (uint8_t)name_len;
+  memcpy(payload + 6, _prefs->node_name, name_len);
+
+  if (sendPayloadFrame(payload, 6 + name_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s'\n", _prefs->node_name);
+  }
 }
 
 void TCPBridge::sendHeartbeat() {
