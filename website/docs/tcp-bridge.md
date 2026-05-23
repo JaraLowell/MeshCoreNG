@@ -17,6 +17,14 @@ Start the server on a machine that the bridge repeaters can reach. This can be a
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+The server also starts a small status page by default:
+
+```text
+http://localhost:8080/
+```
+
+Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, its remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
+
 For monitoring during testing, start it with status and heartbeat timeouts:
 
 ```bash
@@ -163,6 +171,18 @@ python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-tim
 ```
 
 The status line shows `idle`, `hb_age`, and `hb`. If `idle` grows beyond `--client-timeout`, the server disconnects the stale TCP session.
+
+The HTTP status page is enabled on port `8080` by default. Change it with:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-port 8081
+```
+
+Or disable it with:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --status-port 0
+```
 
 For single-node-per-IP LAN testing you can also use:
 

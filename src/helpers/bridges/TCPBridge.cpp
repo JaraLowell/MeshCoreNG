@@ -80,6 +80,7 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
         _last_heartbeat_ms = 0;
         _state = State::RUNNING;
+        sendNodeInfo();
       } else {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
         _state = State::IDLE;
@@ -183,6 +184,26 @@ bool TCPBridge::sendPayloadFrame(const uint8_t *payload, uint16_t len) {
   buffer[5 + len] = checksum & 0xFF;
 
   return _client.write(buffer, len + TCP_OVERHEAD) == len + TCP_OVERHEAD;
+}
+
+void TCPBridge::sendNodeInfo() {
+  uint8_t payload[6 + sizeof(_prefs->node_name)];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_NODE_INFO;
+
+  size_t name_len = 0;
+  while (name_len < sizeof(_prefs->node_name) && _prefs->node_name[name_len] != '\0') {
+    name_len++;
+  }
+  payload[5] = (uint8_t)name_len;
+  memcpy(payload + 6, _prefs->node_name, name_len);
+
+  if (sendPayloadFrame(payload, 6 + name_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s'\n", _prefs->node_name);
+  }
 }
 
 void TCPBridge::sendHeartbeat() {
