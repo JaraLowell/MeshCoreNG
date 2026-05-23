@@ -47,7 +47,8 @@ private:
   static constexpr uint16_t MAX_TCP_PACKET_SIZE = (MAX_TRANS_UNIT + 1) + TCP_OVERHEAD;
   static constexpr uint32_t RECONNECT_INTERVAL_MS    = 5000;
   static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS  = 15000;
-  static constexpr uint32_t SERVER_CONNECT_TIMEOUT_MS = 3000;
+  static constexpr uint32_t SERVER_CONNECT_TIMEOUT_MS = 500;
+  static constexpr uint32_t SERVER_RECONNECT_INTERVAL_MS = 30000;
   static constexpr uint32_t HEARTBEAT_INTERVAL_MS    = 30000;
   static constexpr uint8_t  CONTROL_TYPE_HEARTBEAT   = 0x01;
   static constexpr uint8_t  CONTROL_TYPE_NODE_INFO   = 0x02;
@@ -61,6 +62,7 @@ private:
 
   State    _state          = State::IDLE;
   uint32_t _last_reconnect_ms = 0;
+  uint32_t _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
   uint32_t _wifi_start_ms  = 0;
   uint32_t _last_heartbeat_ms = 0;
 

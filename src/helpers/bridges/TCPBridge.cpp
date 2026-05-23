@@ -15,6 +15,7 @@ void TCPBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: starting...\n");
   _state = State::IDLE;
   _rx_buffer_pos = 0;
+  _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
   _last_reconnect_ms = millis() - RECONNECT_INTERVAL_MS;  // connect on first loop()
   _last_heartbeat_ms = 0;
   _initialized = true;
@@ -36,8 +37,9 @@ void TCPBridge::loop() {
   switch (_state) {
 
     case State::IDLE:
-      if (now - _last_reconnect_ms < RECONNECT_INTERVAL_MS) return;
+      if (now - _last_reconnect_ms < _reconnect_interval_ms) return;
       _last_reconnect_ms = now;
+      _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
       _rx_buffer_pos = 0;
 
       if (_prefs->wifi_ssid[0] == '\0') return;
@@ -65,6 +67,7 @@ void TCPBridge::loop() {
         WiFi.disconnect(false);
         _state = State::IDLE;
         _last_reconnect_ms = now;
+        _reconnect_interval_ms = RECONNECT_INTERVAL_MS;
       }
       break;
 
@@ -85,6 +88,7 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
         _state = State::IDLE;
         _last_reconnect_ms = now;
+        _reconnect_interval_ms = SERVER_RECONNECT_INTERVAL_MS;
       }
       break;
 
