@@ -129,23 +129,19 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
       _prefs->bridge_port = bridge_port;                                                         // 457
     }
-<<<<<<< HEAD
-    uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
-    if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
-      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                  // 459
-    }
-    uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
-    if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
-      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                              // 460
-    }
-    // next: 461
-=======
     uint8_t malformed_drop = _prefs->malformed_drop;
     if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
       _prefs->malformed_drop = malformed_drop;                                                    // 459
     }
-    // next: 460
->>>>>>> origin/main
+    uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+    if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                  // 460
+    }
+    uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+    if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                              // 461
+    }
+    // next: 462
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -251,14 +247,10 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 329
     file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 393
     file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 457
-<<<<<<< HEAD
-    file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 459
-    file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 460
-    // next: 461
-=======
     file.write((uint8_t *)&_prefs->malformed_drop, sizeof(_prefs->malformed_drop));                // 459
-    // next: 460
->>>>>>> origin/main
+    file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 460
+    file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 461
+    // next: 462
 
     file.close();
   }
