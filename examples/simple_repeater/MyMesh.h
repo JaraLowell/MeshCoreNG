@@ -71,6 +71,22 @@ struct PowerSavingStats {
   uint32_t wake_rx_packet;
 };
 
+struct SpamStats {
+  uint32_t public_group_seen;
+  uint32_t decrypt_failed;
+  uint32_t allowed;
+  uint32_t malformed_dropped;
+  uint32_t spam_dropped;
+  uint32_t short_dropped;
+  uint32_t type_dropped;
+  uint32_t empty_dropped;
+  uint32_t invalid_utf8_dropped;
+  uint32_t timestamp_dropped;
+  uint8_t last_score;
+  uint8_t last_entropy;
+  char last_reason[18];
+};
+
 typedef struct {
   uint16_t neighbors;
   uint16_t dup_rx;
@@ -127,6 +143,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* recv_pkt_region;
   DenseMeshStats dense_stats;
   PowerSavingStats power_stats;
+  SpamStats spam_stats;
   dense_mesh_stats_t dense_buckets[DENSE_MESH_BUCKETS];
   uint8_t dense_bucket_idx;
   unsigned long dense_bucket_started;
@@ -173,6 +190,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void recordDenseTxAirtime(uint32_t airtime_ms);
   uint16_t getDenseNeighborCount() const;
   void getDenseStats(dense_mesh_stats_t* stats);
+  void clearSpamStatsLocked();
+  void recordSpamDrop(const char* reason, uint8_t score, uint8_t entropy);
   bool shouldDropMalformedGroupText(mesh::Packet* pkt);
 
 protected:
@@ -269,6 +288,8 @@ public:
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
   void formatDenseStatsReply(char *reply) override;
+  void formatSpamStatsReply(char *reply) override;
+  void formatRepeaterHealthReply(char *reply) override;
   void formatPowerStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
@@ -279,6 +300,7 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
   void clearDenseStats() override;
+  void clearSpamStats() override;
   void clearPowerStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);

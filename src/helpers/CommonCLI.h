@@ -104,6 +104,12 @@ public:
   virtual void formatDenseStatsReply(char *reply) {
     reply[0] = 0;
   }
+  virtual void formatSpamStatsReply(char *reply) {
+    reply[0] = 0;
+  }
+  virtual void formatRepeaterHealthReply(char *reply) {
+    reply[0] = 0;
+  }
   virtual void formatPowerStatsReply(char *reply) {
     reply[0] = 0;
   }
@@ -111,6 +117,8 @@ public:
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
   virtual void clearDenseStats() {
+  }
+  virtual void clearSpamStats() {
   }
   virtual void clearPowerStats() {
   }

@@ -91,6 +91,20 @@ static uint8_t calcCongestionLevel(uint32_t airtime_rx_ms, uint32_t airtime_tx_m
   return 0;
 }
 
+static const char* levelName(uint8_t level) {
+  if (level >= 3) return "high";
+  if (level == 2) return "moderate";
+  if (level == 1) return "low";
+  return "ok";
+}
+
+static const char* healthName(uint8_t score) {
+  if (score >= 80) return "good";
+  if (score >= 60) return "fair";
+  if (score >= 40) return "poor";
+  return "bad";
+}
+
 static const uint8_t public_group_secret[PUB_KEY_SIZE] = {
   0x8B, 0x33, 0x87, 0xE9, 0xC5, 0xCD, 0xEA, 0x6A,
   0xC9, 0xE5, 0xED, 0xBA, 0xA1, 0x15, 0xCD, 0x72,
@@ -142,6 +156,11 @@ void MyMesh::clearDenseStatsLocked() {
   dense_bucket_started = _ms->getMillis();
 }
 
+void MyMesh::clearSpamStatsLocked() {
+  memset(&spam_stats, 0, sizeof(spam_stats));
+  StrHelper::strncpy(spam_stats.last_reason, "none", sizeof(spam_stats.last_reason));
+}
+
 void MyMesh::recordDenseUniqueRx() {
   DENSE_STATS_LOCK();
   rotateDenseStats();
@@ -174,6 +193,28 @@ void MyMesh::recordDenseTxAirtime(uint32_t airtime_ms) {
   DENSE_STATS_LOCK();
   rotateDenseStats();
   dense_buckets[dense_bucket_idx].airtime_tx_ms += airtime_ms;
+  DENSE_STATS_UNLOCK();
+}
+
+void MyMesh::recordSpamDrop(const char* reason, uint8_t score, uint8_t entropy) {
+  DENSE_STATS_LOCK();
+  spam_stats.malformed_dropped++;
+  if (strcmp(reason, "low_confidence") == 0) {
+    spam_stats.spam_dropped++;
+  } else if (strcmp(reason, "short") == 0) {
+    spam_stats.short_dropped++;
+  } else if (strcmp(reason, "type") == 0) {
+    spam_stats.type_dropped++;
+  } else if (strcmp(reason, "empty_text") == 0) {
+    spam_stats.empty_dropped++;
+  } else if (strcmp(reason, "invalid_utf8") == 0) {
+    spam_stats.invalid_utf8_dropped++;
+  } else if (strcmp(reason, "timestamp") == 0) {
+    spam_stats.timestamp_dropped++;
+  }
+  spam_stats.last_score = score;
+  spam_stats.last_entropy = entropy;
+  StrHelper::strncpy(spam_stats.last_reason, reason, sizeof(spam_stats.last_reason));
   DENSE_STATS_UNLOCK();
 }
 
@@ -700,7 +741,7 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 bool MyMesh::shouldDropMalformedGroupText(mesh::Packet* pkt) {
-  if (!_prefs.malformed_drop || !pkt->isRouteFlood() || pkt->getPayloadType() != PAYLOAD_TYPE_GRP_TXT) {
+  if (!pkt->isRouteFlood() || pkt->getPayloadType() != PAYLOAD_TYPE_GRP_TXT) {
     return false;
   }
   if (pkt->payload_len <= PATH_HASH_SIZE + CIPHER_MAC_SIZE) return false;
@@ -709,13 +750,32 @@ bool MyMesh::shouldDropMalformedGroupText(mesh::Packet* pkt) {
   mesh::Utils::sha256(public_hash, sizeof(public_hash), public_group_secret, 16);
   if (memcmp(pkt->payload, public_hash, sizeof(public_hash)) != 0) return false;
 
+  DENSE_STATS_LOCK();
+  spam_stats.public_group_seen++;
+  DENSE_STATS_UNLOCK();
+
+  if (!_prefs.malformed_drop) {
+    return false;
+  }
+
   uint8_t data[MAX_PACKET_PAYLOAD + 1];
   int len = mesh::Utils::MACThenDecrypt(public_group_secret, data, &pkt->payload[PATH_HASH_SIZE], pkt->payload_len - PATH_HASH_SIZE);
-  if (len <= 0) return false;
-  if (len < 5) return true;
+  if (len <= 0) {
+    DENSE_STATS_LOCK();
+    spam_stats.decrypt_failed++;
+    DENSE_STATS_UNLOCK();
+    return false;
+  }
+  if (len < 5) {
+    recordSpamDrop("short", 0, 0);
+    return true;
+  }
 
   uint8_t txt_type = data[4];
-  if ((txt_type >> 2) != 0) return true;
+  if ((txt_type >> 2) != 0) {
+    recordSpamDrop("type", 0, 0);
+    return true;
+  }
 
   uint32_t timestamp;
   memcpy(&timestamp, data, 4);
@@ -736,6 +796,7 @@ bool MyMesh::shouldDropMalformedGroupText(mesh::Packet* pkt) {
   }
 
   if (reason) {
+    recordSpamDrop(reason, score, metrics.entropy_score);
     MESH_DEBUG_PRINTLN("[MALFORMED] scope=repeater_group reason=%s score=%u entropy=%u payload_len=%u text_len=%u trailing=%u timestamp=%lu",
                        reason,
                        (uint32_t)score,
@@ -746,6 +807,12 @@ bool MyMesh::shouldDropMalformedGroupText(mesh::Packet* pkt) {
                        (unsigned long)timestamp);
     return true;
   }
+  DENSE_STATS_LOCK();
+  spam_stats.allowed++;
+  spam_stats.last_score = score;
+  spam_stats.last_entropy = metrics.entropy_score;
+  StrHelper::strncpy(spam_stats.last_reason, "allowed", sizeof(spam_stats.last_reason));
+  DENSE_STATS_UNLOCK();
   return false;
 }
 
@@ -1092,6 +1159,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   clearDenseStatsLocked();
+  clearSpamStatsLocked();
   clearPowerStats();
 
 #if MAX_NEIGHBOURS
@@ -1412,6 +1480,66 @@ void MyMesh::formatDenseStatsReply(char *reply) {
           (uint32_t)_prefs.flood_dynamic_enable);
 }
 
+void MyMesh::formatSpamStatsReply(char *reply) {
+  DENSE_STATS_LOCK();
+  SpamStats stats = spam_stats;
+  DENSE_STATS_UNLOCK();
+
+  snprintf(reply, 160,
+          "seen=%lu ok=%lu drop=%lu spam=%lu fail=%lu\ns=%lu t=%lu e=%lu u=%lu tm=%lu\nlast=%s sc=%u en=%u mode=%s",
+          (unsigned long)stats.public_group_seen,
+          (unsigned long)stats.allowed,
+          (unsigned long)stats.malformed_dropped,
+          (unsigned long)stats.spam_dropped,
+          (unsigned long)stats.decrypt_failed,
+          (unsigned long)stats.short_dropped,
+          (unsigned long)stats.type_dropped,
+          (unsigned long)stats.empty_dropped,
+          (unsigned long)stats.invalid_utf8_dropped,
+          (unsigned long)stats.timestamp_dropped,
+          stats.last_reason,
+          (uint32_t)stats.last_score,
+          (uint32_t)stats.last_entropy,
+          _prefs.malformed_drop ? "drop" : "off");
+}
+
+void MyMesh::formatRepeaterHealthReply(char *reply) {
+  dense_mesh_stats_t stats;
+  getDenseStats(&stats);
+
+  uint32_t recv = radio_driver.getPacketsRecv();
+  uint32_t recv_errors = radio_driver.getPacketsRecvErrors();
+  uint32_t recv_total = recv + recv_errors;
+  uint8_t err_pct = recv_total == 0 ? 0 : (uint8_t)((recv_errors * 100UL) / recv_total);
+  uint32_t total_rx = (uint32_t)stats.unique_rx + stats.dup_rx;
+  uint8_t dup_pct = total_rx == 0 ? 0 : (uint8_t)((stats.dup_rx * 100UL) / total_rx);
+  DENSE_STATS_LOCK();
+  uint32_t spam_dropped = spam_stats.malformed_dropped;
+  DENSE_STATS_UNLOCK();
+  int score = 100;
+  if (_prefs.disable_fwd) score -= 40;
+  score -= stats.congestion_level * 10;
+  score -= stats.density_level * 5;
+  if (err_pct >= 10) score -= 20;
+  else if (err_pct >= 3) score -= 8;
+  if (!_prefs.malformed_drop) score -= 3;
+  score = constrain(score, 0, 100);
+
+  snprintf(reply, 160,
+          "health=%s score=%u repeat=%s rxerr=%u%% air=%s density=%s dup=%u%%\nspam_drop=%lu spam_mode=%s sf=%u freq=%s",
+          healthName((uint8_t)score),
+          (uint32_t)score,
+          _prefs.disable_fwd ? "off" : "on",
+          (uint32_t)err_pct,
+          levelName(stats.congestion_level),
+          levelName(stats.density_level),
+          (uint32_t)dup_pct,
+          (unsigned long)spam_dropped,
+          _prefs.malformed_drop ? "drop" : "off",
+          (uint32_t)_prefs.sf,
+          StrHelper::ftoa(_prefs.freq));
+}
+
 static const char* getPowerSavingSupport() {
 #if defined(NRF52_PLATFORM)
   return "supported";
@@ -1451,6 +1579,7 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
   DENSE_STATS_LOCK();
   clearDenseStatsLocked();
+  clearSpamStatsLocked();
   DENSE_STATS_UNLOCK();
 }
 
@@ -1460,6 +1589,12 @@ void MyMesh::clearDenseStats() {
   DENSE_STATS_UNLOCK();
   resetCADStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+}
+
+void MyMesh::clearSpamStats() {
+  DENSE_STATS_LOCK();
+  clearSpamStatsLocked();
+  DENSE_STATS_UNLOCK();
 }
 
 void MyMesh::clearPowerStats() {

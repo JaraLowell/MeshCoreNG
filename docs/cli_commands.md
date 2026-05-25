@@ -136,6 +136,30 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 
 ---
 
+### Malformed/Spam Stats
+**Usage:**
+- `get spam.stats`
+- `clear spam.stats`
+
+Shows repeater counters for inspectable default-public group text: public packets seen, accepted packets, malformed drops, low-confidence spam drops, decrypt failures, and drop reasons such as short payload, unknown text type, empty text, invalid UTF-8 and bad timestamp.
+
+The compact reason fields are `s` short, `t` type, `e` empty, `u` UTF-8 and `tm` timestamp.
+
+These counters are RAM-only and reset on reboot, with `clear spam.stats`, or with `clear stats`.
+
+---
+
+### Repeater Health
+**Usage:**
+- `get repeater.health`
+- `get repeater.status`
+
+Shows a compact human-readable repeater status: health label, score, repeat on/off state, RX error percentage, airtime/congestion level, density level, duplicate RX percentage, spam drops, spam mode, SF and frequency.
+
+The score is diagnostic only. It does not change forwarding behavior.
+
+---
+
 ### Power Saving Stats
 **Usage:**
 - `get power.stats`
