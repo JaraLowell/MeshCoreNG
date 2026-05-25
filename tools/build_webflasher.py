@@ -111,7 +111,7 @@ def release_files_for_asset(board, asset):
     device_type = get_device_type(board)
     if device_type == "esp32":
         return [{
-            "type": "flash-wipe",
+            "type": "flash",
             "name": firmware_name,
             "title": firmware_name,
         }]
