@@ -130,7 +130,7 @@ The flood retransmit delay is now:
 random txdelay spread + stable node offset
 ```
 
-The stable offset is derived from the node identity already stored in the firmware. It is stable across reboot, creates no extra packets, does not change the protocol or packet format, and is only used for flood retransmit scheduling. If `txdelay` is set to `0`, the offset is not added, so old zero-delay behavior stays available.
+The stable offset is derived from the node identity already stored in the firmware. It is stable across reboot, creates no extra packets, does not change the protocol or packet format, and is only used for flood retransmit scheduling. If `txdelay` is set to `0`, the offset is not added, so old zero-delay behavior stays available. You can also disable only the stable offset with `set flood.node.delay off`.
 
 This is different from CAD retry timing:
 
@@ -159,7 +159,7 @@ hear two duplicate forwards of the same packet
 cancel local retransmit
 ```
 
-The default threshold is conservative: two duplicate forwards must be heard before cancellation. If no duplicates are heard, the retransmit still happens normally, so sparse networks keep their reach. Locally generated packets, direct routing, ACKs, path/control packets and trace/control traffic are not suppressed.
+The default threshold is conservative: two duplicate forwards must be heard before cancellation. If no duplicates are heard, the retransmit still happens normally, so sparse networks keep their reach. Locally generated packets, direct routing, ACKs, path/control packets and trace/control traffic are not suppressed. You can disable this behavior with `set flood.dup.suppress off`.
 
 This reduces duplicate flooding, airtime waste and collision probability without extra packets, without synchronization, and without changing the protocol.
 

@@ -83,7 +83,7 @@ When `txdelay` is above `0`, MeshCoreNG adds a small deterministic per-node offs
 final flood delay = random txdelay spread + stable node offset
 ```
 
-The offset is based on the node identity already stored in firmware, so it is stable across reboot and does not require extra traffic, a protocol change, or a packet format change. It is deliberately small and only applies to flood retransmit scheduling. `set txdelay 0` keeps zero-delay behavior and disables the node offset.
+The offset is based on the node identity already stored in firmware, so it is stable across reboot and does not require extra traffic, a protocol change, or a packet format change. It is deliberately small and only applies to flood retransmit scheduling. `set txdelay 0` keeps zero-delay behavior and disables the node offset; `set flood.node.delay off` disables only the stable offset while keeping the random `txdelay` spread.
 
 CAD retry is a different layer. CAD retry happens after the radio has detected a busy channel; the current retry window is 120-360 ms. The node offset helps earlier by preventing repeaters that heard the same packet at the same time from lining up perfectly.
 
@@ -110,6 +110,8 @@ Default behavior:
 Only queued retransmits of received flood packets are suppressible. Locally generated packets, ACKs, direct packets, path/control packets and trace/control traffic are kept. This keeps sparse networks working while reducing duplicate floods in dense groups.
 
 The threshold is compile-time configurable with `MESH_DUP_SUPPRESS_THRESHOLD`; the default is `2`.
+
+It can be disabled at runtime with `set flood.dup.suppress off`.
 
 ## Dynamic mode
 

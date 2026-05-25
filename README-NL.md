@@ -130,7 +130,7 @@ De flood retransmit delay is nu:
 random txdelay spreiding + stabiele node-offset
 ```
 
-Die stabiele offset komt uit de node-identiteit die al in de firmware staat. Hij blijft gelijk na een reboot, veroorzaakt geen extra netwerkverkeer, verandert niets aan het protocol of packet format, en wordt alleen gebruikt voor flood retransmit scheduling. Als `txdelay` op `0` staat, wordt de offset niet toegevoegd. Het oude zero-delay gedrag blijft dus beschikbaar.
+Die stabiele offset komt uit de node-identiteit die al in de firmware staat. Hij blijft gelijk na een reboot, veroorzaakt geen extra netwerkverkeer, verandert niets aan het protocol of packet format, en wordt alleen gebruikt voor flood retransmit scheduling. Als `txdelay` op `0` staat, wordt de offset niet toegevoegd. Het oude zero-delay gedrag blijft dus beschikbaar. Je kunt alleen de stabiele offset ook uitzetten met `set flood.node.delay off`.
 
 Dit is iets anders dan CAD retry timing:
 
@@ -159,7 +159,7 @@ twee duplicate forwards van hetzelfde packet gehoord
 eigen retransmit annuleren
 ```
 
-De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord worden voordat de retransmit wordt geannuleerd. Als er geen duplicates binnenkomen, zendt de repeater gewoon zoals voorheen. Sparse netwerken houden dus hun bereik. Lokaal gemaakte packets, direct routing, ACKs, path/control packets en trace/control verkeer worden niet onderdrukt.
+De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord worden voordat de retransmit wordt geannuleerd. Als er geen duplicates binnenkomen, zendt de repeater gewoon zoals voorheen. Sparse netwerken houden dus hun bereik. Lokaal gemaakte packets, direct routing, ACKs, path/control packets en trace/control verkeer worden niet onderdrukt. Je kunt dit gedrag uitzetten met `set flood.dup.suppress off`.
 
 Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra packets, zonder synchronisatie, en zonder protocolwijziging.
 

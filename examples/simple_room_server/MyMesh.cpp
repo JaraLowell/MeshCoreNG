@@ -647,6 +647,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.flood_relay_prob = 255;
   _prefs.flood_dynamic_enable = 0;
+  _prefs.flood_node_delay_enable = 1;
+  _prefs.flood_dup_suppress_enable = 1;
   _prefs.interference_threshold = 0; // disabled
 #ifdef ROOM_PASSWORD
   StrHelper::strncpy(_prefs.guest_password, ROOM_PASSWORD, sizeof(_prefs.guest_password));

@@ -60,6 +60,10 @@ protected:
 
   virtual void onPacketSeen(Packet* packet, bool duplicate) { }
 
+  virtual bool isDuplicateSuppressionEnabled() const { return true; }
+
+  virtual bool isNodeDelayOffsetEnabled() const { return true; }
+
   /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet.
    */

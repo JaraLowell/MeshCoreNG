@@ -116,6 +116,12 @@ protected:
   // Mesh overrides
   float getAirtimeBudgetFactor() const override;
   bool allowPacketForward(const mesh::Packet* packet) override;
+  bool isDuplicateSuppressionEnabled() const override {
+    return _prefs.flood_dup_suppress_enable != 0;
+  }
+  bool isNodeDelayOffsetEnabled() const override {
+    return _prefs.flood_node_delay_enable != 0;
+  }
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet* packet) override;

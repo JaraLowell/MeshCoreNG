@@ -30,7 +30,7 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
 
 bool Mesh::hasSeen(Packet* packet) {
   bool seen = _tables->hasSeen(packet);
-  if (seen) recordDuplicateForSuppression(packet);
+  if (seen && isDuplicateSuppressionEnabled()) recordDuplicateForSuppression(packet);
   onPacketSeen(packet, seen);
   return seen;
 }
@@ -52,6 +52,7 @@ bool Mesh::isSuppressibleRetransmit(const Packet* packet) const {
 
 void Mesh::recordDuplicateForSuppression(const Packet* packet) {
 #if MESH_DUP_SUPPRESS_THRESHOLD > 0
+  if (!isDuplicateSuppressionEnabled()) return;
   if (!packet->isRouteFlood()) return;
 
   uint8_t duplicate_hash[MAX_HASH_SIZE];
@@ -112,6 +113,7 @@ uint32_t Mesh::getNodeDelayOffsetMs(uint32_t airtime_ms) const {
   return fnv1a32(self_id.pub_key, PUB_KEY_SIZE) % (max_offset_ms + 1);
 }
 uint32_t Mesh::addNodeDelayOffsetMs(uint32_t airtime_ms, float tx_delay_factor, uint32_t random_delay_ms) {
+  if (!isNodeDelayOffsetEnabled()) return random_delay_ms;
   if (tx_delay_factor <= 0.0f) return random_delay_ms;
 
   uint32_t node_offset_ms = getNodeDelayOffsetMs(airtime_ms);

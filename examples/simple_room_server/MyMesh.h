@@ -137,6 +137,12 @@ protected:
   void logTxFail(mesh::Packet* pkt, int len) override;
 
   int calcRxDelay(float score, uint32_t air_time) const override;
+  bool isDuplicateSuppressionEnabled() const override {
+    return _prefs.flood_dup_suppress_enable != 0;
+  }
+  bool isNodeDelayOffsetEnabled() const override {
+    return _prefs.flood_node_delay_enable != 0;
+  }
   const char* getLogDateTime() override;
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet* packet) override;

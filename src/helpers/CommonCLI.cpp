@@ -26,6 +26,18 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+static bool parseOnOff(const char* value, uint8_t* dest) {
+  if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0 || strcmp(value, "enable") == 0 || strcmp(value, "enabled") == 0) {
+    *dest = 1;
+    return true;
+  }
+  if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0 || strcmp(value, "disable") == 0 || strcmp(value, "disabled") == 0) {
+    *dest = 0;
+    return true;
+  }
+  return false;
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -117,7 +129,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
       _prefs->bridge_port = bridge_port;                                                         // 457
     }
-    // next: 459
+    uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+    if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                  // 459
+    }
+    uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+    if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                              // 460
+    }
+    // next: 461
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -152,6 +172,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       _prefs->flood_advert_base = default_flood_advert_base;
     }
     _prefs->flood_dynamic_enable = constrain(_prefs->flood_dynamic_enable, 0, 1);
+    _prefs->flood_node_delay_enable = constrain(_prefs->flood_node_delay_enable, 0, 1);
+    _prefs->flood_dup_suppress_enable = constrain(_prefs->flood_dup_suppress_enable, 0, 1);
 
     file.close();
   }
@@ -220,7 +242,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 329
     file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 393
     file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 457
-    // next: 459
+    file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 459
+    file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 460
+    // next: 461
 
     file.close();
   }
@@ -679,12 +703,23 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "flood.dynamic.enable ", 21) == 0) {
     const char* value = &config[21];
-    if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
-      _prefs->flood_dynamic_enable = 1;
+    if (parseOnOff(value, &_prefs->flood_dynamic_enable)) {
       savePrefs();
       strcpy(reply, "OK");
-    } else if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
-      _prefs->flood_dynamic_enable = 0;
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "flood.node.delay ", 17) == 0 || memcmp(config, "node.delay ", 11) == 0) {
+    const char* value = (config[0] == 'f') ? &config[17] : &config[11];
+    if (parseOnOff(value, &_prefs->flood_node_delay_enable)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "flood.dup.suppress ", 19) == 0 || memcmp(config, "dup.suppress ", 13) == 0) {
+    const char* value = (config[0] == 'f') ? &config[19] : &config[13];
+    if (parseOnOff(value, &_prefs->flood_dup_suppress_enable)) {
       savePrefs();
       strcpy(reply, "OK");
     } else {
@@ -865,6 +900,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %u", (uint32_t)_prefs->flood_relay_prob);
   } else if (memcmp(config, "flood.dynamic.enable", 20) == 0) {
     sprintf(reply, "> %s", _prefs->flood_dynamic_enable ? "on" : "off");
+  } else if (memcmp(config, "flood.node.delay", 16) == 0 || memcmp(config, "node.delay", 10) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_node_delay_enable ? "on" : "off");
+  } else if (memcmp(config, "flood.dup.suppress", 18) == 0 || memcmp(config, "dup.suppress", 12) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_dup_suppress_enable ? "on" : "off");
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
   } else if (sender_timestamp == 0 && memcmp(config, "power.stats", 11) == 0) {

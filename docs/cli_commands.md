@@ -528,7 +528,43 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 `set txdelay 0` keeps the previous zero-delay behavior and does not add the node offset. CAD retry is separate: it happens after the radio detects a busy channel, with the current retry window of 120-360 ms.
 
-MeshCoreNG also performs duplicate-hearing suppression for queued flood retransmits. If a repeater hears two duplicate forwards of the same packet before its own scheduled retransmit fires, that pending retransmit is cancelled. This has no CLI setting by default; the compile-time threshold is `MESH_DUP_SUPPRESS_THRESHOLD`.
+MeshCoreNG also performs duplicate-hearing suppression for queued flood retransmits. If a repeater hears two duplicate forwards of the same packet before its own scheduled retransmit fires, that pending retransmit is cancelled. The runtime toggle is `flood.dup.suppress`; the compile-time threshold is `MESH_DUP_SUPPRESS_THRESHOLD`.
+
+---
+
+#### View or change stable per-node flood delay offset
+**Usage:**
+- `get flood.node.delay`
+- `set flood.node.delay <state>`
+
+**Aliases:**
+- `get node.delay`
+- `set node.delay <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+**Note:** When enabled, a small stable delay derived from the node identity is added to flood retransmits. This helps nearby repeaters avoid retransmitting at the same moment. Turning it off keeps only the random `txdelay` behavior.
+
+---
+
+#### View or change duplicate-hearing flood suppression
+**Usage:**
+- `get flood.dup.suppress`
+- `set flood.dup.suppress <state>`
+
+**Aliases:**
+- `get dup.suppress`
+- `set dup.suppress <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+**Note:** When enabled, a queued flood retransmit can be cancelled if this node hears enough duplicate forwards before its own transmit slot. This reduces redundant flood traffic in dense meshes without changing the packet protocol.
 
 ---
 
