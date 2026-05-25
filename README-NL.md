@@ -523,7 +523,7 @@ De flasher werkt vanuit Chrome of Edge met Web Serial. ESP32-family boards flash
 
 ESP32 repeater builds die je via deze site flasht hebben malformed public chat dropping standaard aan. Controleer of wijzig dit na het flashen met `get malformed.drop`, `set malformed.drop on` of `set malformed.drop off`.
 
-De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de firmwarevarianten, hangt de firmwarebestanden aan de release, en de GitHub Pages workflow downloadt daarna die releasebestanden naar `/flasher/firmware/`.
+De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de firmwarevarianten en hangt de firmwarebestanden aan de release. De GitHub Pages workflow publiceert alleen een kleine firmware-index; de browser downloadt de gekozen firmware pas vanaf GitHub Releases wanneer je op flash of download drukt.
 
 Wil je later nog een board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `website/public/flasher/boards.json`. ESP32 release-assets moeten een naam hebben zoals `<env>-*-merged.bin`; nRF52 DFU release-assets moeten een naam hebben zoals `<env>-*.zip`.
 

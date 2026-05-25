@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Build the MeshCoreNG web flasher firmware manifests.
+Build the MeshCoreNG web flasher firmware index.
 
 Searches ALL GitHub releases for firmware assets and matches them to the
 boards listed in website/public/flasher/boards.json. Boards without a matching
 release asset are silently skipped (firmware not yet released).
 
-Writes output to website/.vitepress/dist/flasher/ which is the VitePress
-build output directory. Run this script AFTER 'vitepress build'.
+Writes a lightweight boards.json to website/.vitepress/dist/flasher/. Firmware
+files stay on GitHub Releases and are fetched by the browser only when selected.
+Run this script AFTER 'vitepress build'.
 """
 import argparse
 import json
@@ -24,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEBFLASHER_SRC  = ROOT / "website" / "public" / "flasher"
 BOARDS_FILE     = WEBFLASHER_SRC / "boards.json"
 SITE_FLASHER    = ROOT / "website" / ".vitepress" / "dist" / "flasher"
-FIRMWARE_DIR    = SITE_FLASHER / "firmware"
+LEGACY_FIRMWARE_DIR = SITE_FLASHER / "firmware"
 
 
 def load_boards():
@@ -98,49 +99,25 @@ def find_assets_for_board(all_assets, board):
     return matches
 
 
-def download_asset(asset, destination, token):
-    data = github_request(asset["url"], token, accept="application/octet-stream")
-    with destination.open("wb") as f:
-        f.write(data)
-
-
-def write_manifest(board, firmware_name, version, manifest_name):
-    manifest = {
-        "name": board["name"],
-        "version": version,
-        "new_install_prompt_erase": True,
-        "builds": [
-            {
-                "chipFamily": board["chipFamily"],
-                "parts": [{"path": firmware_name, "offset": 0}],
-            }
-        ],
-    }
-    manifest_path = FIRMWARE_DIR / board["env"] / manifest_name
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    with manifest_path.open("w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
-        f.write("\n")
-    return manifest_path
-
-
-def release_files_for_asset(board, firmware_name):
+def release_files_for_asset(board, asset):
+    firmware_name = asset["name"]
+    download_url = asset.get("browser_download_url") or asset.get("url", "")
     device_type = get_device_type(board)
     if device_type == "esp32":
         return [{
             "type": "flash-wipe",
-            "name": firmware_name,
+            "name": download_url,
             "title": firmware_name,
         }]
     if device_type == "nrf52":
         return [{
             "type": "flash",
-            "name": firmware_name,
+            "name": download_url,
             "title": firmware_name,
         }]
     return [{
         "type": "download",
-        "name": firmware_name,
+        "name": download_url,
         "title": firmware_name,
     }]
 
@@ -164,7 +141,8 @@ def get_category(env_name):
 
 
 def build_flasher(boards, all_assets):
-    FIRMWARE_DIR.mkdir(parents=True, exist_ok=True)
+    if LEGACY_FIRMWARE_DIR.exists():
+        shutil.rmtree(LEGACY_FIRMWARE_DIR)
 
     published = []
     skipped = []
@@ -177,21 +155,11 @@ def build_flasher(boards, all_assets):
             skipped.append(env_name)
             continue
 
-        board_dir = FIRMWARE_DIR / env_name
-        board_dir.mkdir(parents=True, exist_ok=True)
-
         releases = []
         for asset in assets:
             firmware_name = asset["name"]
             version = asset.get("release_tag") or asset.get("updated_at", "release")[:10]
-            manifest_name = f"{firmware_name}.manifest.json"
-
-            print(f"  Downloading {firmware_name} ...", file=sys.stderr)
-            download_asset(asset, board_dir / firmware_name, args_token)
-            manifest = ""
-            if device_type == "esp32":
-                write_manifest(board, firmware_name, version, manifest_name)
-                manifest = f"./firmware/{env_name}/{manifest_name}"
+            print(f"  Indexing {firmware_name} ...", file=sys.stderr)
 
             releases.append({
                 "version": version,
@@ -199,8 +167,8 @@ def build_flasher(boards, all_assets):
                 "published_at": asset.get("release_published_at") or asset.get("updated_at", ""),
                 "prerelease": bool(asset.get("release_prerelease")),
                 "firmware": firmware_name,
-                "manifest": manifest,
-                "files": release_files_for_asset(board, firmware_name),
+                "download_url": asset.get("browser_download_url", ""),
+                "files": release_files_for_asset(board, asset),
             })
 
         latest = releases[0]
@@ -210,7 +178,7 @@ def build_flasher(boards, all_assets):
             "category": get_category(env_name),
             "type": device_type,
             "version": latest["version"],
-            "manifest": latest["manifest"],
+            "download_url": latest.get("download_url", ""),
             "releases": releases,
         })
 
