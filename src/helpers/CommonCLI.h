@@ -75,8 +75,12 @@ struct NodePrefs { // persisted to file
   char wifi_password[64];
   char bridge_server[64];
   uint16_t bridge_port;
+<<<<<<< HEAD
   uint8_t flood_node_delay_enable;
   uint8_t flood_dup_suppress_enable;
+=======
+  uint8_t malformed_drop; // drop malformed decryptable public/group chat instead of forwarding
+>>>>>>> origin/main
 };
 
 class CommonCLICallbacks {

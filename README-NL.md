@@ -4,6 +4,8 @@ MeshCoreNG is een Next Gen variant van MeshCore.
 
 Kort gezegd: MeshCore laat LoRa-apparaten berichten naar elkaar doorgeven zonder internet. MeshCoreNG bouwt daarop verder en probeert vooral repeaters slimmer te maken, zodat grotere en drukkere netwerken beter blijven werken.
 
+Website en webflasher: https://michtronics.github.io/MeshCoreNG/
+
 Het doel is niet om MeshCore opnieuw te bouwen. Het doel is om stap voor stap verbeteringen toe te voegen, zonder bestaande clients of het bestaande protocol kapot te maken.
 
 ## Waarom dit in Nederland belangrijk is
@@ -506,6 +508,22 @@ region tree
 region save
 ```
 
+**Malformed chat afhandeling:**
+
+Companion radio firmware valideert menselijke chat voordat die naar apps of displays gaat. Ongeldige UTF-8, binary-achtige tekst, te veel control characters, replacement characters, onmogelijke timestamps en tekst met een heel lage confidence score worden bij de chat/UI-laag gefilterd. Binary datagrams, raw/custom packets, requests, responses en toekomstige packet types blijven binary-safe.
+
+Standaard wordt malformed companion chat als compacte placeholder getoond, zodat rommeltekst niet in de Android/app kant gerenderd wordt. Payloads die niet geïnspecteerd kunnen worden, binary channel datagrams en onbekende/toekomstige packet types worden niet blind gedropt.
+
+Repeater firmware kan ook ingesteld worden om malformed default-public-channel group text te droppen voordat het opnieuw wordt uitgezonden:
+
+```text
+get malformed.drop
+set malformed.drop on
+set malformed.drop off
+```
+
+Dit staat standaard aan op repeaters. Repeaters droppen alleen tekstpackets die ze kunnen inspecteren en als malformed kunnen classificeren. Encrypted/private group text die de repeater niet kan decrypten, binary datagrams en onbekende/toekomstige packet types blijven volgens de normale forwardingregels lopen.
+
 Meer CLI-uitleg staat in [docs/cli_commands.md](./docs/cli_commands.md).
 
 ## Compatibiliteit
@@ -513,6 +531,7 @@ Meer CLI-uitleg staat in [docs/cli_commands.md](./docs/cli_commands.md).
 MeshCoreNG blijft compatible met het bestaande MeshCore ecosysteem.
 
 - Geen packet format wijziging voor deze dense-mesh stappen.
+- Chat-sanitatie geldt alleen voor menselijke chatweergave/forwarding policy; binary transport blijft ondersteund.
 - Bestaande MeshCore clients blijven werken.
 - Bestaande MeshCore firmware kan nog steeds met MeshCoreNG praten.
 - De standaardinstellingen blijven veilig voor normale en sparse netwerken.
@@ -538,15 +557,18 @@ Voor developers:
 
 ## MeshCoreNG webflasher
 
-MeshCoreNG heeft nu een GitHub Pages webflasher voor ESP32 repeater builds:
+MeshCoreNG heeft nu een GitHub Pages webflasher voor ondersteunde release-builds:
 
 - MeshCoreNG webflasher: https://michtronics.github.io/MeshCoreNG/flasher/
+- MeshCoreNG website en docs: https://michtronics.github.io/MeshCoreNG/
 
-De flasher gebruikt ESP Web Tools en werkt vanuit Chrome of Edge met Web Serial. Hij is bedoeld voor ESP32-family boards. nRF52, RP2040 en STM32 boards gebruiken nog steeds hun normale firmwarebestanden en flashing tools.
+De flasher werkt vanuit Chrome of Edge met Web Serial. ESP32-family boards flashen vanuit merged `.bin` bestanden, en nRF52 boards flashen vanuit serial DFU `.zip` bestanden wanneer die assets gepubliceerd zijn. RP2040 en STM32 boards gebruiken nog steeds hun normale firmwarebestanden en flashing tools.
 
-De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de ESP32 repeater-varianten, hangt de merged `.bin` bestanden aan de release, en de GitHub Pages workflow downloadt daarna die releasebestanden om de ESP Web Tools manifests onder `/flasher/` te maken.
+ESP32 repeater builds die je via deze site flasht hebben malformed public chat dropping standaard aan. Controleer of wijzig dit na het flashen met `get malformed.drop`, `set malformed.drop on` of `set malformed.drop off`.
 
-Wil je later nog een ESP32-board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `webflasher/boards.json`. De bijbehorende release asset moet een naam hebben zoals `<env>-*-merged.bin`.
+De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de firmwarevarianten en hangt de firmwarebestanden aan de release. De GitHub Pages workflow spiegelt de flashbare assets onder `/flasher/firmware/`, omdat browsers GitHub Release asset-bytes niet direct met `fetch()` kunnen ophalen door CORS.
+
+Wil je later nog een board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `website/public/flasher/boards.json`. ESP32 release-assets moeten een naam hebben zoals `<env>-*-merged.bin`; nRF52 DFU release-assets moeten een naam hebben zoals `<env>-*.zip`.
 
 Wanneer er een nieuwe GitHub Release wordt gepubliceerd, gebruikt de GitHub Pages workflow die release-tag, downloadt hij de firmware assets uit die release, en werkt hij de webflasher bij zodat precies die bestanden gebruikt worden. Bij een normale `main` build of handmatige Pages run gebruikt hij de nieuwste gepubliceerde release.
 

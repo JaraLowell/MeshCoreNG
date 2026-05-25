@@ -474,6 +474,20 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 ---
 
+#### View or change malformed repeater forwarding
+**Usage:**
+- `get malformed.drop`
+- `set malformed.drop on`
+- `set malformed.drop off`
+
+**Parameters:**
+- `on`: drop malformed decryptable default-public-channel group text before retransmission
+- `off`: leave forwarding behavior unchanged
+
+**Default:** `on`
+
+**Note:** This only applies to human-readable default public group text that the repeater can decrypt and inspect. Binary channel datagrams, raw/custom payloads, requests, responses, private/encrypted packets that cannot be inspected and unknown/future packet types are still handled by the normal forwarding rules. Existing saved preferences are preserved; use `set malformed.drop off` to disable this behavior on a repeater.
+
 #### View or change this node's advert path hash size
 **Usage:**
 - `get path.hash.mode`

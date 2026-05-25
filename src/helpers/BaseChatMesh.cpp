@@ -197,6 +197,104 @@ void BaseChatMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   }
 }
 
+MalformedNodeStats* BaseChatMesh::getMalformedNodeStats(const ContactInfo& contact, bool allocate) {
+  int free_idx = -1;
+  int oldest_idx = 0;
+  uint16_t oldest_count = 0xFFFF;
+  for (int i = 0; i < MALFORMED_NODE_STATS_SIZE; i++) {
+    if (memcmp(malformed_stats[i].pub_key_prefix, contact.id.pub_key, sizeof(malformed_stats[i].pub_key_prefix)) == 0) {
+      return &malformed_stats[i];
+    }
+    if (free_idx < 0 && malformed_stats[i].malformed_packets == 0) free_idx = i;
+    if (malformed_stats[i].malformed_packets < oldest_count) {
+      oldest_count = malformed_stats[i].malformed_packets;
+      oldest_idx = i;
+    }
+  }
+
+  if (!allocate) return NULL;
+
+  int idx = free_idx >= 0 ? free_idx : oldest_idx;
+  memset(&malformed_stats[idx], 0, sizeof(malformed_stats[idx]));
+  memcpy(malformed_stats[idx].pub_key_prefix, contact.id.pub_key, sizeof(malformed_stats[idx].pub_key_prefix));
+  return &malformed_stats[idx];
+}
+
+const MalformedNodeStats* BaseChatMesh::getMalformedNodeStats(const ContactInfo& contact) const {
+  for (int i = 0; i < MALFORMED_NODE_STATS_SIZE; i++) {
+    if (malformed_stats[i].malformed_packets != 0 &&
+        memcmp(malformed_stats[i].pub_key_prefix, contact.id.pub_key, sizeof(malformed_stats[i].pub_key_prefix)) == 0) {
+      return &malformed_stats[i];
+    }
+  }
+  return NULL;
+}
+
+bool BaseChatMesh::isDisplaySuppressed(const ContactInfo& contact) const {
+  const MalformedNodeStats* stats = getMalformedNodeStats(contact);
+  return stats != NULL && stats->rejected_messages >= MALFORMED_DISPLAY_SUPPRESS_COUNT;
+}
+
+void BaseChatMesh::noteMalformedText(ContactInfo* contact, mesh::Packet* pkt, const char* scope, const char* reason,
+                                     uint32_t timestamp, size_t payload_len, const TextQualityMetrics& metrics,
+                                     uint8_t score) {
+  if (contact) {
+    MalformedNodeStats* stats = getMalformedNodeStats(*contact, true);
+    if (stats) {
+      if (stats->malformed_packets < 0xFFFF) stats->malformed_packets++;
+      if (!metrics.valid_utf8 && stats->invalid_utf8 < 0xFFFF) stats->invalid_utf8++;
+      if (stats->rejected_messages < 0xFFFF) stats->rejected_messages++;
+    }
+  }
+
+  MESH_DEBUG_PRINTLN("[MALFORMED] scope=%s node=%02X%02X reason=%s score=%u entropy=%u payload_len=%u text_len=%u trailing=%u timestamp=%lu snr=%d",
+                     scope,
+                     contact ? (uint32_t)contact->id.pub_key[0] : 0,
+                     contact ? (uint32_t)contact->id.pub_key[1] : 0,
+                     reason,
+                     (uint32_t)score,
+                     (uint32_t)metrics.entropy_score,
+                     (uint32_t)payload_len,
+                     (uint32_t)metrics.text_len,
+                     (uint32_t)metrics.trailing_nonzero,
+                     (unsigned long)timestamp,
+                     pkt ? (int)(pkt->getSNR() * 4) : 0);
+}
+
+bool BaseChatMesh::validateChatText(ContactInfo* contact, mesh::Packet* pkt, const char* scope, uint32_t timestamp,
+                                    uint8_t* text, size_t text_len) {
+  TextQualityMetrics metrics;
+  uint8_t score = StrHelper::messageConfidenceScore(text, text_len, timestamp, getRTCClock()->getCurrentTime(), &metrics);
+  const char* reason = NULL;
+  uint32_t now = getRTCClock()->getCurrentTime();
+  if (metrics.text_len == 0) {
+    reason = "empty_text";
+  } else if (!metrics.valid_utf8) {
+    reason = "invalid_utf8";
+  } else if (timestamp == 0 || (now >= 1577836800UL && timestamp > now + (2UL * 24UL * 60UL * 60UL))) {
+    reason = "timestamp";
+  } else if (score < MIN_CHAT_MESSAGE_CONFIDENCE) {
+    reason = "low_confidence";
+  }
+
+  if (reason) {
+    noteMalformedText(contact, pkt, scope, reason, timestamp, text_len, metrics, score);
+    if (shouldDropMalformedMessages()) {
+      if (pkt) pkt->markDoNotRetransmit();
+      return false;
+    }
+    if (contact) {
+      if (!isDisplaySuppressed(*contact)) {
+        onMalformedMessageRecv(*contact, pkt, timestamp, reason, score);
+      }
+    }
+    return false;
+  }
+
+  StrHelper::sanitizeTextForDisplay((char*)text);
+  return true;
+}
+
 void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) {
   int i = matching_peer_indexes[sender_idx];
   if (i < 0 || i >= num_contacts) {
@@ -215,11 +313,14 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     data[len] = 0; // need to make a C string again, with null terminator
 
     if (flags == TXT_TYPE_PLAIN) {
-      from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
-      onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
-
-      uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
+      uint32_t ack_hash;    // calc truncated hash before display sanitation, matching sender bytes
       mesh::Utils::sha256((uint8_t *) &ack_hash, 4, data, 5 + strlen((char *)&data[5]), from.id.pub_key, PUB_KEY_SIZE);
+
+      bool text_ok = validateChatText(&from, packet, "peer", timestamp, &data[5], len - 5);
+      from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
+      if (text_ok) {
+        onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
+      }
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
@@ -230,7 +331,9 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         sendAckTo(from, ack_hash);
       }
     } else if (flags == TXT_TYPE_CLI_DATA) {
-      onCommandDataRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
+      if (validateChatText(&from, packet, "cli", timestamp, &data[5], len - 5)) {
+        onCommandDataRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
+      }
       // NOTE: no ack expected for CLI_DATA replies
 
       if (packet->isRouteFlood()) {
@@ -239,14 +342,24 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         if (path) sendFloodScoped(from, path);
       }
     } else if (flags == TXT_TYPE_SIGNED_PLAIN) {
+      if (len < 9) {
+        TextQualityMetrics metrics;
+        memset(&metrics, 0, sizeof(metrics));
+        noteMalformedText(&from, packet, "signed_peer", "short_payload", timestamp, len, metrics, 0);
+        if (!isDisplaySuppressed(from)) onMalformedMessageRecv(from, packet, timestamp, "short_payload", 0);
+        return;
+      }
+      bool text_ok = validateChatText(&from, packet, "signed_peer", timestamp, &data[9], len - 9);
+      uint32_t ack_hash;    // calc truncated hash before display sanitation, matching sender bytes
+      mesh::Utils::sha256((uint8_t *) &ack_hash, 4, data, 9 + strlen((char *)&data[9]), self_id.pub_key, PUB_KEY_SIZE);
+
       if (timestamp > from.sync_since) {  // make sure 'sync_since' is up-to-date
         from.sync_since = timestamp;
       }
       from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
-      onSignedMessageRecv(from, packet, timestamp, &data[5], (const char *) &data[9]);  // let UI know
-
-      uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + OUR pub_key, to prove to sender that we got it
-      mesh::Utils::sha256((uint8_t *) &ack_hash, 4, data, 9 + strlen((char *)&data[9]), self_id.pub_key, PUB_KEY_SIZE);
+      if (text_ok) {
+        onSignedMessageRecv(from, packet, timestamp, &data[5], (const char *) &data[9]);  // let UI know
+      }
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
@@ -370,6 +483,30 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
 
     // len can be > original length, but 'text' will be padded with zeroes
     data[len] = 0; // need to make a C string again, with null terminator
+
+    TextQualityMetrics metrics;
+    uint8_t score = StrHelper::messageConfidenceScore(&data[5], len - 5, timestamp, getRTCClock()->getCurrentTime(), &metrics);
+    const char* reason = NULL;
+    uint32_t now = getRTCClock()->getCurrentTime();
+    if (metrics.text_len == 0) {
+      reason = "empty_text";
+    } else if (!metrics.valid_utf8) {
+      reason = "invalid_utf8";
+    } else if (timestamp == 0 || (now >= 1577836800UL && timestamp > now + (2UL * 24UL * 60UL * 60UL))) {
+      reason = "timestamp";
+    } else if (score < MIN_CHAT_MESSAGE_CONFIDENCE) {
+      reason = "low_confidence";
+    }
+    if (reason) {
+      noteMalformedText(NULL, packet, "group", reason, timestamp, len - 5, metrics, score);
+      if (shouldDropMalformedMessages()) {
+        packet->markDoNotRetransmit();
+        return;
+      }
+      onMalformedChannelMessageRecv(channel, packet, timestamp, reason, score);
+      return;
+    }
+    StrHelper::sanitizeTextForDisplay((char*)&data[5]);
 
     // notify UI  of this new message
     onChannelMessageRecv(channel, packet, timestamp, (const char *) &data[5]);  // let UI know

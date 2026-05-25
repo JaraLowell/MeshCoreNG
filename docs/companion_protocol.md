@@ -272,6 +272,8 @@ Bytes 7+: Message Text (UTF-8, variable length)
 
 **Timestamp**: Unix timestamp in seconds (32-bit unsigned integer, little-endian)
 
+**Text validity**: Channel text is expected to be valid human-readable UTF-8. Firmware validates received text before queuing it to the companion app. Malformed incoming text may be replaced with `[Malformed packet filtered]`. This does not affect channel data datagrams.
+
 **Example** (send "Hello" to channel 1 at timestamp 1234567890):
 ```
 03 00 01 D2 02 96 49 48 65 6C 6C 6F
@@ -328,6 +330,10 @@ Byte 0: 0x0A
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
 **Note**: Poll this command periodically to retrieve queued messages. The device may also send `PACKET_MESSAGES_WAITING` (0x83) as a notification when messages are available.
+
+**Malformed chat behavior**: Received contact and channel text is sanitized before it is queued. The firmware rejects malformed UTF-8, excessive control/replacement characters, binary-looking text and impossible timestamps. A malformed chat item may be queued as `[Malformed packet filtered]` instead of raw garbage text.
+
+Binary channel data received through `CMD_SEND_CHANNEL_DATA` / channel data callbacks is not sanitized as text and remains binary-safe.
 
 ---
 

@@ -27,6 +27,8 @@ features:
     details: Hardware CAD/channel scan where supported. The repeater checks whether the LoRa channel is busy before transmitting, reducing collisions on congested frequencies.
   - title: Safe power saving
     details: Repeaters sleep only when there is no outbound work pending. Bridge and WiFi mode block sleep. Configurable per device with power stats you can inspect and reset.
+  - title: Malformed chat filtering
+    details: Companion chat views validate UTF-8 and text quality before display. Repeater builds drop malformed decryptable public chat before retransmission by default while binary datagrams and future packet types stay supported.
   - title: MeshCore compatible
     details: No protocol changes. All existing MeshCore clients, apps and firmware keep working. Default settings are safe for any network — tune only what you need.
 ---
