@@ -517,18 +517,18 @@ For developers:
 
 ## MeshCoreNG Web Flasher
 
-MeshCoreNG now includes a GitHub Pages web flasher for ESP32-based repeater builds:
+MeshCoreNG now includes a GitHub Pages web flasher for supported release builds:
 
 - MeshCoreNG web flasher: https://michtronics.github.io/MeshCoreNG/flasher/
 - MeshCoreNG website and docs: https://michtronics.github.io/MeshCoreNG/
 
-The flasher is built with ESP Web Tools and works from Chrome or Edge using Web Serial. It is meant for ESP32-family boards. nRF52, RP2040 and STM32 boards still use their normal flashing files and tools.
+The flasher works from Chrome or Edge using Web Serial. ESP32-family boards flash from merged `.bin` files, and nRF52 boards flash from serial DFU `.zip` files when those assets are published. RP2040 and STM32 boards still use their normal firmware files and tools.
 
 ESP32 repeater builds flashed from this site have malformed public chat dropping enabled by default. Check or change it after flashing with `get malformed.drop`, `set malformed.drop on`, or `set malformed.drop off`.
 
-The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the ESP32 repeater variants, attaches the merged `.bin` files to the release, and the GitHub Pages workflow downloads those release files to create the ESP Web Tools manifests under `/flasher/`.
+The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the firmware variants, attaches the firmware files to the release, and the GitHub Pages workflow downloads those release files into `/flasher/firmware/`.
 
-To add another ESP32 board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `webflasher/boards.json`. The matching release asset must be named like `<env>-*-merged.bin`.
+To add another board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `website/public/flasher/boards.json`. ESP32 release assets must be named like `<env>-*-merged.bin`; nRF52 DFU release assets must be named like `<env>-*.zip`.
 
 When a new GitHub Release is published, the GitHub Pages workflow uses that release tag, downloads the release firmware assets, and updates the web flasher to use exactly those files. On a normal `main` build or manual Pages run, it uses the latest published release.
 

@@ -514,18 +514,18 @@ Voor developers:
 
 ## MeshCoreNG webflasher
 
-MeshCoreNG heeft nu een GitHub Pages webflasher voor ESP32 repeater builds:
+MeshCoreNG heeft nu een GitHub Pages webflasher voor ondersteunde release-builds:
 
 - MeshCoreNG webflasher: https://michtronics.github.io/MeshCoreNG/flasher/
 - MeshCoreNG website en docs: https://michtronics.github.io/MeshCoreNG/
 
-De flasher gebruikt ESP Web Tools en werkt vanuit Chrome of Edge met Web Serial. Hij is bedoeld voor ESP32-family boards. nRF52, RP2040 en STM32 boards gebruiken nog steeds hun normale firmwarebestanden en flashing tools.
+De flasher werkt vanuit Chrome of Edge met Web Serial. ESP32-family boards flashen vanuit merged `.bin` bestanden, en nRF52 boards flashen vanuit serial DFU `.zip` bestanden wanneer die assets gepubliceerd zijn. RP2040 en STM32 boards gebruiken nog steeds hun normale firmwarebestanden en flashing tools.
 
 ESP32 repeater builds die je via deze site flasht hebben malformed public chat dropping standaard aan. Controleer of wijzig dit na het flashen met `get malformed.drop`, `set malformed.drop on` of `set malformed.drop off`.
 
-De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de ESP32 repeater-varianten, hangt de merged `.bin` bestanden aan de release, en de GitHub Pages workflow downloadt daarna die releasebestanden om de ESP Web Tools manifests onder `/flasher/` te maken.
+De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de firmwarevarianten, hangt de firmwarebestanden aan de release, en de GitHub Pages workflow downloadt daarna die releasebestanden naar `/flasher/firmware/`.
 
-Wil je later nog een ESP32-board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `webflasher/boards.json`. De bijbehorende release asset moet een naam hebben zoals `<env>-*-merged.bin`.
+Wil je later nog een board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `website/public/flasher/boards.json`. ESP32 release-assets moeten een naam hebben zoals `<env>-*-merged.bin`; nRF52 DFU release-assets moeten een naam hebben zoals `<env>-*.zip`.
 
 Wanneer er een nieuwe GitHub Release wordt gepubliceerd, gebruikt de GitHub Pages workflow die release-tag, downloadt hij de firmware assets uit die release, en werkt hij de webflasher bij zodat precies die bestanden gebruikt worden. Bij een normale `main` build of handmatige Pages run gebruikt hij de nieuwste gepubliceerde release.
 
