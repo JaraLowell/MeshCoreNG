@@ -1,6 +1,8 @@
 # WiFi TCP bridge instellen
 
-Deze handleiding is voor een repeater waarop de `_bridge_tcp` firmware is geflasht. De bridge verbindt twee of meer LoRa-netwerken via een centrale TCP server.
+Deze handleiding is voor een repeater waarop de `_bridge_tcp` firmware is geflasht. De bridge biedt optionele gecontroleerde backhaul tussen geselecteerde MeshCore RF-deployments via een TCP server.
+
+MeshCoreNG blijft RF-first. Gebruik de bridge voor afgebakende deployments zoals gescheiden RF-eilanden, remote RF-gateways, tijdelijke backhaul, testen, onderzoek of private infrastructuur. Gebruik dit niet als wereldwijde flooding-backbone of onbeperkt packet-replicatiesysteem.
 
 ## Wat je nodig hebt
 
@@ -25,7 +27,7 @@ python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-tim
 
 De TCP bridge firmware stuurt elke 30 seconden een heartbeat naar de server. De server gebruikt normale pakketten en heartbeats om de `idle` timer van de client bij te werken. Als een node stroom verliest en er geen heartbeat meer binnenkomt voor `--client-timeout`, verbreekt de server die oude verbinding.
 
-Gebruik bij lokaal testen het LAN-IP van deze machine als `bridge.server`. Gebruik bij internetgebruik een publiek IP-adres of domeinnaam.
+Gebruik bij lokaal testen het LAN-IP van deze machine als `bridge.server`. Gebruik bij een gecontroleerde remote deployment het bereikbare IP-adres of de domeinnaam van de server.
 
 ## 2. Verbind met de repeater
 
@@ -107,9 +109,9 @@ Verwachte bridge type:
 
 `get wifi.password` toont niet het echte wachtwoord, maar `***`.
 
-## 6. Meerdere repeaters koppelen
+## 6. Geselecteerde repeaters koppelen
 
-Flash op beide locaties een repeater met `_bridge_tcp` firmware en configureer ze allebei naar dezelfde TCP server en poort:
+Flash op elke locatie de bedoelde bridge-repeater met `_bridge_tcp` firmware en configureer die repeaters naar dezelfde TCP server en poort:
 
 ```text
 set bridge.server mijnserver.example.com
@@ -117,7 +119,15 @@ set bridge.port 4200
 set bridge.enabled on
 ```
 
-Pakketten die de ene repeater via LoRa ontvangt, gaan via TCP naar de server en worden door de andere repeater weer in zijn lokale LoRa-netwerk gezet.
+Geselecteerd bridge-verkeer uit het ene RF-deployment gaat via TCP naar de server en wordt beschikbaar voor de andere bedoelde bridge-repeaters. Houd bridge-groepen afgebakend, behoud RF-locality en voorkom onnodige rebroadcast in RF-netwerken.
+
+Best practices:
+
+- Bridge alleen noodzakelijke channels, topics of verkeersbronnen.
+- Gebruik regionale segmentatie bij grotere deployments.
+- Gebruik private bridge-servers of private bridge-groepen waar mogelijk.
+- Vermijd full-network flooding over bridge-links.
+- Monitor duplicate counters, airtime en congestion nadat de bridge is ingeschakeld.
 
 ## Problemen oplossen
 
@@ -151,7 +161,7 @@ Controleer:
 - `get bridge.enabled` staat op `on`.
 - `get bridge.server` en `get bridge.port` kloppen.
 - De TCP bridge server draait.
-- De server is bereikbaar vanaf hetzelfde WiFi-netwerk of via internet.
+- De server is bereikbaar vanaf hetzelfde WiFi-netwerk of gecontroleerde remote netwerk.
 - Een firewall laat TCP poort `4200` door.
 
 ### Server blijft een node tonen nadat de stroom eraf is

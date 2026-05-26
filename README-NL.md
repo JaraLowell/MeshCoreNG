@@ -165,23 +165,36 @@ De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord wo
 
 Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra packets, zonder synchronisatie, en zonder protocolwijziging.
 
-### 8. Internetbrug — LoRa over grote afstanden zonder LoRa ertussen
+### 8. Internetbrug — optioneel transport voor gescheiden RF-netwerken
 
-LoRa is geweldig voor lokale meshnetwerken, maar het heeft een fysieke grens. Als twee groepen gebruikers te ver van elkaar zitten om via LoRa contact te maken — andere steden, andere bergen, ander land — dan zijn ze gewoon eilanden. Ze kunnen elkaar niet bereiken, hoe goed hun repeaters ook werken.
+MeshCoreNG blijft RF-first. De bridge is optioneel transport/backhaul voor specifieke deployments, geen vervanging voor lokale RF-werking.
 
-MeshCoreNG heeft daarvoor nu een **TCP internetbrug**. Een ESP32-repeater met WiFi-toegang verbindt zich via internet met een centrale server. Pakketten die hij ontvangt via LoRa stuurt hij door naar alle andere repeaters op die server. Pakketten die van het internet binnenkomen, gooit hij terug in zijn eigen LoRa-mesh.
+De bridge is bedoeld voor:
+- gescheiden geografische MeshCore RF-regio's die bewust geselecteerd verkeer moeten uitwisselen
+- remote RF-gateways met gecontroleerde backhaul
+- tijdelijke backhaul bij events, testen of storingen
+- observer-, meet- en onderzoeksopstellingen
+- private infrastructuur van een bekende groep
 
-Het resultaat: twee compleet gescheiden LoRa-netwerken, hoe ver ook van elkaar, kunnen berichten uitwisselen alsof ze één netwerk zijn.
+De bridge is niet bedoeld als:
+- wereldwijde flooding-backbone
+- altijd-aan globale relay
+- onbeperkte packet-replicatie
+- manier om normale RF-planning en segmentatie te omzeilen
+
+Geselecteerd verkeer kan optioneel tussen gescheiden MeshCore-deployments worden getransporteerd. Operators bepalen zelf welke bridge-server, repeaters, regio's en verkeersbronnen bij hun netwerk passen.
 
 ```
-[LoRa mesh A]  ←→  [Repeater A + WiFi]  ──internet──  [Repeater B + WiFi]  ←→  [LoRa mesh B]
+[RF-eiland A]  <-->  [Bridge-repeater]  <-->  [private/gecontroleerde bridge-server]  <-->  [Bridge-repeater]  <-->  [RF-eiland B]
 ```
 
-Gebruikers en apps merken er niks van. Ze gebruiken gewoon LoRa zoals altijd. De brug haalt alleen de afstandslimiet weg.
+RF-locality blijft belangrijk. Bridge alleen wat nodig is, houd lokaal verkeer lokaal waar dat kan, gebruik regionale segmentatie en voorkom full-network flooding over bridge-links.
+
+Geplande of onderzochte bescherming voor multi-bridge omgevingen omvat path fingerprints, lichte path hashes, bridge loop detection, duplicate suppression, TTL/hop-controls en bridge scoping.
 
 **Route 1: ESP32-repeater met WiFi**
 
-Repeaters met WiFi verbinden zichzelf rechtstreeks via internet met de server.
+Repeaters met WiFi kunnen verbinden met een geselecteerde bridge-server.
 
 ```text
 set wifi.ssid     MijnWiFi
@@ -193,14 +206,14 @@ set bridge.enabled on
 
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
-**Route 2: Repeater via USB (geen WiFi nodig)**
+**Route 2: Repeater via USB**
 
-Sommige repeaters hebben geen WiFi — zoals nRF52-boards (RAK4631), RP2040-boards, STM32-boards en ESP32-boards op locaties zonder WiFi-bereik. Die kunnen toch meedoen via USB.
+Sommige repeaters hebben geen WiFi, zoals nRF52-boards (RAK4631), RP2040-boards, STM32-boards en ESP32-boards op locaties zonder WiFi-bereik. Die kunnen een PC of Raspberry Pi via USB als bridge-transporthost gebruiken.
 
-De repeater draait gewone `_bridge_rs232` firmware en stuurt pakketten via de seriële poort naar een PC of Raspberry Pi. Op die PC draait een klein Python-script dat de verbinding met de TCP-server verzorgt.
+De repeater draait gewone `_bridge_rs232` firmware en stuurt bridge-verkeer via de seriële poort. Op de aangesloten computer draait een klein Python-script dat de TCP-verbinding met de geselecteerde bridge-server verzorgt.
 
 ```
-[LoRa mesh]  ←→  [Repeater + RS232Bridge]  ←USB→  [PC/RPi + usb_bridge_client.py]  ←internet→  [tcp_bridge_server.py]
+[LoRa RF deployment]  <-->  [Repeater + RS232 bridge]  <--USB-->  [PC/RPi + usb_bridge_client.py]  <-->  [bridge-server]
 ```
 
 Instellen op de repeater (RS232 bridge firmware):
@@ -225,7 +238,7 @@ Op Windows gebruik je `--serial COM3` in plaats van `/dev/ttyUSB0`. Het script s
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde server verbonden zijn.
+Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde gecontroleerde bridge-server verbonden zijn.
 
 ### 9. Veiligere power saving voor repeaters
 

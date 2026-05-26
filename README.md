@@ -165,26 +165,118 @@ The default threshold is conservative: two duplicate forwards must be heard befo
 
 This reduces duplicate flooding, airtime waste and collision probability without extra packets, without synchronization, and without changing the protocol.
 
-### 8. Internet bridge — connecting distant LoRa islands
+### 8. Internet bridge — optional transport for isolated RF deployments
 
-LoRa is great for local mesh networks, but it has a physical limit. When two groups of LoRa users are too far apart to hear each other — different cities, different hills, different countries — they become isolated islands.
+#### Purpose of the bridge system
 
-MeshCoreNG now includes a **TCP internet bridge** that solves this. Repeaters with WiFi can connect to a shared server over the internet. Mesh packets received locally are forwarded to all remote repeaters, and packets from remote repeaters are injected into the local LoRa mesh.
+MeshCoreNG is RF-first. The bridge system is optional transport/backhaul for specific deployments, not a replacement for RF-local operation.
 
-This means:
-- Two groups in different Dutch cities can still exchange messages.
-- A repeater on a hill with WiFi can link an otherwise isolated valley into the wider mesh.
-- LoRa stays LoRa — users keep using their normal apps and devices. The bridge is invisible to them.
+Bridges are intended for:
+- linking isolated geographic MeshCore RF regions that should intentionally exchange selected traffic
+- remote RF gateways that need a controlled backhaul path
+- temporary backhaul during events, tests, or outages
+- observer, measurement, and research setups
+- private infrastructure operated by a known group
 
-**How it works:**
+Bridges are not intended for:
+- a worldwide flooding backbone
+- an always-on global relay
+- unrestricted packet replication
+- bypassing normal RF planning and segmentation
 
-```text
-[LoRa mesh A]  ←→  [Repeater A with WiFi]  ←→  internet  ←→  [Repeater B with WiFi]  ←→  [LoRa mesh B]
+Selected traffic can optionally be transported between isolated MeshCore deployments. Bridge operators decide which bridge server, repeaters, regions, and traffic sources are appropriate for their network.
+
+#### Intended usage
+
+```mermaid
+flowchart LR
+    subgraph A["Island A: local RF deployment"]
+        A1["LoRa clients"] <--> A2["RF repeaters"]
+        A2 <--> A3["Bridge repeater"]
+    end
+
+    A3 <--> S["Private or controlled bridge server"]
+
+    subgraph B["Island B: local RF deployment"]
+        B3["Bridge repeater"] <--> B2["RF repeaters"]
+        B2 <--> B1["LoRa clients"]
+    end
+
+    S <--> B3
 ```
 
-**Path 1: ESP32 repeater with WiFi**
+The bridge is a controlled link between selected RF islands. Each island should still be designed as a sensible local RF network.
 
-Repeaters with WiFi connect directly to the bridge server over the internet.
+#### Not intended
+
+```mermaid
+flowchart TB
+    G["Single worldwide bridge group"]:::bad
+    N1["Region A"] --> G
+    N2["Region B"] --> G
+    N3["Region C"] --> G
+    N4["Region D"] --> G
+    G --> F["Unrestricted packet replication"]:::bad
+    F --> N1
+    F --> N2
+    F --> N3
+    F --> N4
+
+    classDef bad fill:#ffe7e7,stroke:#b00020,color:#111
+```
+
+Large-scale uncontrolled forwarding is discouraged. It wastes RF airtime, makes loops harder to reason about, and works against MeshCoreNG's goal of keeping busy radio networks calm.
+
+#### RF locality remains important
+
+RF airtime efficiency remains a primary MeshCoreNG design goal. Internet transport should not be used to bypass sensible RF segmentation.
+
+Operators should bridge only what is needed for the deployment. Keep local traffic local where possible, use regional segmentation, and avoid forwarding traffic into RF areas that do not need it.
+
+#### Best practices
+
+- Bridge only required channels, topics, or traffic sources.
+- Avoid unnecessary rebroadcast into RF networks.
+- Use regional segmentation for large deployments.
+- Use private bridge groups or private bridge servers when possible.
+- Avoid full-network flooding across bridge links.
+- Monitor airtime, duplicate counters, and congestion after enabling a bridge.
+- Treat every bridge as an operated network service with an owner and a purpose.
+
+#### Planned loop and duplicate protections
+
+Multi-bridge environments need additional safeguards because the same packet may be able to return through a different bridge path.
+
+Planned or under consideration protections include:
+- path fingerprints
+- lightweight path hashes
+- bridge loop detection
+- duplicate suppression
+- TTL and hop controls
+- bridge scoping
+
+These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
+
+#### Bridge FAQ
+
+**Does MeshCoreNG require internet?**  
+No. MeshCoreNG remains usable as an RF-only LoRa mesh.
+
+**Is the bridge enabled by default?**  
+No. Bridge support requires a bridge-capable firmware build and `set bridge.enabled on`.
+
+**Is this intended to create a global internet mesh?**  
+No. The bridge is for controlled transport between selected deployments, not worldwide packet propagation.
+
+**Can bridges be private?**  
+Yes. Private bridge servers and private bridge groups are recommended for many deployments.
+
+**Are anti-loop protections planned?**  
+Yes. Path fingerprints, lightweight path hashes, loop detection, duplicate suppression, TTL/hop controls, and bridge scoping are planned or being evaluated, especially for multi-bridge environments.
+
+#### Path 1: ESP32 repeater with WiFi
+
+Repeaters with WiFi can connect directly to a selected bridge server.
 
 ```text
 set wifi.ssid     YourWiFi
@@ -196,14 +288,14 @@ set bridge.enabled on
 
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
-**Path 2: Repeater via USB (no WiFi required)**
+#### Path 2: Repeater via USB
 
-Some repeaters have no WiFi — nRF52 boards (RAK4631), RP2040 boards, STM32 boards, and ESP32 boards in locations without WiFi coverage. These can still participate in the internet bridge via USB.
+Some repeaters have no WiFi, including nRF52 boards (RAK4631), RP2040 boards, STM32 boards, and ESP32 boards in locations without WiFi coverage. These can use a USB-connected PC or Raspberry Pi as the bridge transport host.
 
-The repeater runs standard `_bridge_rs232` firmware and sends packets over the serial port to a connected PC or Raspberry Pi. A small Python script on that PC handles the TCP connection to the server.
+The repeater runs standard `_bridge_rs232` firmware and sends bridge traffic over the serial port. A small Python script on the connected computer handles the TCP connection to the selected bridge server.
 
-```
-[LoRa mesh]  ←→  [Repeater + RS232Bridge]  ←USB→  [PC/RPi + usb_bridge_client.py]  ←internet→  [tcp_bridge_server.py]
+```text
+[LoRa RF deployment]  <-->  [Repeater + RS232 bridge]  <--USB-->  [PC/RPi + usb_bridge_client.py]  <-->  [bridge server]
 ```
 
 Set up on the repeater (RS232 bridge firmware):
@@ -222,13 +314,13 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 
 On Windows, use `--serial COM3` instead of `/dev/ttyUSB0`. The script is included in this repository at [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
 
-**Start the forwarding server** (VPS, Raspberry Pi, or any internet-connected PC):
+**Start the bridge server** (VPS, Raspberry Pi, or any internet-connected PC):
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same server simultaneously.
+The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
 
 ### 9. Safer repeater power saving
 

@@ -1253,29 +1253,33 @@ Three bridge types are available, each compiled in separately:
 
 | Bridge | Build flag | Platform | Use case |
 |---|---|---|---|
-| **RS232** | `-D WITH_RS232_BRIDGE=Serial2` | All | Wired serieel naar ander apparaat |
-| **ESPNow** | `-D WITH_ESPNOW_BRIDGE=1` | ESP32 | Lokaal WiFi tussen ESP32 boards |
-| **TCP** | `-D WITH_TCP_BRIDGE=1` | ESP32 | Meerdere repeaters via internet |
+| **RS232** | `-D WITH_RS232_BRIDGE=Serial2` | All | Wired transport to another local device |
+| **ESPNow** | `-D WITH_ESPNOW_BRIDGE=1` | ESP32 | Local wireless transport between ESP32 boards |
+| **TCP** | `-D WITH_TCP_BRIDGE=1` | ESP32 | Optional controlled backhaul between selected RF deployments |
 
-#### TCP bridge instellen (internet-verbinding tussen repeaters)
+Bridge support is optional and defaults to disabled. MeshCoreNG remains RF-first; bridge transports are intended for controlled deployments such as isolated RF islands, remote RF gateways, temporary backhaul, research setups, and private infrastructure. They are not intended for worldwide uncontrolled flooding or unrestricted packet replication.
 
-De TCP bridge verbindt repeaters via internet. Vereist een centrale server (zie `tools/tcp_bridge_server.py`).
+Operators are responsible for choosing what should be bridged and for avoiding unnecessary rebroadcast into RF networks. Prefer scoped, private bridge groups and preserve RF locality where possible.
 
-**1. Server starten (VPS, Raspberry Pi of PC met internet):**
+#### Configure a TCP bridge
+
+The TCP bridge connects bridge-capable repeaters to a selected bridge server. Use it to transport selected traffic between controlled MeshCore RF deployments. A server is required; see `tools/tcp_bridge_server.py`.
+
+**1. Start the server (VPS, Raspberry Pi, or PC):**
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-**2. Elke repeater instellen via CLI:**
+**2. Configure each intended bridge repeater via CLI:**
 ```
-set wifi.ssid     MijnWiFi
-set wifi.password geheim123
-set bridge.server mijnserver.example.com
+set wifi.ssid     YourWiFi
+set wifi.password secret123
+set bridge.server yourserver.example.com
 set bridge.port   4200
 set bridge.enabled on
 ```
 
-**3. Beschikbare firmware-varianten** (compileer met PlatformIO):
+**3. Available firmware variants** (compile with PlatformIO):
 - `Heltec_v3_repeater_bridge_tcp`
 - `Heltec_WSL3_repeater_bridge_tcp`
 - `heltec_v4_repeater_bridge_tcp`
@@ -1284,7 +1288,7 @@ set bridge.enabled on
 - `T_Beam_S3_Supreme_SX1262_repeater_bridge_tcp`
 - `LilyGo_TBeam_1W_repeater_bridge_tcp`
 - `LilyGo_T3S3_sx1262_repeater_bridge_tcp`
-- *(en vele andere, zie de `variants/*/platformio.ini` bestanden)*
+- *(and many others, see the `variants/*/platformio.ini` files)*
 
 ---
 

@@ -137,11 +137,30 @@ set flood.dup.suppress off
 
 ### 8. TCP-Internetbruecke
 
-LoRa ist lokal stark, aber physisch begrenzt. MeshCoreNG hat deshalb eine TCP-Bruecke fuer Repeater. Ein ESP32-Repeater mit WiFi kann empfangene LoRa-Packets an einen TCP-Server senden. Andere Bruecken-Repeater holen sie dort ab und senden sie wieder in ihr lokales LoRa-Mesh.
+MeshCoreNG bleibt RF-first. Die Bruecke ist optionaler Transport/Backhaul fuer bestimmte Deployments, kein Ersatz fuer lokale RF-Struktur.
+
+Die Bruecke ist gedacht fuer:
+- getrennte geographische MeshCore-RF-Bereiche, die bewusst ausgewaehlten Traffic austauschen sollen
+- entfernte RF-Gateways mit kontrolliertem Backhaul
+- temporaeren Backhaul bei Tests, Events oder Ausfaellen
+- Beobachtung, Messung und Forschung
+- private Infrastruktur einer bekannten Gruppe
+
+Die Bruecke ist nicht gedacht als:
+- weltweite Flooding-Backbone
+- dauerhaftes globales Relay
+- unbegrenzte Packet-Replikation
+- Umgehung normaler RF-Planung und Segmentierung
+
+Ausgewaehlter Traffic kann optional zwischen getrennten MeshCore-Deployments transportiert werden. Betreiber entscheiden, welcher Bridge-Server, welche Repeater, Regionen und Traffic-Quellen fuer ihr Netz passend sind.
 
 ```text
-[LoRa mesh A] <-> [Repeater A + WiFi] --internet-- [Repeater B + WiFi] <-> [LoRa mesh B]
+[RF-Insel A] <-> [Bridge-Repeater] <-> [privater/kontrollierter Bridge-Server] <-> [Bridge-Repeater] <-> [RF-Insel B]
 ```
+
+RF-Lokalitaet bleibt wichtig. Bridge nur, was wirklich benoetigt wird, halte lokalen Traffic lokal, nutze regionale Segmentierung und vermeide Full-Network-Flooding ueber Bridge-Links.
+
+Geplante oder untersuchte Schutzmechanismen fuer Multi-Bridge-Umgebungen sind Path-Fingerprints, leichte Path-Hashes, Bridge-Loop-Erkennung, Duplicate Suppression, TTL/Hop-Controls und Bridge-Scoping.
 
 ESP32 TCP-Bridge konfigurieren:
 

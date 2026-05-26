@@ -8,7 +8,7 @@ MeshCoreNG adds:
 
 - **Dense-mesh controls** — tune how aggressively repeaters forward flood adverts.
 - **Dense stats** — real-time network telemetry per repeater.
-- **Internet bridge** — link remote LoRa islands over TCP.
+- **Internet bridge** — optional controlled transport between selected RF deployments.
 - **USB bridge** — connect repeaters without WiFi via a USB relay script.
 - **Better channel detection** — hardware CAD scan before transmitting.
 - **Power saving** — configurable sleep with transparent controls.
