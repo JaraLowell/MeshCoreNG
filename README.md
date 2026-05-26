@@ -1,5 +1,7 @@
 ## MeshCoreNG
 
+Translations: [Nederlands](./README-NL.md) | [Deutsch](./README-DE.md)
+
 MeshCoreNG is a Next Gen variant of MeshCore.
 
 In simple terms: MeshCore lets LoRa devices pass messages to each other without the internet. MeshCoreNG builds on that and focuses on making repeaters smarter, so larger and busier networks can keep working better.
