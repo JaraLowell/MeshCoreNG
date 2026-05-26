@@ -5,6 +5,17 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      region_profile:
+        description: Region profile to compile into fresh repeater installs
+        required: false
+        default: nl
+        type: choice
+        options:
+          - nl
+          - de
+          - border
+          - none
   push:
     tags:
       - 'bridge-rs232-*'
@@ -24,12 +35,13 @@ jobs:
       - name: Build Firmwares
         env:
           FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
+          REGION_PROFILE: ${{ github.event.inputs.region_profile || 'nl' }}
         run: /usr/bin/env bash build.sh build-bridge-rs232-firmwares
 
       - name: Upload Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: bridge-rs232-firmwares
+          name: bridge-rs232-firmwares-${{ github.event.inputs.region_profile || 'nl' }}
           path: out
 
       - name: Create Release

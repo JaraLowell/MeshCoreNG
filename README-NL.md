@@ -269,6 +269,30 @@ regiondb get 45
 Alle technische details staan in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
 De Nederlandse community heeft ook een praktische tool voor regiocodes op [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
 
+### 10b. Region-profielen voor releases
+
+MeshCoreNG kan bij het bouwen een standaard region-profiel meekrijgen. Dat profiel wordt alleen gebruikt op een verse installatie zonder opgeslagen `/regions2`. Bestaande repeaters met handmatig ingestelde regions worden niet overschreven.
+
+Het protocol, de radio-instellingen en packet-format blijven gelijk. Het verschil zit alleen in de meegeleverde default regions en, bij Nederlandse builds, de Nederlandse lookup-database.
+
+| Profiel | Buildkeuze | Doel |
+| --- | --- | --- |
+| Nederlands | `REGION_PROFILE=nl` | Nederlandse defaults plus `regiondb` lookup |
+| Duits | `REGION_PROFILE=de` | Duitse MeshCore regionnamen, zonder Nederlandse database |
+| NL-DE Border | `REGION_PROFILE=border` | Gedeelde scopes voor repeaters rond de Nederlands-Duitse grens |
+
+Voor release-builds:
+
+```sh
+FIRMWARE_VERSION=v1.0.0 REGION_PROFILE=nl bash build.sh build-repeater-firmwares
+FIRMWARE_VERSION=v1.0.0 REGION_PROFILE=de bash build.sh build-repeater-firmwares
+FIRMWARE_VERSION=v1.0.0 REGION_PROFILE=border bash build.sh build-repeater-firmwares
+```
+
+De bestandsnamen krijgen een profielsuffix, bijvoorbeeld `-nl`, `-de` of `-nl-de-border`. Zo kun je in de webflasher en GitHub Release duidelijk aangeven welke firmware voor welke regio bedoeld is.
+
+Belangrijk voor samenwerking: regions matchen exact. Daarom bevat het border-profiel bewust zowel Nederlandse scopes zoals `nl`, `nl-gr`, `nl-ov`, `nl-ge`, `nl-nb`, `nl-li` als Duitse scopes zoals `de`, `de-nord`, `de-west`, `de-ni`, `de-nw`, `ffnw`, `emsland`, `bentheim`, `osnabrueck`, `ruhrgebiet` en `rheinland`.
+
 ### 11. Regionale mesh filtering
 
 MeshCoreNG ondersteunt ook een praktisch hiërarchisch regio-systeem voor repeaters. Een regio is een naam voor een radioscope, zoals `eu`, `nl`, `nl-nh` of `nl-nh-bov`. Een repeater kan ingesteld worden om alleen de scopes door te sturen die logisch zijn voor zijn locatie en rol.

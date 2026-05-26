@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
+set -eo pipefail
+
 global_usage() {
   cat - <<EOF
 Usage:
-sh build.sh <command> [target]
+bash build.sh <command> [target]
 
 Commands:
   help|usage|-h|--help: Shows this message.
@@ -20,24 +22,29 @@ Commands:
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
 
 Build all firmwares for device targets containing the string "RAK_4631"
-$ sh build.sh build-matching-firmwares <build-match-spec>
+$ bash build.sh build-matching-firmwares <build-match-spec>
 
 Build all companion firmwares
-$ sh build.sh build-companion-firmwares
+$ bash build.sh build-companion-firmwares
 
 Build all repeater firmwares
-$ sh build.sh build-repeater-firmwares
+$ bash build.sh build-repeater-firmwares
 
 Build all chat room server firmwares
-$ sh build.sh build-room-server-firmwares
+$ bash build.sh build-room-server-firmwares
 
 Build all ESPNow bridge firmwares
-$ sh build.sh build-bridge-espnow-firmwares
+$ bash build.sh build-bridge-espnow-firmwares
 
 Environment Variables:
+  REGION_PROFILE=nl|de|border|none:
+                   Selects the default region profile compiled into fresh repeater builds.
+                   nl is the default and includes the Dutch region lookup database.
+                   de follows German MeshCore region names and disables the Dutch database.
+                   border includes NL/DE border scopes and keeps the Dutch lookup database.
   DISABLE_DEBUG=1: Disables all debug logging flags (MESH_DEBUG, MESH_PACKET_LOGGING, etc.)
                    If not set, debug flags from variant platformio.ini files are used.
 
@@ -45,11 +52,16 @@ Examples:
 Build without debug logging:
 $ export FIRMWARE_VERSION=v1.0.0
 $ export DISABLE_DEBUG=1
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
+
+Build German region profile firmware:
+$ export FIRMWARE_VERSION=v1.0.0
+$ export REGION_PROFILE=de
+$ bash build.sh build-repeater-firmwares
 
 Build with debug logging (default, uses flags from variant files):
 $ export FIRMWARE_VERSION=v1.0.0
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
 EOF
 }
 
@@ -72,6 +84,7 @@ esac
 
 # cache project config json for use in get_platform_for_env()
 PIO_CONFIG_JSON=$(pio project config --json-output)
+BASE_PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS}"
 
 # $1 should be the string to find (case insensitive)
 get_pio_envs_containing_string() {
@@ -121,8 +134,41 @@ disable_debug_flags() {
   fi
 }
 
+configure_region_profile_flags() {
+  local profile="${REGION_PROFILE:-nl}"
+  REGION_PROFILE_SUFFIX=""
+
+  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -UREGION_PROFILE_NL -UREGION_PROFILE_DE -UREGION_PROFILE_NL_DE_BORDER"
+
+  case "$profile" in
+    nl)
+      export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DREGION_PROFILE_NL=1 -DREGION_PROFILE_DE=0 -DREGION_PROFILE_NL_DE_BORDER=0 -UWITH_DUTCH_REGION_DB -DWITH_DUTCH_REGION_DB=1"
+      REGION_PROFILE_SUFFIX="-nl"
+      ;;
+    de)
+      export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DREGION_PROFILE_NL=0 -DREGION_PROFILE_DE=1 -DREGION_PROFILE_NL_DE_BORDER=0 -UWITH_DUTCH_REGION_DB -DWITH_DUTCH_REGION_DB=0"
+      REGION_PROFILE_SUFFIX="-de"
+      ;;
+    border|nl-de-border)
+      export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DREGION_PROFILE_NL=0 -DREGION_PROFILE_DE=0 -DREGION_PROFILE_NL_DE_BORDER=1 -UWITH_DUTCH_REGION_DB -DWITH_DUTCH_REGION_DB=1"
+      REGION_PROFILE_SUFFIX="-nl-de-border"
+      ;;
+    none)
+      export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DREGION_PROFILE_NL=0 -DREGION_PROFILE_DE=0 -DREGION_PROFILE_NL_DE_BORDER=0 -UWITH_DUTCH_REGION_DB -DWITH_DUTCH_REGION_DB=0"
+      REGION_PROFILE_SUFFIX="-none"
+      ;;
+    *)
+      echo "REGION_PROFILE must be one of: nl, de, border, none"
+      exit 1
+      ;;
+  esac
+}
+
 # build firmware for the provided pio env in $1
 build_firmware() {
+  export PLATFORMIO_BUILD_FLAGS="${BASE_PLATFORMIO_BUILD_FLAGS}"
+  configure_region_profile_flags
+
   # get env platform for post build actions
   ENV_PLATFORM=($(get_platform_for_env $1))
 
@@ -144,7 +190,7 @@ build_firmware() {
 
   # craft filename
   # e.g: RAK_4631_Repeater-v1.0.0-SHA
-  FIRMWARE_FILENAME="$1-${FIRMWARE_VERSION_STRING}"
+  FIRMWARE_FILENAME="$1${REGION_PROFILE_SUFFIX}-${FIRMWARE_VERSION_STRING}"
 
   # add firmware version info to end of existing platformio build flags in environment vars
   export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"

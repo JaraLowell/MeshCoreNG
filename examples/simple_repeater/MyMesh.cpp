@@ -1234,7 +1234,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _cli.loadPrefs(_fs);
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
-  region_map.load(_fs);
+  bool regions_loaded = region_map.load(_fs);
+  if (!regions_loaded && region_map.getCount() == 0) {
+    applyDefaultRegionProfile(region_map);
+  }
 
   // establish default-scope
   {

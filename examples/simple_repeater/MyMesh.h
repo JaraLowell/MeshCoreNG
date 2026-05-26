@@ -38,6 +38,7 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
+#include <helpers/RegionProfiles.h>
 #include "RateLimiter.h"
 
 struct RepeaterStats {
