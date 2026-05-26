@@ -135,7 +135,8 @@ static bool downloadAndInstallOta(const Esp32OtaAsset& asset, char reply[]) {
 
 #endif
 
-#if defined(ADMIN_PASSWORD) && !defined(DISABLE_WIFI_OTA)   // Repeater or Room Server only
+#if defined(ADMIN_PASSWORD) && !defined(DISABLE_WIFI_OTA) && \
+    __has_include(<AsyncTCP.h>) && __has_include(<ESPAsyncWebServer.h>) && __has_include(<AsyncElegantOTA.h>)
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
