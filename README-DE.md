@@ -236,13 +236,15 @@ de-th
 Zusaetzliche Community-Scopes im Default-Profil:
 
 ```text
-ffnw
+ostfriesland
+bremesh
 emsland
 bentheim
 osnabrueck
 ruhrgebiet
 rheinland
 rhein-main
+taunus
 ```
 
 Quellen:
@@ -264,14 +266,19 @@ nl
 de
 de-west
 de-nord
+de-mitte
+de-hb
+de-he
 de-ni
 de-nw
-ffnw
+ostfriesland
+bremesh
 emsland
 bentheim
 osnabrueck
 ruhrgebiet
 rheinland
+taunus
 nl-gr
 nl-dr
 nl-ov
@@ -324,17 +331,17 @@ region put nl europe
 region put de europe
 region put de-nord de
 region put de-ni de-nord
-region put ffnw de-nord
+region put ostfriesland de-ni
 region put nl-ov nl
 region put nl-ge nl
 
 region allowf de-ni
-region allowf ffnw
+region allowf ostfriesland
 region allowf nl-ov
 region allowf nl-ge
 region denyf europe
 
-region default ffnw
+region default ostfriesland
 region save
 ```
 

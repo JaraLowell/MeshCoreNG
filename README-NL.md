@@ -304,7 +304,7 @@ FIRMWARE_VERSION=v1.0.0 REGION_PROFILE=border bash build.sh build-repeater-firmw
 
 De bestandsnamen krijgen een profielsuffix, bijvoorbeeld `-nl`, `-de` of `-nl-de-border`. Zo kun je in de webflasher en GitHub Release duidelijk aangeven welke firmware voor welke regio bedoeld is.
 
-Belangrijk voor samenwerking: regions matchen exact. Daarom bevat het border-profiel bewust zowel Nederlandse scopes zoals `nl`, `nl-gr`, `nl-ov`, `nl-ge`, `nl-nb`, `nl-li` als Duitse scopes zoals `de`, `de-nord`, `de-west`, `de-ni`, `de-nw`, `ffnw`, `emsland`, `bentheim`, `osnabrueck`, `ruhrgebiet` en `rheinland`.
+Belangrijk voor samenwerking: regions matchen exact. Daarom bevat het border-profiel bewust zowel Nederlandse scopes zoals `nl`, `nl-gr`, `nl-ov`, `nl-ge`, `nl-nb`, `nl-li` als Duitse scopes zoals `de`, `de-nord`, `de-west`, `de-mitte`, `de-hb`, `de-he`, `de-ni`, `de-nw`, `ostfriesland`, `bremesh`, `emsland`, `bentheim`, `osnabrueck`, `ruhrgebiet`, `rheinland` en `taunus`.
 
 ### 11. Regionale mesh filtering
 
