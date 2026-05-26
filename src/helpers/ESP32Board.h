@@ -126,6 +126,8 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
+  bool checkOnlineOTAUpdate(const char* target, const char* current_version, const char* wifi_ssid, const char* wifi_password, char reply[]) override;
+  bool startOnlineOTAUpdate(const char* target, const char* current_version, const char* wifi_ssid, const char* wifi_password, char reply[]) override;
 
   void setInhibitSleep(bool inhibit) {
     inhibit_sleep = inhibit;

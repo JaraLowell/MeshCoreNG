@@ -74,6 +74,23 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:**
 - `start ota`
 
+Starts the existing manual OTA mode:
+- ESP32: starts a `MeshCore-OTA` WiFi access point and web uploader at `/update`
+- nRF52: starts BLE DFU advertising for the nRF DFU app
+
+---
+
+### Check or install ESP32 online OTA update
+**Usage:**
+- `ota.check`
+- `ota.update`
+
+ESP32-only. Uses the saved WiFi credentials from `set wifi.ssid` and `set wifi.password`, downloads the OTA manifest from the flasher site, finds the firmware matching this PlatformIO environment, and installs the newest non-merged `.bin`.
+
+`ota.check` only reports whether an update is available. `ota.update` downloads and installs it, then reports `reboot` when the new image is ready. Use `reboot` to boot into the updated firmware.
+
+This does not apply to nRF52, STM32 or RP2040 builds.
+
 ---
 
 ### Erase/Factory Reset

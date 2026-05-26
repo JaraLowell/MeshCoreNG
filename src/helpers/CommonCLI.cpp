@@ -8,6 +8,10 @@
 #define BRIDGE_MAX_BAUD 115200
 #endif
 
+#ifndef FIRMWARE_TARGET
+#define FIRMWARE_TARGET "unknown"
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -307,6 +311,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
+        strcpy(reply, "Error");
+      }
+    } else if (memcmp(command, "ota.check", 9) == 0) {
+      if (!_board->checkOnlineOTAUpdate(FIRMWARE_TARGET, _callbacks->getFirmwareVer(), _prefs->wifi_ssid, _prefs->wifi_password, reply)) {
+        strcpy(reply, "Error");
+      }
+    } else if (memcmp(command, "ota.update", 10) == 0) {
+      if (!_board->startOnlineOTAUpdate(FIRMWARE_TARGET, _callbacks->getFirmwareVer(), _prefs->wifi_ssid, _prefs->wifi_password, reply)) {
         strcpy(reply, "Error");
       }
     } else if (memcmp(command, "clock", 5) == 0) {

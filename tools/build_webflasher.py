@@ -100,6 +100,20 @@ def find_assets_for_board(all_assets, board):
     return matches
 
 
+def find_ota_asset_for_board(all_assets, board):
+    """Find the newest ESP32 app binary for device-pulled OTA."""
+    if get_device_type(board) != "esp32":
+        return None
+    env_name = board["env"]
+    pattern = re.compile(rf"^{re.escape(env_name)}-.+\.bin$")
+    matches = [
+        a for a in all_assets
+        if pattern.match(a.get("name", "")) and not a.get("name", "").endswith("-merged.bin")
+    ]
+    matches.sort(key=lambda a: a.get("release_published_at") or a.get("updated_at", ""), reverse=True)
+    return matches[0] if matches else None
+
+
 def download_asset(asset, destination, token):
     data = github_request(asset["url"], token, accept="application/octet-stream")
     with destination.open("wb") as f:
@@ -193,6 +207,25 @@ def build_flasher(boards, all_assets):
 
     with (SITE_FLASHER / "boards.json").open("w", encoding="utf-8") as f:
         json.dump(published, f, indent=2)
+        f.write("\n")
+
+    ota_lines = [
+        "# target|version|size|url|name",
+    ]
+    for board in published:
+        asset = find_ota_asset_for_board(all_assets, board)
+        if not asset:
+            continue
+        ota_lines.append("|".join([
+            board["env"],
+            asset.get("release_tag") or asset.get("updated_at", "release")[:10],
+            str(asset.get("size") or 0),
+            asset.get("browser_download_url") or "",
+            asset.get("name") or "",
+        ]))
+
+    with (SITE_FLASHER / "ota-manifest.txt").open("w", encoding="utf-8") as f:
+        f.write("\n".join(ota_lines))
         f.write("\n")
 
     print(f"\nFlasher built: {len(published)} boards published, {len(skipped)} skipped (no release asset).", file=sys.stderr)
