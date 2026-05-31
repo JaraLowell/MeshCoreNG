@@ -1736,7 +1736,7 @@
   {
     "env": "wio_wm1110_repeater_bridge_rs232",
     "name": "Wio WM1110 RS232 Bridge",
-    "chipFamily": "nRF52",
+    "chipFamily": "Download",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio WM1110."
   },
   {
@@ -1918,5 +1918,929 @@
     "name": "Seeed XIAO ESP32-S3 WIO Terminal Chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
+  },
+  {
+    "env": "GAT562_30S_Mesh_Kit_companion_radio_ble",
+    "name": "GAT562 30S Mesh Kit Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 30S Mesh Kit."
+  },
+  {
+    "env": "GAT562_30S_Mesh_Kit_companion_radio_usb",
+    "name": "GAT562 30S Mesh Kit Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for GAT562 30S Mesh Kit."
+  },
+  {
+    "env": "GAT562_30S_Mesh_Kit_repeater",
+    "name": "GAT562 30S Mesh Kit Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for GAT562 30S Mesh Kit."
+  },
+  {
+    "env": "GAT562_30S_Mesh_Kit_room_server",
+    "name": "GAT562 30S Mesh Kit Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for GAT562 30S Mesh Kit."
+  },
+  {
+    "env": "GAT562_Mesh_EVB_Pro_repeater",
+    "name": "GAT562 Mesh EVB Pro Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for GAT562 Mesh EVB Pro."
+  },
+  {
+    "env": "GAT562_Mesh_EVB_Pro_room_server",
+    "name": "GAT562 Mesh EVB Pro Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for GAT562 Mesh EVB Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Tracker_Pro_companion_radio_ble",
+    "name": "GAT562 Mesh Tracker Pro Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 Mesh Tracker Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Tracker_Pro_companion_radio_usb",
+    "name": "GAT562 Mesh Tracker Pro Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for GAT562 Mesh Tracker Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Tracker_Pro_repeater",
+    "name": "GAT562 Mesh Tracker Pro Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for GAT562 Mesh Tracker Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Tracker_Pro_room_server",
+    "name": "GAT562 Mesh Tracker Pro Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for GAT562 Mesh Tracker Pro."
+  },
+  {
+    "env": "GAT562_Mesh_Watch13_companion_radio_ble",
+    "name": "GAT562 Mesh Watch13 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 Mesh Watch13."
+  },
+  {
+    "env": "Generic_E22_sx1262_repeater_bridge_rs232",
+    "name": "Generic E22 SX1262 RS232 Bridge",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG RS232 Bridge firmware for Generic E22 SX1262."
+  },
+  {
+    "env": "Generic_E22_sx1268_repeater_bridge_rs232",
+    "name": "Generic E22 SX1268 RS232 Bridge",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG RS232 Bridge firmware for Generic E22 SX1268."
+  },
+  {
+    "env": "Heltec_mesh_solar_companion_radio_ble",
+    "name": "Heltec Mesh Solar Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec Mesh Solar."
+  },
+  {
+    "env": "Heltec_mesh_solar_companion_radio_usb",
+    "name": "Heltec Mesh Solar Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec Mesh Solar."
+  },
+  {
+    "env": "Heltec_mesh_solar_repeater",
+    "name": "Heltec Mesh Solar Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Heltec Mesh Solar."
+  },
+  {
+    "env": "Heltec_mesh_solar_room_server",
+    "name": "Heltec Mesh Solar Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Heltec Mesh Solar."
+  },
+  {
+    "env": "Heltec_t096_companion_radio_ble",
+    "name": "Heltec T096 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T096."
+  },
+  {
+    "env": "Heltec_t096_companion_radio_usb",
+    "name": "Heltec T096 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T096."
+  },
+  {
+    "env": "Heltec_t096_repeater",
+    "name": "Heltec T096 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Heltec T096."
+  },
+  {
+    "env": "Heltec_t096_repeater_bridge_rs232",
+    "name": "Heltec T096 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec T096."
+  },
+  {
+    "env": "Heltec_t096_room_server",
+    "name": "Heltec T096 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Heltec T096."
+  },
+  {
+    "env": "Heltec_t114_companion_radio_ble",
+    "name": "Heltec T114 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T114."
+  },
+  {
+    "env": "Heltec_t114_companion_radio_usb",
+    "name": "Heltec T114 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T114."
+  },
+  {
+    "env": "Heltec_t114_repeater",
+    "name": "Heltec T114 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Heltec T114."
+  },
+  {
+    "env": "Heltec_t114_repeater_bridge_rs232",
+    "name": "Heltec T114 RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec T114."
+  },
+  {
+    "env": "Heltec_t114_room_server",
+    "name": "Heltec T114 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Heltec T114."
+  },
+  {
+    "env": "Heltec_t114_without_display_companion_radio_ble",
+    "name": "Heltec T114 Without Display Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T114 Without Display."
+  },
+  {
+    "env": "Heltec_t114_without_display_companion_radio_usb",
+    "name": "Heltec T114 Without Display Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T114 Without Display."
+  },
+  {
+    "env": "Heltec_t114_without_display_repeater",
+    "name": "Heltec T114 Without Display Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Heltec T114 Without Display."
+  },
+  {
+    "env": "Heltec_t114_without_display_repeater_bridge_rs232",
+    "name": "Heltec T114 Without Display RS232 Bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for Heltec T114 Without Display."
+  },
+  {
+    "env": "Heltec_t114_without_display_room_server",
+    "name": "Heltec T114 Without Display Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Heltec T114 Without Display."
+  },
+  {
+    "env": "KeepteenLT1_companion_radio_ble",
+    "name": "KeepteenLT1 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for KeepteenLT1."
+  },
+  {
+    "env": "KeepteenLT1_companion_radio_usb",
+    "name": "KeepteenLT1 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for KeepteenLT1."
+  },
+  {
+    "env": "KeepteenLT1_repeater",
+    "name": "KeepteenLT1 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for KeepteenLT1."
+  },
+  {
+    "env": "KeepteenLT1_room_server",
+    "name": "KeepteenLT1 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for KeepteenLT1."
+  },
+  {
+    "env": "LilyGo_T-Echo-Lite_companion_radio_ble",
+    "name": "LilyGo T Echo Lite Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T Echo Lite."
+  },
+  {
+    "env": "LilyGo_T-Echo-Lite_repeater",
+    "name": "LilyGo T Echo Lite Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for LilyGo T Echo Lite."
+  },
+  {
+    "env": "LilyGo_T-Echo-Lite_room_server",
+    "name": "LilyGo T Echo Lite Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for LilyGo T Echo Lite."
+  },
+  {
+    "env": "LilyGo_T-Echo_companion_radio_ble",
+    "name": "LilyGo T Echo Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T Echo."
+  },
+  {
+    "env": "LilyGo_T-Echo_companion_radio_usb",
+    "name": "LilyGo T Echo Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T Echo."
+  },
+  {
+    "env": "LilyGo_T-Echo_repeater",
+    "name": "LilyGo T Echo Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for LilyGo T Echo."
+  },
+  {
+    "env": "LilyGo_T-Echo_room_server",
+    "name": "LilyGo T Echo Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for LilyGo T Echo."
+  },
+  {
+    "env": "Mesh_pocket_companion_radio_ble",
+    "name": "Mesh Pocket Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Mesh Pocket."
+  },
+  {
+    "env": "Mesh_pocket_companion_radio_usb",
+    "name": "Mesh Pocket Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Mesh Pocket."
+  },
+  {
+    "env": "Mesh_pocket_repeater",
+    "name": "Mesh Pocket Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Mesh Pocket."
+  },
+  {
+    "env": "Mesh_pocket_room_server",
+    "name": "Mesh Pocket Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Mesh Pocket."
+  },
+  {
+    "env": "Meshtiny_companion_radio_ble",
+    "name": "Meshtiny Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Meshtiny."
+  },
+  {
+    "env": "Meshtiny_companion_radio_usb",
+    "name": "Meshtiny Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Meshtiny."
+  },
+  {
+    "env": "Minewsemi_me25ls01_companion_radio_ble",
+    "name": "Minewsemi Me25ls01 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Minewsemi Me25ls01."
+  },
+  {
+    "env": "Minewsemi_me25ls01_companion_radio_usb",
+    "name": "Minewsemi Me25ls01 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Minewsemi Me25ls01."
+  },
+  {
+    "env": "Minewsemi_me25ls01_repeater",
+    "name": "Minewsemi Me25ls01 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Minewsemi Me25ls01."
+  },
+  {
+    "env": "Minewsemi_me25ls01_room_server",
+    "name": "Minewsemi Me25ls01 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Minewsemi Me25ls01."
+  },
+  {
+    "env": "Nano_G2_Ultra_companion_radio_ble",
+    "name": "Nano G2 Ultra Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Nano G2 Ultra."
+  },
+  {
+    "env": "Nano_G2_Ultra_companion_radio_usb",
+    "name": "Nano G2 Ultra Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Nano G2 Ultra."
+  },
+  {
+    "env": "PicoW_companion_radio_usb",
+    "name": "PicoW Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for PicoW."
+  },
+  {
+    "env": "PicoW_repeater",
+    "name": "PicoW Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for PicoW."
+  },
+  {
+    "env": "PicoW_room_server",
+    "name": "PicoW Room Server",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Room Server firmware for PicoW."
+  },
+  {
+    "env": "ProMicro_companion_radio_ble",
+    "name": "ProMicro Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for ProMicro."
+  },
+  {
+    "env": "ProMicro_companion_radio_usb",
+    "name": "ProMicro Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for ProMicro."
+  },
+  {
+    "env": "ProMicro_repeater",
+    "name": "ProMicro Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for ProMicro."
+  },
+  {
+    "env": "ProMicro_room_server",
+    "name": "ProMicro Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for ProMicro."
+  },
+  {
+    "env": "R1Neo_companion_radio_ble",
+    "name": "R1Neo Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for R1Neo."
+  },
+  {
+    "env": "R1Neo_companion_radio_usb",
+    "name": "R1Neo Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for R1Neo."
+  },
+  {
+    "env": "R1Neo_repeater",
+    "name": "R1Neo Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for R1Neo."
+  },
+  {
+    "env": "R1Neo_room_server",
+    "name": "R1Neo Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for R1Neo."
+  },
+  {
+    "env": "RAK_11310_companion_radio_usb",
+    "name": "RAK 11310 Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 11310."
+  },
+  {
+    "env": "RAK_11310_repeater",
+    "name": "RAK 11310 Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for RAK 11310."
+  },
+  {
+    "env": "RAK_11310_repeater_bridge_rs232",
+    "name": "RAK 11310 RS232 Bridge",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG RS232 Bridge firmware for RAK 11310."
+  },
+  {
+    "env": "RAK_11310_room_server",
+    "name": "RAK 11310 Room Server",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Room Server firmware for RAK 11310."
+  },
+  {
+    "env": "RAK_3401_companion_radio_ble",
+    "name": "RAK 3401 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK 3401."
+  },
+  {
+    "env": "RAK_3401_companion_radio_usb",
+    "name": "RAK 3401 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 3401."
+  },
+  {
+    "env": "RAK_3401_repeater",
+    "name": "RAK 3401 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for RAK 3401."
+  },
+  {
+    "env": "RAK_3401_room_server",
+    "name": "RAK 3401 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for RAK 3401."
+  },
+  {
+    "env": "RAK_3x72_companion_radio_usb",
+    "name": "RAK 3x72 Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 3x72."
+  },
+  {
+    "env": "RAK_3x72_repeater",
+    "name": "RAK 3x72 Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for RAK 3x72."
+  },
+  {
+    "env": "RAK_4631_companion_radio_ble",
+    "name": "RAK 4631 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK 4631."
+  },
+  {
+    "env": "RAK_4631_companion_radio_usb",
+    "name": "RAK 4631 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 4631."
+  },
+  {
+    "env": "RAK_4631_repeater",
+    "name": "RAK 4631 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for RAK 4631."
+  },
+  {
+    "env": "RAK_4631_room_server",
+    "name": "RAK 4631 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for RAK 4631."
+  },
+  {
+    "env": "RAK_WisMesh_Tag_companion_radio_ble",
+    "name": "RAK WisMesh Tag Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK WisMesh Tag."
+  },
+  {
+    "env": "RAK_WisMesh_Tag_companion_radio_usb",
+    "name": "RAK WisMesh Tag Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for RAK WisMesh Tag."
+  },
+  {
+    "env": "RAK_WisMesh_Tag_repeater",
+    "name": "RAK WisMesh Tag Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for RAK WisMesh Tag."
+  },
+  {
+    "env": "RAK_WisMesh_Tag_room_server",
+    "name": "RAK WisMesh Tag Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for RAK WisMesh Tag."
+  },
+  {
+    "env": "SenseCap_Solar_companion_radio_ble",
+    "name": "SenseCap Solar Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for SenseCap Solar."
+  },
+  {
+    "env": "SenseCap_Solar_companion_radio_usb",
+    "name": "SenseCap Solar Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for SenseCap Solar."
+  },
+  {
+    "env": "SenseCap_Solar_repeater",
+    "name": "SenseCap Solar Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for SenseCap Solar."
+  },
+  {
+    "env": "SenseCap_Solar_room_server",
+    "name": "SenseCap Solar Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for SenseCap Solar."
+  },
+  {
+    "env": "ThinkNode_M1_companion_radio_ble",
+    "name": "ThinkNode M1 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M1."
+  },
+  {
+    "env": "ThinkNode_M1_companion_radio_usb",
+    "name": "ThinkNode M1 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M1."
+  },
+  {
+    "env": "ThinkNode_M1_repeater",
+    "name": "ThinkNode M1 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for ThinkNode M1."
+  },
+  {
+    "env": "ThinkNode_M1_room_server",
+    "name": "ThinkNode M1 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for ThinkNode M1."
+  },
+  {
+    "env": "ThinkNode_M3_companion_radio_ble",
+    "name": "ThinkNode M3 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M3."
+  },
+  {
+    "env": "ThinkNode_M3_companion_radio_usb",
+    "name": "ThinkNode M3 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M3."
+  },
+  {
+    "env": "ThinkNode_M3_repeater",
+    "name": "ThinkNode M3 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for ThinkNode M3."
+  },
+  {
+    "env": "ThinkNode_M3_room_server",
+    "name": "ThinkNode M3 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for ThinkNode M3."
+  },
+  {
+    "env": "ThinkNode_M6_companion_radio_ble",
+    "name": "ThinkNode M6 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M6."
+  },
+  {
+    "env": "ThinkNode_M6_companion_radio_usb",
+    "name": "ThinkNode M6 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M6."
+  },
+  {
+    "env": "ThinkNode_M6_repeater",
+    "name": "ThinkNode M6 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for ThinkNode M6."
+  },
+  {
+    "env": "ThinkNode_M6_room_server",
+    "name": "ThinkNode M6 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for ThinkNode M6."
+  },
+  {
+    "env": "Tiny_Relay_companion_radio_usb",
+    "name": "Tiny Relay Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Tiny Relay."
+  },
+  {
+    "env": "Tiny_Relay_repeater",
+    "name": "Tiny Relay Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for Tiny Relay."
+  },
+  {
+    "env": "Xiao_nrf52_companion_radio_ble",
+    "name": "XIAO Nrf52 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for XIAO Nrf52."
+  },
+  {
+    "env": "Xiao_nrf52_companion_radio_usb",
+    "name": "XIAO Nrf52 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for XIAO Nrf52."
+  },
+  {
+    "env": "Xiao_nrf52_repeater",
+    "name": "XIAO Nrf52 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for XIAO Nrf52."
+  },
+  {
+    "env": "Xiao_nrf52_room_server",
+    "name": "XIAO Nrf52 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for XIAO Nrf52."
+  },
+  {
+    "env": "Xiao_rp2040_companion_radio_usb",
+    "name": "XIAO Rp2040 Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for XIAO Rp2040."
+  },
+  {
+    "env": "Xiao_rp2040_repeater",
+    "name": "XIAO Rp2040 Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for XIAO Rp2040."
+  },
+  {
+    "env": "Xiao_rp2040_room_server",
+    "name": "XIAO Rp2040 Room Server",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Room Server firmware for XIAO Rp2040."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_096_companion_radio_ble",
+    "name": "Ikoka Handheld nRF E22 30dbm 096 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Handheld nRF E22 30dbm 096."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_096_companion_radio_usb",
+    "name": "Ikoka Handheld nRF E22 30dbm 096 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Handheld nRF E22 30dbm 096."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_096_rotated_companion_radio_ble",
+    "name": "Ikoka Handheld nRF E22 30dbm 096 Rotated Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Handheld nRF E22 30dbm 096 Rotated."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_096_rotated_companion_radio_usb",
+    "name": "Ikoka Handheld nRF E22 30dbm 096 Rotated Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Handheld nRF E22 30dbm 096 Rotated."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_repeater",
+    "name": "Ikoka Handheld nRF E22 30dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Handheld nRF E22 30dbm."
+  },
+  {
+    "env": "ikoka_handheld_nrf_e22_30dbm_room_server",
+    "name": "Ikoka Handheld nRF E22 30dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Handheld nRF E22 30dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_22dbm_companion_radio_ble",
+    "name": "Ikoka Nano nRF 22dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 22dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_22dbm_companion_radio_usb",
+    "name": "Ikoka Nano nRF 22dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 22dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_22dbm_repeater",
+    "name": "Ikoka Nano nRF 22dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 22dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_22dbm_room_server",
+    "name": "Ikoka Nano nRF 22dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 22dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_30dbm_companion_radio_ble",
+    "name": "Ikoka Nano nRF 30dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 30dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_30dbm_companion_radio_usb",
+    "name": "Ikoka Nano nRF 30dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 30dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_30dbm_repeater",
+    "name": "Ikoka Nano nRF 30dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 30dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_30dbm_room_server",
+    "name": "Ikoka Nano nRF 30dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 30dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_33dbm_companion_radio_ble",
+    "name": "Ikoka Nano nRF 33dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 33dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_33dbm_companion_radio_usb",
+    "name": "Ikoka Nano nRF 33dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 33dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_33dbm_repeater",
+    "name": "Ikoka Nano nRF 33dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 33dbm."
+  },
+  {
+    "env": "ikoka_nano_nrf_33dbm_room_server",
+    "name": "Ikoka Nano nRF 33dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 33dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_22dbm_companion_radio_ble",
+    "name": "Ikoka Stick nRF 22dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 22dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_22dbm_companion_radio_usb",
+    "name": "Ikoka Stick nRF 22dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 22dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_22dbm_repeater",
+    "name": "Ikoka Stick nRF 22dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 22dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_22dbm_room_server",
+    "name": "Ikoka Stick nRF 22dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 22dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_30dbm_companion_radio_ble",
+    "name": "Ikoka Stick nRF 30dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 30dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_30dbm_companion_radio_usb",
+    "name": "Ikoka Stick nRF 30dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 30dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_30dbm_repeater",
+    "name": "Ikoka Stick nRF 30dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 30dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_30dbm_room_server",
+    "name": "Ikoka Stick nRF 30dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 30dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_33dbm_companion_radio_ble",
+    "name": "Ikoka Stick nRF 33dbm Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 33dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_33dbm_companion_radio_usb",
+    "name": "Ikoka Stick nRF 33dbm Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 33dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_33dbm_repeater",
+    "name": "Ikoka Stick nRF 33dbm Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 33dbm."
+  },
+  {
+    "env": "ikoka_stick_nrf_33dbm_room_server",
+    "name": "Ikoka Stick nRF 33dbm Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 33dbm."
+  },
+  {
+    "env": "t1000e_companion_radio_ble",
+    "name": "T1000-E Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for T1000-E."
+  },
+  {
+    "env": "t1000e_companion_radio_usb",
+    "name": "T1000-E Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for T1000-E."
+  },
+  {
+    "env": "t1000e_repeater",
+    "name": "T1000-E Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for T1000-E."
+  },
+  {
+    "env": "t1000e_room_server",
+    "name": "T1000-E Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for T1000-E."
+  },
+  {
+    "env": "waveshare_rp2040_lora_companion_radio_usb",
+    "name": "Waveshare Rp2040 Lora Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Waveshare Rp2040 Lora."
+  },
+  {
+    "env": "waveshare_rp2040_lora_repeater",
+    "name": "Waveshare Rp2040 Lora Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for Waveshare Rp2040 Lora."
+  },
+  {
+    "env": "waveshare_rp2040_lora_repeater_bridge_rs232",
+    "name": "Waveshare Rp2040 Lora RS232 Bridge",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG RS232 Bridge firmware for Waveshare Rp2040 Lora."
+  },
+  {
+    "env": "waveshare_rp2040_lora_room_server",
+    "name": "Waveshare Rp2040 Lora Room Server",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Room Server firmware for Waveshare Rp2040 Lora."
+  },
+  {
+    "env": "wio-e5-mini_companion_radio_usb",
+    "name": "Wio-E5 Mini Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Wio-E5 Mini."
+  },
+  {
+    "env": "wio-e5-mini_repeater",
+    "name": "Wio-E5 Mini Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for Wio-E5 Mini."
+  },
+  {
+    "env": "wio-e5_companion_radio_usb",
+    "name": "Wio-E5 Companion Radio (USB)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Wio-E5."
+  },
+  {
+    "env": "wio-e5_repeater",
+    "name": "Wio-E5 Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for Wio-E5."
+  },
+  {
+    "env": "wio_wm1110_companion_radio_ble",
+    "name": "Wio WM1110 Companion Radio (BLE)",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio WM1110."
+  },
+  {
+    "env": "wio_wm1110_repeater",
+    "name": "Wio WM1110 Repeater",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Repeater firmware for Wio WM1110."
+  },
+  {
+    "env": "wio_wm1110_room_server",
+    "name": "Wio WM1110 Room Server",
+    "chipFamily": "Download",
+    "description": "MeshCoreNG Room Server firmware for Wio WM1110."
   }
 ]
