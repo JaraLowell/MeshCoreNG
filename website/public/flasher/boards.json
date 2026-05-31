@@ -1740,10 +1740,40 @@
     "description": "MeshCoreNG RS232 Bridge firmware for Wio WM1110."
   },
   {
+    "env": "WioTrackerL1_companion_radio_ble",
+    "name": "Wio Tracker L1 Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio Tracker L1 / L1 Pro."
+  },
+  {
+    "env": "WioTrackerL1_companion_radio_usb",
+    "name": "Wio Tracker L1 Companion Radio (USB)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Wio Tracker L1 / L1 Pro."
+  },
+  {
+    "env": "WioTrackerL1_repeater",
+    "name": "Wio Tracker L1 Repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Wio Tracker L1 / L1 Pro."
+  },
+  {
+    "env": "WioTrackerL1_room_server",
+    "name": "Wio Tracker L1 Room Server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Wio Tracker L1 / L1 Pro."
+  },
+  {
     "env": "WioTrackerL1_repeater_bridge_rs232",
     "name": "Wio Tracker L1 RS232 Bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio Tracker L1."
+  },
+  {
+    "env": "WioTrackerL1Eink_companion_radio_ble",
+    "name": "Wio Tracker L1 E-Ink Companion Radio (BLE)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio Tracker L1 E-Ink."
   },
   {
     "env": "WioTrackerL1Eink_repeater_bridge_rs232",
