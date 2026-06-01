@@ -153,6 +153,22 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 
 ---
 
+### Atlas Export
+**Usage:**
+- `atlas enable <on|off>`
+- `atlas position <on|off>`
+- `atlas neighbors <on|off>`
+- `atlas pathsample <on|off|0-10>`
+- `atlas export <on|off>`
+- `get atlas.stats`
+- `observer export json`
+
+All Atlas features are disabled by default. Phase 1 exports information already available inside the firmware and does not change normal routing or increase flood traffic.
+
+`get atlas.stats` returns JSON-like dense-mesh counters. `observer export json` returns a JSON-like event array when both `atlas enable on` and `atlas export on` are set; otherwise it returns `[]`.
+
+---
+
 ### Malformed/Spam Stats
 **Usage:**
 - `get spam.stats`

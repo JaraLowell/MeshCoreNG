@@ -710,6 +710,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
+  Atlas::setDefaults(_prefs.atlas);
   _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f

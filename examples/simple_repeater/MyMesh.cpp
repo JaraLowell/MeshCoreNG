@@ -1168,6 +1168,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
+  Atlas::setDefaults(_prefs.atlas);
   _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
@@ -1481,6 +1482,39 @@ void MyMesh::formatDenseStatsReply(char *reply) {
           (uint32_t)stats.density_level,
           (uint32_t)_prefs.flood_relay_prob,
           (uint32_t)_prefs.flood_dynamic_enable);
+}
+
+void MyMesh::formatAtlasStatsReply(char *reply) {
+  SimpleMeshTables *tables = (SimpleMeshTables *)getTables();
+  dense_mesh_stats_t stats;
+  getDenseStats(&stats);
+  snprintf(reply, 160,
+          "{\"heard\":%u,\"dup\":%lu,\"fwd\":%lu,\"sup\":%u,\"route\":{\"hit\":0,\"miss\":0},\"air\":{\"tx\":%lu,\"rx\":%lu}}",
+          (uint32_t)stats.unique_rx,
+          (unsigned long)tables->getNumFloodDups() + tables->getNumDirectDups(),
+          (unsigned long)getNumSentFlood() + getNumSentDirect(),
+          (uint32_t)stats.suppressed_tx,
+          (unsigned long)stats.airtime_tx_ms,
+          (unsigned long)stats.airtime_rx_ms);
+}
+
+void MyMesh::formatAtlasObserverReply(char *reply) {
+  if (!_prefs.atlas.enabled || !_prefs.atlas.export_enabled) {
+    strcpy(reply, "[]");
+    return;
+  }
+
+  SimpleMeshTables *tables = (SimpleMeshTables *)getTables();
+  dense_mesh_stats_t stats;
+  getDenseStats(&stats);
+  snprintf(reply, 160,
+          "[{\"event\":\"DENSE_STATS\",\"heard\":%u,\"duplicate\":%lu,\"forward\":%lu,\"suppression\":%u,\"tx_air_ms\":%lu,\"rx_air_ms\":%lu}]",
+          (uint32_t)stats.unique_rx,
+          (unsigned long)tables->getNumFloodDups() + tables->getNumDirectDups(),
+          (unsigned long)getNumSentFlood() + getNumSentDirect(),
+          (uint32_t)stats.suppressed_tx,
+          (unsigned long)stats.airtime_tx_ms,
+          (unsigned long)stats.airtime_rx_ms);
 }
 
 void MyMesh::formatSpamStatsReply(char *reply) {

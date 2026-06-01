@@ -5,6 +5,7 @@
 #include <helpers/SensorManager.h>
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
+#include <helpers/Atlas.h>
 #ifndef WITH_DUTCH_REGION_DB
 #define WITH_DUTCH_REGION_DB 0
 #endif
@@ -78,6 +79,7 @@ struct NodePrefs { // persisted to file
   uint8_t malformed_drop; // drop malformed decryptable public/group chat instead of forwarding
   uint8_t flood_node_delay_enable;
   uint8_t flood_dup_suppress_enable;
+  AtlasConfig atlas;
 };
 
 class CommonCLICallbacks {
@@ -112,6 +114,12 @@ public:
   }
   virtual void formatPowerStatsReply(char *reply) {
     reply[0] = 0;
+  }
+  virtual void formatAtlasStatsReply(char *reply) {
+    strcpy(reply, "{\"heard\":0,\"dup\":0,\"fwd\":0,\"sup\":0,\"route\":{\"hit\":0,\"miss\":0},\"air\":{\"tx\":0,\"rx\":0}}");
+  }
+  virtual void formatAtlasObserverReply(char *reply) {
+    strcpy(reply, "[]");
   }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;

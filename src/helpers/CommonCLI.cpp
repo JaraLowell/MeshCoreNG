@@ -145,7 +145,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
       _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                              // 461
     }
-    // next: 462
+    AtlasConfig atlas = _prefs->atlas;
+    if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
+      _prefs->atlas = atlas;                                                                      // 462
+    }
+    // next: 462 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -183,6 +187,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->flood_dynamic_enable = constrain(_prefs->flood_dynamic_enable, 0, 1);
     _prefs->flood_node_delay_enable = constrain(_prefs->flood_node_delay_enable, 0, 1);
     _prefs->flood_dup_suppress_enable = constrain(_prefs->flood_dup_suppress_enable, 0, 1);
+    _prefs->atlas.enabled = constrain(_prefs->atlas.enabled, 0, 1);
+    _prefs->atlas.position_enabled = constrain(_prefs->atlas.position_enabled, 0, 1);
+    _prefs->atlas.neighbors_enabled = constrain(_prefs->atlas.neighbors_enabled, 0, 1);
+    _prefs->atlas.path_sample_enabled = constrain(_prefs->atlas.path_sample_enabled, 0, 1);
+    _prefs->atlas.export_enabled = constrain(_prefs->atlas.export_enabled, 0, 1);
+    _prefs->atlas.path_sample_percent = constrain(_prefs->atlas.path_sample_percent, 0, 10);
 
     file.close();
   }
@@ -254,7 +264,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->malformed_drop, sizeof(_prefs->malformed_drop));                // 459
     file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 460
     file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 461
-    // next: 462
+    file.write((uint8_t *)&_prefs->atlas, sizeof(_prefs->atlas));                                  // 462
+    // next: 462 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -381,6 +392,63 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    } else if (memcmp(command, "observer export json", 20) == 0) {
+      if (_prefs->atlas.enabled && _prefs->atlas.export_enabled) {
+        _callbacks->formatAtlasObserverReply(reply);
+      } else {
+        strcpy(reply, "[]");
+      }
+    } else if (memcmp(command, "atlas ", 6) == 0) {
+      const char* config = &command[6];
+      if (memcmp(config, "enable ", 7) == 0) {
+        if (parseOnOff(&config[7], &_prefs->atlas.enabled)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: expected on or off");
+        }
+      } else if (memcmp(config, "position ", 9) == 0) {
+        if (parseOnOff(&config[9], &_prefs->atlas.position_enabled)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: expected on or off");
+        }
+      } else if (memcmp(config, "neighbors ", 10) == 0) {
+        if (parseOnOff(&config[10], &_prefs->atlas.neighbors_enabled)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: expected on or off");
+        }
+      } else if (memcmp(config, "pathsample ", 11) == 0) {
+        const char* value = &config[11];
+        if (parseOnOff(value, &_prefs->atlas.path_sample_enabled)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else if (*value >= '0' && *value <= '9') {
+          uint8_t pct = atoi(value);
+          if (pct <= 10) {
+            _prefs->atlas.path_sample_percent = pct;
+            _prefs->atlas.path_sample_enabled = pct > 0;
+            savePrefs();
+            strcpy(reply, "OK");
+          } else {
+            strcpy(reply, "Error: sample percent must be 0-10");
+          }
+        } else {
+          strcpy(reply, "Error: expected on/off or 0-10");
+        }
+      } else if (memcmp(config, "export ", 7) == 0) {
+        if (parseOnOff(&config[7], &_prefs->atlas.export_enabled)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: expected on or off");
+        }
+      } else {
+        strcpy(reply, "Unknown atlas command");
+      }
     } else if (memcmp(command, "get ", 4) == 0) {
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
@@ -754,6 +822,56 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: expected on or off");
     }
+  } else if (memcmp(config, "atlas.enable ", 13) == 0 || memcmp(config, "atlas ", 6) == 0) {
+    const char* value = (config[6] == 'e') ? &config[13] : &config[6];
+    if (parseOnOff(value, &_prefs->atlas.enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "atlas.position ", 15) == 0) {
+    const char* value = &config[15];
+    if (parseOnOff(value, &_prefs->atlas.position_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "atlas.neighbors ", 16) == 0) {
+    const char* value = &config[16];
+    if (parseOnOff(value, &_prefs->atlas.neighbors_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "atlas.pathsample ", 17) == 0) {
+    const char* value = &config[17];
+    if (parseOnOff(value, &_prefs->atlas.path_sample_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (*value >= '0' && *value <= '9') {
+      uint8_t pct = atoi(value);
+      if (pct <= 10) {
+        _prefs->atlas.path_sample_percent = pct;
+        _prefs->atlas.path_sample_enabled = pct > 0;
+        savePrefs();
+        strcpy(reply, "OK");
+      } else {
+        strcpy(reply, "Error: sample percent must be 0-10");
+      }
+    } else {
+      strcpy(reply, "Error: expected on/off or 0-10");
+    }
+  } else if (memcmp(config, "atlas.export ", 13) == 0) {
+    const char* value = &config[13];
+    if (parseOnOff(value, &_prefs->atlas.export_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
     if (f >= 0) {
@@ -935,6 +1053,18 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->flood_dup_suppress_enable ? "on" : "off");
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
+  } else if (sender_timestamp == 0 && memcmp(config, "atlas.stats", 11) == 0) {
+    _callbacks->formatAtlasStatsReply(reply);
+  } else if (memcmp(config, "atlas.position", 14) == 0) {
+    sprintf(reply, "> %s", _prefs->atlas.position_enabled ? "on" : "off");
+  } else if (memcmp(config, "atlas.neighbors", 15) == 0) {
+    sprintf(reply, "> %s", _prefs->atlas.neighbors_enabled ? "on" : "off");
+  } else if (memcmp(config, "atlas.pathsample", 16) == 0) {
+    sprintf(reply, "> %s,%u", _prefs->atlas.path_sample_enabled ? "on" : "off", (uint32_t)_prefs->atlas.path_sample_percent);
+  } else if (memcmp(config, "atlas.export", 12) == 0) {
+    sprintf(reply, "> %s", _prefs->atlas.export_enabled ? "on" : "off");
+  } else if (memcmp(config, "atlas.enable", 12) == 0 || strcmp(config, "atlas") == 0) {
+    sprintf(reply, "> %s", _prefs->atlas.enabled ? "on" : "off");
   } else if (memcmp(config, "spam.stats", 10) == 0) {
     _callbacks->formatSpamStatsReply(reply);
   } else if (memcmp(config, "repeater.health", 15) == 0 || memcmp(config, "repeater.status", 15) == 0) {

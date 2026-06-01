@@ -283,6 +283,38 @@ The data contained in the ciphertext uses the format below:
 | pubkey       | 8 or 32         | node's ID (or prefix)                      |
 
 
+# Atlas telemetry
+
+Atlas telemetry is an optional, disabled-by-default foundation for future topology and network-health export. It is intended for low-rate local export and future Atlas tooling. Enabling Atlas does not change existing routing behavior, and firmware should not flood Atlas packets by default.
+
+The first byte of the payload is the Atlas subtype:
+
+| Value | Name                  | Description                         |
+|-------|-----------------------|-------------------------------------|
+| 0x01  | POSITION              | Compact node position               |
+| 0x02  | NEIGHBORS             | Low-rate neighbor summary           |
+| 0x03  | PATH_SAMPLE           | Sampled route telemetry             |
+| 0x04  | DENSE_STATS           | Network-health counters             |
+
+POSITION:
+
+| Field       | Size | Description                                      |
+|-------------|------|--------------------------------------------------|
+| subtype     | 1    | 0x01                                             |
+| flags       | 1    | bit 0 altitude, bit 1 speed, bit 2 heading       |
+| latitude    | 4    | signed integer, degrees * 1e7                    |
+| longitude   | 4    | signed integer, degrees * 1e7                    |
+| timestamp   | 4    | epoch seconds                                    |
+| altitude    | 2    | optional signed meters                           |
+| speed       | 2    | optional cm/s                                    |
+| heading     | 2    | optional degrees                                 |
+
+NEIGHBORS uses `subtype,count` followed by compact entries: 4-byte node id, 1-byte RSSI, 1-byte SNR*4, 4-byte last-heard timestamp.
+
+PATH_SAMPLE uses source id, destination id, hop count, hop bytes and an optional latency in milliseconds. Implementations should sample only a small percentage of packets and leave sampling disabled by default.
+
+DENSE_STATS contains 32-bit counters for heard, duplicate, forward, suppression, route-cache hits/misses, TX airtime and RX airtime.
+
 # Custom packet
 
 Custom packets have no defined format.

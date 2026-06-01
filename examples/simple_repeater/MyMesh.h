@@ -289,6 +289,8 @@ public:
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
   void formatDenseStatsReply(char *reply) override;
+  void formatAtlasStatsReply(char *reply) override;
+  void formatAtlasObserverReply(char *reply) override;
   void formatSpamStatsReply(char *reply) override;
   void formatRepeaterHealthReply(char *reply) override;
   void formatPowerStatsReply(char *reply) override;
