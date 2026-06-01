@@ -169,6 +169,18 @@ All Atlas features are disabled by default. Phase 1 exports information already 
 
 ---
 
+### Daily Reboot
+**Usage:**
+- `set reboot.daily <on|off>`
+- `set reboot.interval <1-168>`
+- `get reboot`
+
+Repeater and TCP bridge repeater builds can optionally reboot on an uptime timer. The feature is disabled by default. `set reboot.daily on` enables a 24-hour reboot interval unless changed with `set reboot.interval`.
+
+When the timer expires, the repeater waits for the outbound TX queue to become idle, then reboots the board. RS232 and ESPNow bridge builds do not include this timer.
+
+---
+
 ### Malformed/Spam Stats
 **Usage:**
 - `get spam.stats`

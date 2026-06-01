@@ -80,6 +80,8 @@ struct NodePrefs { // persisted to file
   uint8_t flood_node_delay_enable;
   uint8_t flood_dup_suppress_enable;
   AtlasConfig atlas;
+  uint8_t daily_reboot_enabled;
+  uint8_t daily_reboot_interval_hours;
 };
 
 class CommonCLICallbacks {

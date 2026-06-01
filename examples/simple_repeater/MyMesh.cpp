@@ -59,6 +59,10 @@
 #define CLI_REPLY_DELAY_MILLIS      600
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
+#define DAILY_REBOOT_DEFAULT_HOURS   24
+#define DAILY_REBOOT_MIN_HOURS       1
+#define DAILY_REBOOT_MAX_HOURS       168
+#define DAILY_REBOOT_GRACE_MILLIS    3000UL
 
 #if defined(ESP32)
 static portMUX_TYPE dense_stats_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -103,6 +107,10 @@ static const char* healthName(uint8_t score) {
   if (score >= 60) return "fair";
   if (score >= 40) return "poor";
   return "bad";
+}
+
+static uint64_t hoursToMillis64(uint8_t hours) {
+  return ((uint64_t)hours) * 60ULL * 60ULL * 1000ULL;
 }
 
 static const uint8_t public_group_secret[PUB_KEY_SIZE] = {
@@ -1153,6 +1161,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 {
   last_millis = 0;
   uptime_millis = 0;
+  next_daily_reboot_uptime_ms = 0;
+  daily_reboot_pending = false;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -1189,6 +1199,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_dynamic_enable = 0;
   _prefs.flood_node_delay_enable = 1;
   _prefs.flood_dup_suppress_enable = 1;
+  _prefs.daily_reboot_enabled = 0;
+  _prefs.daily_reboot_interval_hours = DAILY_REBOOT_DEFAULT_HOURS;
   _prefs.powersaving_enabled = 0;
   _prefs.malformed_drop = 1;     // default on for inspectable malformed public chat
   _prefs.flood_max = 64;
@@ -1233,6 +1245,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  scheduleDailyReboot();
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   bool regions_loaded = region_map.load(_fs);
@@ -1280,6 +1293,23 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
+#endif
+}
+
+void MyMesh::scheduleDailyReboot() {
+#if SUPPORT_DAILY_REBOOT
+  if (!_prefs.daily_reboot_enabled) {
+    next_daily_reboot_uptime_ms = 0;
+    daily_reboot_pending = false;
+    return;
+  }
+  uint8_t hours = _prefs.daily_reboot_interval_hours;
+  if (hours < DAILY_REBOOT_MIN_HOURS || hours > DAILY_REBOOT_MAX_HOURS) {
+    hours = DAILY_REBOOT_DEFAULT_HOURS;
+    _prefs.daily_reboot_interval_hours = hours;
+  }
+  next_daily_reboot_uptime_ms = uptime_millis + hoursToMillis64(hours);
+  daily_reboot_pending = false;
 #endif
 }
 
@@ -1724,9 +1754,68 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+#if SUPPORT_DAILY_REBOOT
+  } else if (memcmp(command, "set reboot.daily ", 17) == 0) {
+    const char* value = &command[17];
+    if (memcmp(value, "on", 2) == 0) {
+      _prefs.daily_reboot_enabled = 1;
+      scheduleDailyReboot();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(value, "off", 3) == 0) {
+      _prefs.daily_reboot_enabled = 0;
+      scheduleDailyReboot();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(command, "set reboot.interval ", 20) == 0) {
+    int hours = atoi(&command[20]);
+    if (hours >= DAILY_REBOOT_MIN_HOURS && hours <= DAILY_REBOOT_MAX_HOURS) {
+      _prefs.daily_reboot_interval_hours = (uint8_t)hours;
+      scheduleDailyReboot();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      sprintf(reply, "Error: interval must be %u-%u hours", DAILY_REBOOT_MIN_HOURS, DAILY_REBOOT_MAX_HOURS);
+    }
+  } else if (memcmp(command, "get reboot", 10) == 0) {
+    formatDailyRebootReply(reply);
+#endif
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
+}
+
+void MyMesh::formatDailyRebootReply(char* reply) const {
+#if SUPPORT_DAILY_REBOOT
+  uint32_t next_secs = 0;
+  if (_prefs.daily_reboot_enabled && next_daily_reboot_uptime_ms > uptime_millis) {
+    next_secs = (uint32_t)((next_daily_reboot_uptime_ms - uptime_millis) / 1000ULL);
+  }
+  snprintf(reply, 160, "> enabled=%s interval_hours=%u pending=%s next_secs=%lu",
+           _prefs.daily_reboot_enabled ? "on" : "off",
+           (uint32_t)_prefs.daily_reboot_interval_hours,
+           daily_reboot_pending ? "yes" : "no",
+           (unsigned long)next_secs);
+#else
+  strcpy(reply, "Error: daily reboot not supported by this build");
+#endif
+}
+
+void MyMesh::checkDailyReboot() {
+#if SUPPORT_DAILY_REBOOT
+  if (!_prefs.daily_reboot_enabled || next_daily_reboot_uptime_ms == 0) return;
+  if (!daily_reboot_pending && uptime_millis >= next_daily_reboot_uptime_ms) {
+    daily_reboot_pending = true;
+  }
+  if (!daily_reboot_pending) return;
+  if (hasOutboundWork()) return;
+  MESH_DEBUG_PRINTLN("Daily reboot timer elapsed, rebooting");
+  delay(DAILY_REBOOT_GRACE_MILLIS);
+  board.reboot();
+#endif
 }
 
 void MyMesh::loop() {
@@ -1772,6 +1861,8 @@ void MyMesh::loop() {
   uint32_t now = millis();
   uptime_millis += now - last_millis;
   last_millis = now;
+
+  checkDailyReboot();
 }
 
 bool MyMesh::isBridgeActive() const {

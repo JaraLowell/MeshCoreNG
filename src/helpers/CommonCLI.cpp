@@ -149,7 +149,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
       _prefs->atlas = atlas;                                                                      // 462
     }
-    // next: 462 + sizeof(AtlasConfig)
+    uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
+    if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
+      _prefs->daily_reboot_enabled = daily_reboot_enabled;                                        // 462 + sizeof(AtlasConfig)
+    }
+    uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
+    if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
+      _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                          // 463 + sizeof(AtlasConfig)
+    }
+    // next: 464 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -193,6 +201,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->atlas.path_sample_enabled = constrain(_prefs->atlas.path_sample_enabled, 0, 1);
     _prefs->atlas.export_enabled = constrain(_prefs->atlas.export_enabled, 0, 1);
     _prefs->atlas.path_sample_percent = constrain(_prefs->atlas.path_sample_percent, 0, 10);
+    _prefs->daily_reboot_enabled = constrain(_prefs->daily_reboot_enabled, 0, 1);
+    if (_prefs->daily_reboot_interval_hours == 0) _prefs->daily_reboot_interval_hours = 24;
+    _prefs->daily_reboot_interval_hours = constrain(_prefs->daily_reboot_interval_hours, 1, 168);
 
     file.close();
   }
@@ -265,7 +276,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 460
     file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 461
     file.write((uint8_t *)&_prefs->atlas, sizeof(_prefs->atlas));                                  // 462
-    // next: 462 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->daily_reboot_enabled, sizeof(_prefs->daily_reboot_enabled));    // 462 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 463 + sizeof(AtlasConfig)
+    // next: 464 + sizeof(AtlasConfig)
 
     file.close();
   }

@@ -125,6 +125,12 @@ struct NeighbourInfo {
 
 #define PACKET_LOG_FILE  "/packet_log"
 
+#if !defined(WITH_BRIDGE) || defined(WITH_TCP_BRIDGE)
+#define SUPPORT_DAILY_REBOOT 1
+#else
+#define SUPPORT_DAILY_REBOOT 0
+#endif
+
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
   uint32_t last_millis;
@@ -153,6 +159,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
+  uint64_t next_daily_reboot_uptime_ms;
+  bool daily_reboot_pending;
   unsigned long dirty_contacts_expiry;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
@@ -194,6 +202,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void clearSpamStatsLocked();
   void recordSpamDrop(const char* reason, uint8_t score, uint8_t entropy);
   bool shouldDropMalformedGroupText(mesh::Packet* pkt);
+  void scheduleDailyReboot();
+  void checkDailyReboot();
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -308,6 +318,7 @@ public:
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
+  void formatDailyRebootReply(char* reply) const;
 
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {
