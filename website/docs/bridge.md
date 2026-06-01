@@ -93,6 +93,18 @@ Planned or under consideration protections include:
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
 
+## Bridge firmware types
+
+MeshCoreNG currently has three bridge-oriented paths:
+
+| Build type | Transport | Typical use |
+|---|---|---|
+| `_bridge_tcp` | ESP32 WiFi TCP client | A WiFi-capable repeater connects directly to a controlled bridge server. |
+| `_bridge_rs232` | Serial/USB to a host script | Boards without WiFi use a PC, Raspberry Pi or other host as the network side. |
+| `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
+
+Use `get bridge.type` on the device to confirm which bridge mode is compiled in.
+
 ## Path 1: ESP32 repeater with WiFi
 
 Flash a `_bridge_tcp` firmware variant on an ESP32 repeater that has WiFi, then configure it for the selected bridge server:
@@ -130,6 +142,18 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 On Windows use `--serial COM3`.
+
+## Status and health
+
+Bridge builds expose status through CLI commands where the firmware supports them:
+
+```text
+get bridge.type
+get bridge.status
+get node.info
+```
+
+TCP bridge builds may also expose a small HTTP status page on the device once WiFi is connected. Use it as an operator view, not as a public service.
 
 ## Running the server
 

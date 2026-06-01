@@ -8,11 +8,14 @@ MeshCoreNG adds:
 
 - **Dense-mesh controls** — tune how aggressively repeaters forward flood adverts.
 - **Dense stats** — real-time network telemetry per repeater.
-- **Internet bridge** — optional controlled transport between selected RF deployments.
-- **USB bridge** — connect repeaters without WiFi via a USB relay script.
+- **Bridge firmware** — TCP, RS232 and ESP-NOW bridge variants for controlled transport between selected RF deployments.
+- **USB bridge** — connect RS232 bridge repeaters without WiFi via a USB relay script.
+- **Web flasher** — browser flashing and firmware downloads backed by GitHub Release assets.
+- **Regional tooling** — Dutch region lookup data and region profile support for deployments that need scoped forwarding.
 - **Better channel detection** — hardware CAD scan before transmitting.
 - **Power saving** — configurable sleep with transparent controls.
 - **Malformed chat filtering** — sanitize companion chat display and drop malformed public chat at repeaters by default without breaking binary payloads.
+- **Atlas foundation** — disabled-by-default telemetry structures for future topology, observer and network-health tools.
 
 Everything else stays the same. Existing MeshCore clients, apps and firmware keep working.
 
@@ -21,6 +24,9 @@ Everything else stays the same. Existing MeshCore clients, apps and firmware kee
 - [Getting started](/docs/getting-started)
 - [Dense mesh](/docs/dense-mesh)
 - [Internet bridge](/docs/bridge)
+- [Web flasher](/docs/flasher)
+- [Regions](/docs/regions)
+- [Atlas telemetry](/docs/atlas)
 - [Setting up the WiFi TCP bridge](/docs/tcp-bridge)
 - [WiFi TCP bridge instellen](/docs/tcp-bridge-nl)
 - [Power saving](/docs/power-saving)

@@ -37,6 +37,13 @@ set bridge.enabled on|off
 get bridge.type            — shows "tcp", "rs232" or "espnow"
 ```
 
+### Bridge health
+
+```
+get bridge.status          — show current bridge connection state when supported
+get node.info              — show node info used by bridge/status pages when supported
+```
+
 ### Power saving
 
 ```
@@ -44,6 +51,32 @@ powersaving                — show state
 powersaving on|off
 get power.stats
 clear power.stats
+```
+
+### Daily reboot
+
+Repeater-only and TCP bridge repeater builds can optionally reboot on an uptime timer. The feature is disabled by default and is not included in RS232 or ESP-NOW bridge builds.
+
+```
+set reboot.daily on|off
+set reboot.interval <1-168>
+get reboot
+```
+
+When the timer expires, the firmware waits for the outbound TX queue to become idle, then reboots the board. `set reboot.daily on` uses a 24-hour interval unless changed with `set reboot.interval`.
+
+### Atlas observer
+
+Atlas is disabled by default. It is a local telemetry/export foundation and does not change routing behavior.
+
+```
+atlas enable on|off
+atlas position on|off
+atlas neighbors on|off
+atlas pathsample on|off|0-10
+atlas export on|off
+get atlas.stats
+observer export json
 ```
 
 ### Dutch region database
@@ -62,3 +95,16 @@ regiondb code <code_id>   — resolve an internal region-code ID
 The full generated-format documentation is maintained in the repository:
 
 - [Dutch Region Database](https://github.com/MichTronics/MeshCoreNG/blob/main/docs/dutch_region_db.md)
+
+### Runtime regions
+
+Runtime regions are editable forwarding scopes used by repeaters, room servers and tooling.
+
+```
+region put <name> [parent]
+region allowf <name>
+region denyf <name>
+region home <name>
+region tree
+region save
+```

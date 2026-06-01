@@ -25,6 +25,10 @@ MeshCoreNG soll:
 - Repeater-Zustand besser sichtbar machen
 - dichte Stadt- und Regionalnetze stabiler halten
 - duenne Netze weiterhin zuverlaessig weiterleiten lassen
+- bessere Bridge-Optionen fuer kontrollierte RF-Inseln bieten
+- Firmware einfacher per Browser flashen oder herunterladen lassen
+- Region-Tools fuer groessere Deployments bereitstellen
+- eine Telemetrie-Basis fuer spaetere Karten, Dashboards und Observer schaffen
 - mit bestehenden MeshCore-Clients und MeshCore-Firmware kompatibel bleiben
 
 ## Wichtige Funktionen
@@ -172,6 +176,16 @@ set bridge.port   4200
 set bridge.enabled on
 ```
 
+Bridge-Firmwaretypen:
+
+| Build-Typ | Transport | Typischer Einsatz |
+| --- | --- | --- |
+| `_bridge_tcp` | ESP32 WiFi TCP-Client | Ein WiFi-faehiger Repeater verbindet direkt zu einem kontrollierten Bridge-Server. |
+| `_bridge_rs232` | Serial/USB zu einem Host-Script | Boards ohne WiFi nutzen einen PC, Raspberry Pi oder anderen Host als Netzwerkseite. |
+| `_bridge_espnow` | ESP-NOW | Lokale ESP32-Bridge-Experimente, bei denen WiFi-Infrastruktur nicht der Haupttransport ist. |
+
+Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit.
+
 Fuer Boards ohne WiFi gibt es RS232/USB-Bridge-Firmware. Auf einem PC oder Raspberry Pi laeuft dann:
 
 ```bash
@@ -181,6 +195,20 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 Unter Windows wird statt `/dev/ttyUSB0` typischerweise `COM3` oder ein anderer COM-Port genutzt.
+
+## Optionaler taeglicher Reboot-Timer
+
+Repeater-only und TCP-Bridge-Repeater-Builds koennen optional nach Uptime neu starten. Das ist nuetzlich fuer unbeaufsichtigte Repeater, wenn Betreiber zum Beispiel einmal pro Tag einen vorhersehbaren Neustart wollen.
+
+Die Funktion ist standardmaessig aus:
+
+```text
+set reboot.daily on
+set reboot.interval 24
+get reboot
+```
+
+Das Intervall wird in Stunden von `1` bis `168` konfiguriert. Wenn der Timer ablaeuft, wartet der Repeater, bis die outbound TX queue idle ist, und startet dann das Board neu. RS232- und ESP-NOW-Bridge-Builds enthalten diesen Timer nicht.
 
 ## Region-Profile
 
@@ -365,6 +393,30 @@ Im deutschen Profil ist diese Datenbank deaktiviert:
 REGION_PROFILE=de -> WITH_DUTCH_REGION_DB=0
 ```
 
+## Atlas Telemetrie
+
+Atlas ist eine standardmaessig deaktivierte Telemetrie-Basis fuer spaetere Topologie-, Karten-, Observer- und Netzwerkzustands-Tools.
+
+Atlas fuegt keinen Internetdienst hinzu, aendert das normale Routingverhalten nicht und soll standardmaessig keinen zusaetzlichen Flood-Traffic erzeugen. Phase 1 konzentriert sich auf kompakte Strukturen und lokalen Export von Informationen, die die Firmware bereits kennt.
+
+Nuetzliche Kommandos:
+
+```text
+atlas enable on
+atlas position on
+atlas neighbors on
+atlas pathsample 1
+atlas export on
+get atlas.stats
+observer export json
+```
+
+`atlas pathsample` akzeptiert `on`, `off` oder einen Prozentwert von `0` bis `10`. `observer export json` liefert nur dann ein JSON-aehnliches Event-Array, wenn Atlas und Atlas Export beide aktiviert sind.
+
+Atlas nutzt `PAYLOAD_TYPE_ATLAS` (`0x0C`) mit Subtypes fuer Position, Neighbors, Path Samples und Dense Stats. Mehr Details stehen in [docs/atlas.md](./docs/atlas.md), [docs/payloads.md](./docs/payloads.md) und [docs/packet_format.md](./docs/packet_format.md).
+
+Die Richtung ist: Die Firmware exportiert saubere lokale Daten, waehrend externe Tools schwerere Integrationen wie MQTT, Home Assistant, Dashboards, Datenbanken und Karten uebernehmen.
+
 ## Build und Release
 
 Lokale Beispiele:
@@ -401,7 +453,23 @@ MeshCoreNG hat einen GitHub Pages Webflasher:
 
 Der Webflasher nutzt Chrome oder Edge mit Web Serial. ESP32-Family Boards werden mit merged `.bin` Dateien geflasht. nRF52 Boards nutzen DFU `.zip` Dateien, wenn diese als Release-Assets vorhanden sind.
 
+Aktuelles Verhalten nach Firmware-Asset-Typ:
+
+| Device-Family | Release-Asset | Flasher-Verhalten |
+| --- | --- | --- |
+| ESP32 | merged `.bin` | Direktes Flashen ueber Web Serial. |
+| nRF52 | serial DFU `.zip` | Serial DFU, wenn Bootloader und Asset das unterstuetzen. |
+| RP2040 | `.uf2` oder Release-Download | Download-only, bis ein zukuenftiger Browser-Flow ergaenzt wird. |
+| STM32/Wio-E5 | `.bin`, `.hex` oder Release-Download | Download-only; normale Vendor- oder DFU-Workflows nutzen. |
+| Andere Download-Targets | Release-Asset | Download-only mit board-spezifischen Hinweisen. |
+
+`Download` in `website/public/flasher/boards.json` bedeutet, dass die Firmware auf der Flasher-Seite sichtbar und herunterladbar ist, aber nicht ueber denselben Web-Serial-Flow geflasht wird.
+
 Die Firmware-Dateien kommen aus GitHub Release Assets. Die GitHub Pages Workflow spiegelt flashbare Assets unter `/flasher/firmware/`, damit Browser sie ohne GitHub-Release-CORS-Probleme laden koennen.
+
+Wio Tracker L1 und Wio Tracker L1 E-Ink/L1 Pro Firmware-Eintraege sind enthalten, damit Companion-, Repeater- und Room-Server-Varianten auf der Flasher-Seite gefunden werden, wenn Release-Assets existieren. Diese Boards sind nRF52-basiert: serial DFU `.zip` Dateien koennen ueber den Webflasher genutzt werden, wenn der Bootloader diesen Weg unterstuetzt; Vendor-DFU oder Bootloader-Recovery bleiben board-spezifisch.
+
+Mehr Details stehen in [website/docs/flasher.md](./website/docs/flasher.md).
 
 ## Malformed Chat Handling
 
@@ -448,6 +516,16 @@ set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.enabled on
 get bridge.type
+get bridge.status
+get node.info
+```
+
+Taeglicher Reboot-Timer:
+
+```text
+set reboot.daily on
+set reboot.interval 24
+get reboot
 ```
 
 Regionen:
@@ -462,6 +540,15 @@ region denyf <name>
 region home <name>
 region default <name>
 region save
+```
+
+Atlas Telemetrie:
+
+```text
+atlas enable on
+atlas export on
+get atlas.stats
+observer export json
 ```
 
 ## Kompatibilitaet

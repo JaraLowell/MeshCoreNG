@@ -33,6 +33,10 @@ MeshCoreNG aims to improve this:
 - Repeaters that can better measure what is happening.
 - Dense city meshes that stay more stable.
 - Sparse rural meshes that still propagate reliably.
+- Better bridge options for controlled RF islands.
+- Easier browser flashing and firmware downloads.
+- Region-aware tools for larger deployments.
+- A telemetry foundation for future maps, dashboards and observers.
 - No breakage for existing MeshCore clients.
 
 ## What Have We Done So Far?
@@ -290,6 +294,18 @@ set bridge.enabled on
 
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
+#### Bridge firmware types
+
+MeshCoreNG has multiple bridge paths:
+
+| Build type | Transport | Typical use |
+| --- | --- | --- |
+| `_bridge_tcp` | ESP32 WiFi TCP client | A WiFi-capable repeater connects directly to a controlled bridge server. |
+| `_bridge_rs232` | Serial/USB to a host script | Boards without WiFi use a PC, Raspberry Pi or other host as the network side. |
+| `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
+
+Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported.
+
 #### Path 2: Repeater via USB
 
 Some repeaters have no WiFi, including nRF52 boards (RAK4631), RP2040 boards, STM32 boards, and ESP32 boards in locations without WiFi coverage. These can use a USB-connected PC or Raspberry Pi as the bridge transport host.
@@ -340,7 +356,21 @@ The default is `off`. That is intentional, because many repeaters are fixed rela
 
 When enabled, a repeater only sleeps when there is no outbound work waiting. Bridge/WiFi mode blocks sleep. ESP32 boards wake by LoRa DIO1/timer where supported. nRF52 boards use event/interrupt sleep.
 
-### 10. Dutch region database
+### 10. Optional daily reboot timer
+
+Repeater-only and TCP bridge repeater builds can optionally reboot on an uptime timer. This is useful for unattended repeaters where operators want a predictable once-per-day refresh.
+
+The feature is disabled by default:
+
+```text
+set reboot.daily on
+set reboot.interval 24
+get reboot
+```
+
+The interval is configured in hours from `1` to `168`. When the timer expires, the repeater waits for the outbound TX queue to become idle, then reboots the board. RS232 and ESP-NOW bridge builds do not include this timer.
+
+### 11. Dutch region database
 
 MeshCoreNG now includes a compact Dutch Region Database generated from the MeshWiki list of Dutch regions.
 
@@ -366,7 +396,7 @@ regiondb get 45
 Full details are in [docs/dutch_region_db.md](./docs/dutch_region_db.md).
 The Dutch community also provides a practical region-code setup tool at [mesh-up.nl/tools/regiocodes-instellen](https://www.mesh-up.nl/tools/regiocodes-instellen/).
 
-### 11. Regional mesh filtering
+### 12. Regional mesh filtering
 
 MeshCoreNG also supports a practical hierarchical region system for repeaters. A region is a named radio scope, such as `eu`, `nl`, `nl-nh`, or `nl-nh-bov`. Repeaters can be configured to forward only the scopes that make sense for their location and role.
 
@@ -525,6 +555,30 @@ The region tree is also a foundation for smarter firmware later:
 
 For now, MeshCoreNG keeps this manual and predictable. Operators can build a useful hierarchy today, and future firmware can learn from that structure later.
 
+### 13. Atlas telemetry foundation
+
+Atlas is a disabled-by-default telemetry foundation for future topology, map, observer and network-health tools.
+
+It does not add internet services, does not change routing behavior, and should not flood extra traffic by default. Phase 1 focuses on compact structures and local export of information the firmware already knows.
+
+Useful commands:
+
+```text
+atlas enable on
+atlas position on
+atlas neighbors on
+atlas pathsample 1
+atlas export on
+get atlas.stats
+observer export json
+```
+
+`atlas pathsample` accepts `on`, `off`, or a percentage from `0` to `10`. `observer export json` returns a JSON-like event array only when both Atlas and Atlas export are enabled.
+
+Atlas uses `PAYLOAD_TYPE_ATLAS` (`0x0C`) with subtypes for position, neighbors, path samples and dense stats. More details are in [docs/atlas.md](./docs/atlas.md), [docs/payloads.md](./docs/payloads.md), and [docs/packet_format.md](./docs/packet_format.md).
+
+The intended direction is to let firmware export clean local data while external tools handle heavier integrations such as MQTT, Home Assistant, dashboards, databases and maps.
+
 ## What Have We Deliberately Not Done Yet?
 
 We have not built an automatic "AI mesh" yet.
@@ -582,6 +636,16 @@ set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.enabled on
 get bridge.type
+get bridge.status
+get node.info
+```
+
+**Daily reboot timer:**
+
+```text
+set reboot.daily on
+set reboot.interval 24
+get reboot
 ```
 
 **Dutch region database:**
@@ -603,6 +667,15 @@ region denyf <name>
 region home <name>
 region tree
 region save
+```
+
+**Atlas telemetry:**
+
+```text
+atlas enable on
+atlas export on
+get atlas.stats
+observer export json
 ```
 
 **Malformed chat handling:**
@@ -661,13 +734,29 @@ MeshCoreNG now includes a GitHub Pages web flasher for supported release builds:
 
 The flasher works from Chrome or Edge using Web Serial. ESP32-family boards flash from merged `.bin` files, and nRF52 boards flash from serial DFU `.zip` files when those assets are published. RP2040 and STM32 boards still use their normal firmware files and tools.
 
+Current flasher behavior by firmware asset type:
+
+| Device family | Release asset | Flasher behavior |
+| --- | --- | --- |
+| ESP32 | merged `.bin` | Direct Web Serial flashing. |
+| nRF52 | serial DFU `.zip` | Serial DFU flashing when supported by the bootloader and asset. |
+| RP2040 | `.uf2` or release download | Download-only unless a future browser flow is added. |
+| STM32/Wio-E5 | `.bin`, `.hex` or release download | Download-only; use the normal vendor or DFU workflow. |
+| Other download targets | release asset | Download-only with board-specific instructions. |
+
+`Download` in `website/public/flasher/boards.json` means the firmware is listed and downloadable from the flasher page, but the board is not flashed through the same Web Serial flow.
+
 ESP32 repeater builds flashed from this site have malformed public chat dropping enabled by default. Check or change it after flashing with `get malformed.drop`, `set malformed.drop on`, or `set malformed.drop off`.
 
 The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the firmware variants and attaches the firmware files to the release. The GitHub Pages workflow mirrors the flashable assets under `/flasher/firmware/`, because browsers cannot `fetch()` GitHub Release asset bytes directly due to CORS.
 
 To add another board to the web flasher, add its PlatformIO environment name, display name, chip family, and description to `website/public/flasher/boards.json`. ESP32 release assets must be named like `<env>-*-merged.bin`; nRF52 DFU release assets must be named like `<env>-*.zip`.
 
+Wio Tracker L1 and Wio Tracker L1 E-Ink/L1 Pro firmware entries are included so companion, repeater and room-server variants can be found from the flasher page when release assets exist. These boards are nRF52-based: serial DFU `.zip` files can be flashed by the web flasher when the bootloader supports that path; vendor DFU or bootloader recovery still needs the board-specific workflow.
+
 When a new GitHub Release is published, the GitHub Pages workflow uses that release tag, downloads the release firmware assets, and updates the web flasher to use exactly those files. On a normal `main` build or manual Pages run, it uses the latest published release.
+
+More details are in [website/docs/flasher.md](./website/docs/flasher.md).
 
 ## MeshCore Flasher And Clients
 

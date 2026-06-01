@@ -29,3 +29,15 @@ When power saving is enabled:
 ## Stats
 
 `get power.stats` shows how often and how long the repeater has slept. Stats are RAM-only and reset on reboot or when cleared with `clear power.stats`.
+
+## Daily reboot timer
+
+Repeater-only and TCP bridge repeater builds also support an optional uptime-based reboot timer. This is separate from power saving and is disabled by default.
+
+```
+set reboot.daily on
+set reboot.interval 24
+get reboot
+```
+
+The interval is configured in hours from `1` to `168`. When the timer expires, the repeater waits until the outbound TX queue is idle and then reboots. RS232 and ESP-NOW bridge builds do not include this timer.

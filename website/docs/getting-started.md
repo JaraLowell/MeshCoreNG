@@ -2,11 +2,13 @@
 
 ## Flash firmware
 
-The easiest way is the [MeshCoreNG web flasher](/flasher/) for ESP32 boards.
+The easiest way is the [MeshCoreNG web flasher](/flasher/).
 
 The web flasher lets you choose the firmware type, board variant, and firmware release version. The newest release is selected by default, but older published versions remain available when release assets exist for that board.
 
-For nRF52, RP2040 and STM32 boards, download the firmware from [GitHub Releases](https://github.com/MichTronics/MeshCoreNG/releases) and use the platform's normal flashing method (UF2, ZIP, HEX).
+ESP32-family boards flash from merged `.bin` files using Web Serial. nRF52 boards can use serial DFU `.zip` assets when the release provides them. RP2040, STM32 and other download-only targets still use their normal firmware files and tools.
+
+See [Web flasher](/docs/flasher) for asset naming, supported families and download-only behavior.
 
 ## Connect a client
 
@@ -22,6 +24,8 @@ MeshCoreNG uses the same protocol as MeshCore. Use any existing MeshCore client:
 The default settings are safe for any network. You do not need to change anything to get a working repeater.
 
 When you want to tune behavior, start with [Dense mesh](/docs/dense-mesh) and check `get dense.stats` to understand what is happening on your network before changing anything.
+
+For dense deployments, also review [Regions](/docs/regions) before connecting multiple towns, provinces or bridge groups.
 
 ## Developer setup
 
