@@ -211,7 +211,8 @@ python3 tools/tcp_bridge_server.py --port 4200
 
 pip install cryptography
 python3 tools/python_room_server.py --server server.example.org --port 4200 \
-  --name "Python Room" --password geheim
+  --name "Python Room" --password geheim \
+  --state /home/pi/meshcore/python_room_server_state.json
 ```
 
 Auf dem Bridge-Repeater muss RF-Forwarding fuer Bridge-Flood-Pakete aktiv sein:
@@ -221,7 +222,7 @@ set bridge.enabled on
 set bridge.rf on
 ```
 
-Der Python-Roomserver speichert seine Identitaet und aktuelle Posts standardmaessig in `python_room_server_state.json`. Diese Datei behalten, wenn Clients denselben Room nach einem Neustart wiedererkennen sollen. Optionaler scoped Flood-Traffic ist mit `--scope <regionsname>` moeglich, wenn die Repeater passende Region-Forwarding-Regeln verwenden.
+Der Python-Roomserver speichert seine Identitaet und aktuelle Posts standardmaessig in `python_room_server_state.json`. Diese Datei behalten, oder einen festen `--state <pfad>` wie oben verwenden, wenn Clients denselben Room nach einem Neustart wiedererkennen sollen. Optionaler scoped Flood-Traffic ist mit `--scope <regionsname>` moeglich, wenn die Repeater passende Region-Forwarding-Regeln verwenden.
 
 ## Optionaler taeglicher Reboot-Timer
 

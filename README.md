@@ -367,7 +367,8 @@ Start the Python room server:
 ```bash
 pip install cryptography
 python3 tools/python_room_server.py --server yourserver.example.com --port 4200 \
-  --name "Python Room" --password secret
+  --name "Python Room" --password secret \
+  --state /home/pi/meshcore/python_room_server_state.json
 ```
 
 On the bridge repeater, enable RF forwarding for bridge flood packets:
@@ -377,7 +378,7 @@ set bridge.enabled on
 set bridge.rf on
 ```
 
-The room server keeps its identity and recent posts in `python_room_server_state.json` by default. Keep that file if clients should continue recognizing the same room after a restart. Optional scoped flood traffic can be enabled with `--scope <region-name>` when your repeaters use matching region forwarding rules.
+The room server keeps its identity and recent posts in `python_room_server_state.json` by default. Keep that file, or use a fixed `--state <path>` as shown above, if clients should continue recognizing the same room after a restart. Optional scoped flood traffic can be enabled with `--scope <region-name>` when your repeaters use matching region forwarding rules.
 
 ### 9. Safer repeater power saving
 

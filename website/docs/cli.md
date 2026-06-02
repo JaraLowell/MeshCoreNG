@@ -45,6 +45,8 @@ python3 tools/python_room_server.py --server <bridge-host> --port 4200 \
   --name "Python Room" --password secret
 ```
 
+The room identity is stored in `python_room_server_state.json` by default. Keep that file, or pass a fixed `--state <path>`, so clients keep recognizing the same room after restarts.
+
 ### Bridge health
 
 ```

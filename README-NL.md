@@ -283,7 +283,8 @@ Python roomserver starten:
 ```bash
 pip install cryptography
 python3 tools/python_room_server.py --server mijnserver.example.com --port 4200 \
-  --name "Python Room" --password geheim
+  --name "Python Room" --password geheim \
+  --state /home/pi/meshcore/python_room_server_state.json
 ```
 
 Op de bridge-repeater moet RF-forwarding voor bridge flood packets aan staan:
@@ -293,7 +294,7 @@ set bridge.enabled on
 set bridge.rf on
 ```
 
-De roomserver bewaart zijn identiteit en recente posts standaard in `python_room_server_state.json`. Bewaar dat bestand als clients dezelfde room na een restart moeten blijven herkennen. Optionele scoped flood traffic kan met `--scope <regionaam>` wanneer de repeaters bijpassende regio-forwarding gebruiken.
+De roomserver bewaart zijn identiteit en recente posts standaard in `python_room_server_state.json`. Bewaar dat bestand, of gebruik een vast `--state <pad>` zoals hierboven, als clients dezelfde room na een restart moeten blijven herkennen. Optionele scoped flood traffic kan met `--scope <regionaam>` wanneer de repeaters bijpassende regio-forwarding gebruiken.
 
 ### 9. Veiligere power saving voor repeaters
 
