@@ -51,6 +51,7 @@ public:
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
   uint8_t _dup_rx_count;
+  bool _received_from_bridge;
 
   /**
    * \brief calculate the hash of payload + type
@@ -90,6 +91,10 @@ public:
 
   void markDoNotRetransmit() { header = 0xFF; }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
+
+  void markReceivedFromBridge() { _received_from_bridge = true; }
+  void clearReceivedFromBridge() { _received_from_bridge = false; }
+  bool wasReceivedFromBridge() const { return _received_from_bridge; }
 
   void clearDuplicateRxCount() { _dup_rx_count = 0; }
   uint8_t getDuplicateRxCount() const { return _dup_rx_count; }

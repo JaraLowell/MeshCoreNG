@@ -208,6 +208,14 @@ set bridge.port   4200
 set bridge.enabled on
 ```
 
+Bridge-repeaters sturen bridge-originated flood traffic standaard niet opnieuw via LoRa RF uit. Voor gecontroleerde deployments waarbij bridge-verkeer bewust het lokale RF-mesh in mag, zet je dit expliciet aan:
+
+```text
+set bridge.rf on
+```
+
+Bridge RF-forwarding loopt nog steeds via het normale repeater-forwardingpad. Regioregels, duplicate checks, loop detection, hop-limieten, relay probability, retransmit delay en de normale RF TX queue blijven gelden.
+
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
 **Bridge firmwaretypes**
@@ -255,6 +263,37 @@ python3 tools/tcp_bridge_server.py --port 4200
 ```
 
 Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde gecontroleerde bridge-server verbonden zijn.
+
+**Route 3: Python roomserver via de bridge**
+
+MeshCoreNG bevat ook een minimale Python roomserver voor gecontroleerde bridge-deployments. Die verbindt met de TCP bridge-server als extra bridge-client, adverteert zichzelf als MeshCore roomserver, accepteert room-logins, bewaart recente posts, stuurt ACKs en pusht nog niet gesynchroniseerde posts terug naar clients.
+
+```
+[MeshCore clients via LoRa] <--> [Bridge-repeater] <--> [bridge-server] <--> [python_room_server.py]
+```
+
+Bridge-server starten:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+Python roomserver starten:
+
+```bash
+pip install cryptography
+python3 tools/python_room_server.py --server mijnserver.example.com --port 4200 \
+  --name "Python Room" --password geheim
+```
+
+Op de bridge-repeater moet RF-forwarding voor bridge flood packets aan staan:
+
+```text
+set bridge.enabled on
+set bridge.rf on
+```
+
+De roomserver bewaart zijn identiteit en recente posts standaard in `python_room_server_state.json`. Bewaar dat bestand als clients dezelfde room na een restart moeten blijven herkennen. Optionele scoped flood traffic kan met `--scope <regionaam>` wanneer de repeaters bijpassende regio-forwarding gebruiken.
 
 ### 9. Veiligere power saving voor repeaters
 
@@ -575,6 +614,7 @@ set wifi.password <wachtwoord>
 set bridge.server <hostnaam of IP>
 set bridge.port   4200
 set bridge.enabled on
+set bridge.rf on
 get bridge.type
 get bridge.status
 get node.info

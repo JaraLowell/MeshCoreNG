@@ -76,7 +76,12 @@ StaticPoolPacketManager::StaticPoolPacketManager(int pool_size): unused(pool_siz
 }
 
 mesh::Packet* StaticPoolPacketManager::allocNew() {
-  return unused.removeByIdx(0);  // just get first one (returns NULL if empty)
+  mesh::Packet* packet = unused.removeByIdx(0);  // just get first one (returns NULL if empty)
+  if (packet) {
+    packet->clearReceivedFromBridge();
+    packet->clearDuplicateRxCount();
+  }
+  return packet;
 }
 
 void StaticPoolPacketManager::free(mesh::Packet* packet) {

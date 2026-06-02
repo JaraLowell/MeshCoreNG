@@ -157,7 +157,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
       _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                          // 463 + sizeof(AtlasConfig)
     }
-    // next: 464 + sizeof(AtlasConfig)
+    uint8_t bridge_rf = _prefs->bridge_rf;
+    if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
+      _prefs->bridge_rf = bridge_rf;                                                               // 464 + sizeof(AtlasConfig)
+    }
+    // next: 465 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -177,6 +181,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
+    _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 1);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -278,7 +283,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->atlas, sizeof(_prefs->atlas));                                  // 462
     file.write((uint8_t *)&_prefs->daily_reboot_enabled, sizeof(_prefs->daily_reboot_enabled));    // 462 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 463 + sizeof(AtlasConfig)
-    // next: 464 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 464 + sizeof(AtlasConfig)
+    // next: 465 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -962,6 +968,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.rf ", 10) == 0) {
+    _prefs->bridge_rf = memcmp(&config[10], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -1169,6 +1179,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_delay);
   } else if (memcmp(config, "bridge.source", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_pkt_src ? "logRx" : "logTx");
+  } else if (memcmp(config, "bridge.rf", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_rf ? "on" : "off");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud", 11) == 0) {

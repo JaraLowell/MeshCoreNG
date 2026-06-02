@@ -176,6 +176,14 @@ set bridge.port   4200
 set bridge.enabled on
 ```
 
+Bridge-Repeater leiten Bridge-originated Flood-Traffic standardmaessig nicht erneut ueber LoRa RF weiter. Fuer kontrollierte Deployments, bei denen Bridge-Traffic bewusst in das lokale RF-Mesh eingespeist werden soll, muss das explizit aktiviert werden:
+
+```text
+set bridge.rf on
+```
+
+Bridge RF-Forwarding laeuft weiterhin ueber den normalen Repeater-Forwarding-Pfad. Regionsregeln, Duplicate Checks, Loop Detection, Hop-Limits, Relay Probability, Retransmit Delay und die normale RF TX Queue bleiben aktiv.
+
 Bridge-Firmwaretypen:
 
 | Build-Typ | Transport | Typischer Einsatz |
@@ -195,6 +203,25 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 Unter Windows wird statt `/dev/ttyUSB0` typischerweise `COM3` oder ein anderer COM-Port genutzt.
+
+Python-Roomserver ueber die TCP-Bridge:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+
+pip install cryptography
+python3 tools/python_room_server.py --server server.example.org --port 4200 \
+  --name "Python Room" --password geheim
+```
+
+Auf dem Bridge-Repeater muss RF-Forwarding fuer Bridge-Flood-Pakete aktiv sein:
+
+```text
+set bridge.enabled on
+set bridge.rf on
+```
+
+Der Python-Roomserver speichert seine Identitaet und aktuelle Posts standardmaessig in `python_room_server_state.json`. Diese Datei behalten, wenn Clients denselben Room nach einem Neustart wiedererkennen sollen. Optionaler scoped Flood-Traffic ist mit `--scope <regionsname>` moeglich, wenn die Repeater passende Region-Forwarding-Regeln verwenden.
 
 ## Optionaler taeglicher Reboot-Timer
 
@@ -515,6 +542,7 @@ set wifi.password <passwort>
 set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.enabled on
+set bridge.rf on
 get bridge.type
 get bridge.status
 get node.info

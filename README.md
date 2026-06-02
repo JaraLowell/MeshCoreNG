@@ -292,6 +292,14 @@ set bridge.port   4200
 set bridge.enabled on
 ```
 
+Bridge repeaters do not forward bridge-originated flood traffic onto LoRa RF by default. For controlled deployments that intentionally inject bridge traffic into the local RF mesh, enable:
+
+```text
+set bridge.rf on
+```
+
+Bridge RF forwarding still uses the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
 #### Bridge firmware types
@@ -339,6 +347,37 @@ python3 tools/tcp_bridge_server.py --port 4200
 ```
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+
+#### Path 3: Python room server through the bridge
+
+MeshCoreNG also includes a minimal Python room server for controlled bridge deployments. It connects to the TCP bridge server as another bridge client, advertises itself as a MeshCore room server, accepts room logins, stores recent posts, sends ACKs, and pushes unsynced posts back to clients.
+
+```text
+[MeshCore clients over LoRa] <--> [Bridge repeater] <--> [bridge server] <--> [python_room_server.py]
+```
+
+Start the bridge server:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+Start the Python room server:
+
+```bash
+pip install cryptography
+python3 tools/python_room_server.py --server yourserver.example.com --port 4200 \
+  --name "Python Room" --password secret
+```
+
+On the bridge repeater, enable RF forwarding for bridge flood packets:
+
+```text
+set bridge.enabled on
+set bridge.rf on
+```
+
+The room server keeps its identity and recent posts in `python_room_server_state.json` by default. Keep that file if clients should continue recognizing the same room after a restart. Optional scoped flood traffic can be enabled with `--scope <region-name>` when your repeaters use matching region forwarding rules.
 
 ### 9. Safer repeater power saving
 
@@ -635,6 +674,7 @@ set wifi.password <password>
 set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.enabled on
+set bridge.rf on
 get bridge.type
 get bridge.status
 get node.info

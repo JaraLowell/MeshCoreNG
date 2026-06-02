@@ -597,6 +597,9 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
+  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && !_prefs.bridge_rf) {
+    return false;
+  }
   if (_prefs.disable_fwd) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
@@ -1214,6 +1217,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
   _prefs.bridge_delay   = 500;  // milliseconds
   _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_rf      = 0;    // do not forward bridge floods to RF by default
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 

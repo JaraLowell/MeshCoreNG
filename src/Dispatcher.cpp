@@ -148,6 +148,7 @@ void Dispatcher::loop() {
 }
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
+  pkt->clearReceivedFromBridge();
   int i = 0;
 
   pkt->header = raw[i++];

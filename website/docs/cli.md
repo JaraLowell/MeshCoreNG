@@ -34,7 +34,15 @@ set wifi.password <pass>
 set bridge.server <host>
 set bridge.port <port>
 set bridge.enabled on|off
+set bridge.rf on|off       — allow bridge flood packets onto LoRa RF
 get bridge.type            — shows "tcp", "rs232" or "espnow"
+```
+
+Python room server over the TCP bridge:
+
+```bash
+python3 tools/python_room_server.py --server <bridge-host> --port 4200 \
+  --name "Python Room" --password secret
 ```
 
 ### Bridge health

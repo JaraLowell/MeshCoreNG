@@ -1363,6 +1363,48 @@ set bridge.enabled on
 
 ---
 
+#### View or change RF forwarding for bridge flood packets
+**Usage:**
+- `get bridge.rf`
+- `set bridge.rf <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+When enabled, flood packets received from the bridge may be forwarded on LoRa RF by the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+
+**Default:** `off`
+
+---
+
+#### Use a Python room server through the TCP bridge
+
+MeshCoreNG includes `tools/python_room_server.py`, a bridge client that can act as a minimal room server from a PC, Raspberry Pi, or VPS.
+
+Run the bridge server:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+Run the Python room server:
+
+```bash
+python3 tools/python_room_server.py --server 127.0.0.1 --port 4200 \
+  --name "Python Room" --password secret
+```
+
+On the bridge repeater, enable bridge RF forwarding:
+
+```text
+set bridge.enabled on
+set bridge.rf on
+```
+
+The Python room server stores its identity and recent posts in `python_room_server_state.json` by default. Keep that file if clients should keep recognizing the same room.
+
+---
+
 #### View or change the speed of the bridge (RS-232 only)
 **Usage:**
 - `get bridge.baud`

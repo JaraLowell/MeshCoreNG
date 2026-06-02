@@ -40,6 +40,7 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
   }
 
   if (!_seen_packets.hasSeen(packet)) {
+    packet->markReceivedFromBridge();
     // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
     _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
   } else {

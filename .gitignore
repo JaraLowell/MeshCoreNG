@@ -24,3 +24,4 @@ venv/
 __pycache__/
 platformio.local.ini
 source/
+python_room_server_state.json
