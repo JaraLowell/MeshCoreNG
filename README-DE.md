@@ -106,11 +106,27 @@ Wo die Hardware es unterstuetzt, nutzt die Firmware CAD/Channel-Scan, bevor sie 
 
 In dichten Repeatergruppen koennen mehrere Repeater dasselbe Packet gleichzeitig hoeren und fast gleichzeitig erneut senden. MeshCoreNG addiert deshalb einen kleinen stabilen Offset pro Node zum zufaelligen Flood-Retransmit-Delay.
 
+Der Flood-Retransmit-Delay ist jetzt:
+
 ```text
 zufaellige txdelay-Streuung + stabiler Node-Offset
 ```
 
-Der Offset kommt aus der Node-Identitaet, bleibt ueber Neustarts stabil, erzeugt keinen extra Traffic und aendert kein Packet-Format. Wenn `txdelay` auf `0` steht, wird der Offset nicht hinzugefuegt.
+Der stabile Offset kommt aus der Node-Identitaet, die bereits in der Firmware gespeichert ist. Er bleibt ueber Neustarts stabil, erzeugt keinen extra Traffic, aendert weder Protokoll noch Packet-Format und wird nur fuer Flood-Retransmit-Scheduling verwendet. Wenn `txdelay` auf `0` steht, wird der Offset nicht hinzugefuegt. Das alte Zero-Delay-Verhalten bleibt also verfuegbar. Nur der stabile Offset kann auch separat mit `set flood.node.delay off` deaktiviert werden.
+
+Das ist etwas anderes als CAD-Retry-Timing:
+
+- `txdelay` verteilt Repeater, bevor ein Flood-Packet in die TX-Queue kommt.
+- Der Node-Offset verhindert, dass Repeater immer wieder im exakt gleichen Rhythmus haengen bleiben.
+- CAD-Retry passiert spaeter, nachdem die Radio-Hardware erkennt, dass der Kanal belegt ist. Das aktuelle CAD-Retry-Fenster ist 120-360 ms.
+
+Praktisches Tuning:
+
+| Repeater-Rolle | Empfehlung |
+| --- | --- |
+| Lokaler / niedriger Repeater | Ein niedrigeres `txdelay` haelt das lokale Mesh schneller. |
+| Hoher / Backbone-Repeater | Ein hoeheres `txdelay` gibt lokalen Repeatern zuerst die Chance, lokalen Traffic abzuarbeiten. |
+| Sehr dichtes Stadtmesh | `txdelay` eingeschaltet lassen, damit zufaellige Streuung plus Node-Offset gleichzeitige Retransmits reduziert. |
 
 ```text
 get flood.node.delay
@@ -196,19 +212,55 @@ Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware 
 
 Fuer Boards ohne WiFi gibt es RS232/USB-Bridge-Firmware. Auf einem PC oder Raspberry Pi laeuft dann:
 
+Manche Repeater haben kein WiFi, zum Beispiel nRF52-Boards (RAK4631), RP2040-Boards, STM32-Boards oder ESP32-Boards an Standorten ohne WiFi-Abdeckung. Diese Boards koennen einen PC oder Raspberry Pi per USB als Bridge-Transporthost nutzen.
+
+Der Repeater laeuft mit normaler `_bridge_rs232` Firmware und sendet Bridge-Traffic ueber die serielle Schnittstelle. Auf dem angeschlossenen Rechner uebernimmt ein kleines Python-Script die TCP-Verbindung zum ausgewaehlten Bridge-Server.
+
+```text
+[LoRa RF Deployment] <--> [Repeater + RS232 Bridge] <--USB--> [PC/RPi + usb_bridge_client.py] <--> [Bridge-Server]
+```
+
+Auf dem Repeater (RS232-Bridge-Firmware):
+
+```text
+set bridge.enabled on
+```
+
+Script auf PC oder Raspberry Pi starten:
+
 ```bash
 pip install pyserial
 python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
                                     --server server.example.org --port 4200
 ```
 
-Unter Windows wird statt `/dev/ttyUSB0` typischerweise `COM3` oder ein anderer COM-Port genutzt.
+Unter Windows wird statt `/dev/ttyUSB0` typischerweise `COM3` oder ein anderer COM-Port genutzt. Das Script steht in dieser Repository unter [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
 
-Python-Roomserver ueber die TCP-Bridge:
+Bridge-Server starten, zum Beispiel auf VPS, Raspberry Pi oder normalem PC mit Python 3.7+:
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
+```
 
+Das Server-Script steht in dieser Repository unter [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Es hat keine externen Dependencies. WiFi-Repeater und USB-Repeater koennen gleichzeitig mit demselben kontrollierten Bridge-Server verbunden sein.
+
+Python-Roomserver ueber die TCP-Bridge:
+
+MeshCoreNG enthaelt auch einen minimalen Python-Roomserver fuer kontrollierte Bridge-Deployments. Er verbindet sich als weiterer Bridge-Client mit dem TCP-Bridge-Server, annonciert sich als MeshCore-Roomserver, akzeptiert Room-Logins, speichert aktuelle Posts, sendet ACKs und pushed noch nicht synchronisierte Posts zurueck an Clients.
+
+```text
+[MeshCore Clients ueber LoRa] <--> [Bridge-Repeater] <--> [Bridge-Server] <--> [python_room_server.py]
+```
+
+Bridge-Server starten:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200
+```
+
+Python-Roomserver starten:
+
+```bash
 pip install cryptography
 python3 tools/python_room_server.py --server server.example.org --port 4200 \
   --name "Python Room" --password geheim \
@@ -223,6 +275,22 @@ set bridge.rf on
 ```
 
 Der Python-Roomserver speichert seine Identitaet und aktuelle Posts standardmaessig in `python_room_server_state.json`. Diese Datei behalten, oder einen festen `--state <pfad>` wie oben verwenden, wenn Clients denselben Room nach einem Neustart wiedererkennen sollen. Optionaler scoped Flood-Traffic ist mit `--scope <regionsname>` moeglich, wenn die Repeater passende Region-Forwarding-Regeln verwenden.
+
+## Sichereres Power Saving fuer Repeater
+
+Power Saving fuer Repeater ist klarer und einfacher zu kontrollieren.
+
+```text
+powersaving
+powersaving on
+powersaving off
+get power.stats
+clear power.stats
+```
+
+Der Default ist `off`. Das ist bewusst so, weil viele Repeater feste Relay- oder Backbone-Nodes sind und nicht ploetzlich schlafen sollen.
+
+Wenn Power Saving aktiviert ist, schlaeft ein Repeater nur, wenn keine ausgehende Arbeit bereitsteht. Bridge/WiFi-Modus blockiert Sleep. ESP32-Boards wachen, wo unterstuetzt, ueber LoRa DIO1 oder Timer auf. nRF52-Boards nutzen Event/Interrupt-Sleep.
 
 ## Optionaler taeglicher Reboot-Timer
 
@@ -445,6 +513,33 @@ Atlas nutzt `PAYLOAD_TYPE_ATLAS` (`0x0C`) mit Subtypes fuer Position, Neighbors,
 
 Die Richtung ist: Die Firmware exportiert saubere lokale Daten, waehrend externe Tools schwerere Integrationen wie MQTT, Home Assistant, Dashboards, Datenbanken und Karten uebernehmen.
 
+## Was bewusst noch nicht gemacht wurde
+
+Wir haben noch kein automatisches "AI Mesh" gebaut.
+
+Noch nicht automatisch:
+
+- Advert-Intervalle anpassen
+- Hop-Limits anpassen
+- Relay-Delay anpassen
+- Node-Rollen verwenden
+- Routing-Entscheidungen nach Link Quality treffen
+- das Packet-Protokoll fuer Zonen oder Regionen aendern
+
+Das ist bewusst. Erst messen, dann automatisch steuern.
+
+Wenn zu schnell zu viel automatisiert wird, kann ein duennes Netz schlechter werden oder das Verhalten unvorhersehbar werden. MeshCoreNG waehlt deshalb kleine, sichere Schritte.
+
+## Warum das nuetzlich ist
+
+Einfach gesagt:
+
+MeshCoreNG versucht weniger zu rufen, wenn sich sowieso schon alle hoeren.
+
+In einer ruhigen Gegend sollen Nachrichten weit kommen. In einer dichten Stadt soll aber nicht jeder Repeater jedes Packet immer wieder erneut aussenden.
+
+Die neuen Dense-Stats zeigen, wie belastet das Netz wirkt. Die neuen Einstellungen geben Betreibern Kontrolle, um dieses Verhalten vorsichtig zu tunen.
+
 ## Build und Release
 
 Lokale Beispiele:
@@ -481,6 +576,8 @@ MeshCoreNG hat einen GitHub Pages Webflasher:
 
 Der Webflasher nutzt Chrome oder Edge mit Web Serial. ESP32-Family Boards werden mit merged `.bin` Dateien geflasht. nRF52 Boards nutzen DFU `.zip` Dateien, wenn diese als Release-Assets vorhanden sind.
 
+RP2040- und STM32-Boards nutzen weiterhin ihre normalen Firmware-Dateien und Flashing-Tools.
+
 Aktuelles Verhalten nach Firmware-Asset-Typ:
 
 | Device-Family | Release-Asset | Flasher-Verhalten |
@@ -493,15 +590,23 @@ Aktuelles Verhalten nach Firmware-Asset-Typ:
 
 `Download` in `website/public/flasher/boards.json` bedeutet, dass die Firmware auf der Flasher-Seite sichtbar und herunterladbar ist, aber nicht ueber denselben Web-Serial-Flow geflasht wird.
 
-Die Firmware-Dateien kommen aus GitHub Release Assets. Die GitHub Pages Workflow spiegelt flashbare Assets unter `/flasher/firmware/`, damit Browser sie ohne GitHub-Release-CORS-Probleme laden koennen.
+ESP32-Repeater-Builds, die ueber diese Seite geflasht werden, haben malformed public chat dropping standardmaessig aktiviert. Pruefen oder aendern geht nach dem Flashen mit `get malformed.drop`, `set malformed.drop on` oder `set malformed.drop off`.
+
+Die Firmware-Dateien kommen aus GitHub Release Assets. Der Release/CI-Workflow baut die Firmware-Varianten und haengt die Firmware-Dateien an die Release. Der GitHub Pages Workflow spiegelt flashbare Assets unter `/flasher/firmware/`, damit Browser sie ohne GitHub-Release-CORS-Probleme laden koennen.
+
+Wenn spaeter ein weiteres Board zum Webflasher hinzugefuegt werden soll, muessen PlatformIO Environment Name, Display Name, Chip-Family und Beschreibung in `website/public/flasher/boards.json` ergaenzt werden. ESP32 Release-Assets brauchen Namen wie `<env>-*-merged.bin`; nRF52 DFU Release-Assets brauchen Namen wie `<env>-*.zip`.
 
 Wio Tracker L1 und Wio Tracker L1 E-Ink/L1 Pro Firmware-Eintraege sind enthalten, damit Companion-, Repeater- und Room-Server-Varianten auf der Flasher-Seite gefunden werden, wenn Release-Assets existieren. Diese Boards sind nRF52-basiert: serial DFU `.zip` Dateien koennen ueber den Webflasher genutzt werden, wenn der Bootloader diesen Weg unterstuetzt; Vendor-DFU oder Bootloader-Recovery bleiben board-spezifisch.
+
+Wenn eine neue GitHub Release veroeffentlicht wird, nutzt der GitHub Pages Workflow diese Release-Tag, laedt die Firmware-Assets aus dieser Release herunter und aktualisiert den Webflasher so, dass genau diese Dateien verwendet werden. Bei einem normalen `main` Build oder manuellem Pages-Run wird die neueste veroeffentlichte Release genutzt.
 
 Mehr Details stehen in [website/docs/flasher.md](./website/docs/flasher.md).
 
 ## Malformed Chat Handling
 
 Companion-Radio-Firmware validiert menschliche Chattexte, bevor sie an Apps oder Displays weitergegeben werden. Ungueltige UTF-8-Daten, binary-aehnlicher Text, zu viele Control Characters, unmoegliche Timestamps und sehr niedrige Confidence Scores werden in der Chat/UI-Schicht gefiltert.
+
+Standardmaessig wird malformed companion chat als kompakter Platzhalter angezeigt, damit Datenmuell nicht in Android/App-Seite gerendert wird. Payloads, die nicht inspiziert werden koennen, binary channel datagrams und unbekannte oder zukuenftige Packet-Typen werden nicht blind gedroppt.
 
 Repeater-Firmware kann malformed default-public-channel group text droppen, bevor er erneut gesendet wird:
 
@@ -511,7 +616,7 @@ set malformed.drop on
 set malformed.drop off
 ```
 
-Binary Datagrams, private/encrypted Group Texts, Requests, Responses und unbekannte zukunftige Packet-Typen bleiben binary-safe und werden nicht blind verworfen.
+Das ist auf Repeatern standardmaessig aktiviert. Repeater droppen nur Textpackets, die sie inspizieren und als malformed klassifizieren koennen. Encrypted/private group text, den der Repeater nicht decrypten kann, binary datagrams und unbekannte oder zukuenftige Packet-Typen werden weiterhin nach den normalen Forwarding-Regeln behandelt.
 
 ## Nuetzliche Repeater-Kommandos
 
@@ -533,6 +638,16 @@ set flood.node.delay on
 
 get flood.dup.suppress
 set flood.dup.suppress on
+```
+
+Power Saving:
+
+```text
+powersaving
+powersaving on
+powersaving off
+get power.stats
+clear power.stats
 ```
 
 Internetbruecke:
@@ -580,11 +695,22 @@ get atlas.stats
 observer export json
 ```
 
+Malformed Chat Handling:
+
+```text
+get malformed.drop
+set malformed.drop on
+set malformed.drop off
+```
+
+Mehr CLI-Erklaerung steht in [docs/cli_commands.md](./docs/cli_commands.md).
+
 ## Kompatibilitaet
 
 MeshCoreNG bleibt kompatibel mit dem bestehenden MeshCore-Oekosystem.
 
 - Keine Packet-Format-Aenderung fuer die Dense-Mesh-Schritte.
+- Chat-Sanitizing gilt nur fuer menschliche Chat-Anzeige und Forwarding-Policy; binary transport bleibt unterstuetzt.
 - Bestehende MeshCore-Clients bleiben nutzbar.
 - Bestehende MeshCore-Firmware kann weiterhin mit MeshCoreNG sprechen.
 - Region-Profile veraendern nur Default-Scopes und Lookup-Daten.
@@ -627,4 +753,20 @@ MeshCoreNG basiert auf MeshCore und der Arbeit der MeshCore-Community.
 - [MeshCore](https://github.com/meshcore-dev/MeshCore) ist das originale Projekt, Protokoll und Firmware-Oekosystem.
 - [MeshCore-Evo](https://github.com/mattzzw/MeshCore-Evo) gab Inspiration fuer Dense-Mesh-Repeaterverbesserungen.
 
-MeshCoreNG wird unter der MIT License veroeffentlicht.
+## Richtung fuer die Zukunft
+
+Die naechsten logischen Schritte sind:
+
+- Rolling-Window-Statistiken weiter verfeinern.
+- Link Quality pro Nachbar messen.
+- Node-Rollen hinzufuegen, zum Beispiel Client, Relay, Backbone und Sensor.
+- Nur Low-Priority-Traffic bei Last reduzieren.
+- Automatische Tuning-Entscheidungen erst spaeter aktivieren.
+- Noch spaeter auf hybrides routed + flooded Mesh vorbereiten.
+- Optionale TLS-Verschluesselung fuer die TCP-Internetbruecke ergaenzen, damit Traffic ueber das Internet besser geschuetzt ist.
+
+Das Endziel ist ein skalierbareres LoRa MANET: einfach, wo es einfach bleiben kann, smarter, wo es noetig ist, und mit der TCP-Bruecke auch dort erreichbar, wo kein LoRa vorhanden ist.
+
+## License
+
+MeshCoreNG basiert auf MeshCore und wird unter der MIT License veroeffentlicht.
