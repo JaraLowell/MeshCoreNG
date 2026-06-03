@@ -18,6 +18,9 @@ void halt() {
 }
 
 static char command[160];
+static unsigned long next_atlas_observer_export = 0;
+
+#define ATLAS_OBSERVER_EXPORT_INTERVAL_MS 5000UL
 
 // For power saving
 unsigned long lastActive = 0; // mark last active time
@@ -125,10 +128,14 @@ void loop() {
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
-    char reply[160];
+    char reply[768];
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
-      Serial.print("  -> "); Serial.println(reply);
+      if (reply[0] == '{') {
+        Serial.println(reply);
+      } else {
+        Serial.print("  -> "); Serial.println(reply);
+      }
     }
 
     command[0] = 0;  // reset command buffer
@@ -155,6 +162,16 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+  if (the_mesh.getNodePrefs()->atlas.export_enabled && command[0] == 0 &&
+      (next_atlas_observer_export == 0 || (long)(millis() - next_atlas_observer_export) >= 0)) {
+    char event[512];
+    the_mesh.formatAtlasObserverReply(event);
+    if (event[0] == '{') {
+      Serial.println(event);
+    }
+    next_atlas_observer_export = millis() + ATLAS_OBSERVER_EXPORT_INTERVAL_MS;
+  }
 
   if (the_mesh.getNodePrefs()->powersaving_enabled) {
     uint8_t skipReason = 0;

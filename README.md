@@ -609,11 +609,13 @@ atlas position on
 atlas neighbors on
 atlas pathsample 1
 atlas export on
+atlas export status
+atlas export test
 get atlas.stats
 observer export json
 ```
 
-`atlas pathsample` accepts `on`, `off`, or a percentage from `0` to `10`. `observer export json` returns a JSON-like event array only when both Atlas and Atlas export are enabled.
+`atlas pathsample` accepts `on`, `off`, or a percentage from `0` to `10`. `observer export json` returns Observer JSONL v1 over local serial only when Atlas export is enabled. `atlas export test` emits deterministic fake events for Atlas ingest testing.
 
 Atlas uses `PAYLOAD_TYPE_ATLAS` (`0x0C`) with subtypes for position, neighbors, path samples and dense stats. More details are in [docs/atlas.md](./docs/atlas.md), [docs/payloads.md](./docs/payloads.md), and [docs/packet_format.md](./docs/packet_format.md).
 

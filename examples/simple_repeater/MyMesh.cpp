@@ -933,13 +933,77 @@ static bool isShare(const mesh::Packet *packet) {
   return false;
 }
 
+static void atlasSanitizeJsonString(char* dest, size_t dest_len, const char* src) {
+  if (dest_len == 0) return;
+  size_t i = 0;
+  while (src != NULL && *src && i < dest_len - 1) {
+    char c = *src++;
+    dest[i++] = ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                 c == '-' || c == '_' || c == ' ') ? c : '_';
+  }
+  dest[i] = 0;
+}
+
+static void atlasFormatCoord(char* dest, size_t dest_len, int32_t micro_degrees) {
+  const char* sign = micro_degrees < 0 ? "-" : "";
+  uint32_t abs_degrees = micro_degrees < 0 ? (uint32_t)(-micro_degrees) : (uint32_t)micro_degrees;
+  snprintf(dest, dest_len, "%s%lu.%06lu",
+           sign,
+           (unsigned long)(abs_degrees / 1000000UL),
+           (unsigned long)(abs_degrees % 1000000UL));
+}
+
+static void atlasFormatCent(char* dest, size_t dest_len, int32_t cent_value) {
+  const char* sign = cent_value < 0 ? "-" : "";
+  uint32_t abs_value = cent_value < 0 ? (uint32_t)(-cent_value) : (uint32_t)cent_value;
+  snprintf(dest, dest_len, "%s%lu.%02lu",
+           sign,
+           (unsigned long)(abs_value / 100UL),
+           (unsigned long)(abs_value % 100UL));
+}
+
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
+  if (app_data_len == 0) return;
+
+  AdvertDataParser parser(app_data, app_data_len);
+
+  if (_prefs.atlas.export_enabled && parser.isValid()) {
+    uint32_t event_time = timestamp ? timestamp : getRTCClock()->getCurrentTime();
+    char observer_id[9];
+    char node_id[9];
+    char node_name[33];
+    char observer_name[17];
+    mesh::Utils::toHex(observer_id, self_id.pub_key, 4);
+    mesh::Utils::toHex(node_id, id.pub_key, 4);
+    atlasSanitizeJsonString(node_name, sizeof(node_name), parser.hasName() ? parser.getName() : "");
+    atlasSanitizeJsonString(observer_name, sizeof(observer_name), _prefs.node_name);
+
+    Serial.printf("{\"v\":1,\"type\":\"node_seen\",\"time\":%lu,\"node\":\"%s\",\"node_id\":\"%s\"}\n",
+                  (unsigned long)event_time, node_name, node_id);
+
+    if (parser.hasLatLon()) {
+      char lat[16];
+      char lon[16];
+      atlasFormatCoord(lat, sizeof(lat), parser.getIntLat());
+      atlasFormatCoord(lon, sizeof(lon), parser.getIntLon());
+      Serial.printf("{\"v\":1,\"type\":\"position\",\"time\":%lu,\"node\":\"%s\",\"node_id\":\"%s\",\"lat\":%s,\"lon\":%s}\n",
+                    (unsigned long)event_time, node_name, node_id, lat, lon);
+    }
+
+    if (packet->path_len == 0 && !isShare(packet)) {
+      char snr[12];
+      int16_t rssi = (int16_t)radio_driver.getLastRSSI();
+      atlasFormatCent(snr, sizeof(snr), (int32_t)(packet->getSNR() * 100.0f));
+      Serial.printf("{\"v\":1,\"type\":\"neighbor\",\"time\":%lu,\"node\":\"%s\",\"node_id\":\"%s\",\"neighbors\":[{\"node_id\":\"%s\",\"rssi\":%d,\"snr\":%s,\"last_heard\":%lu}]}\n",
+                    (unsigned long)event_time, observer_name, observer_id, node_id, (int)rssi, snr,
+                    (unsigned long)event_time);
+    }
+  }
 
   // if this a zero hop advert (and not via 'Share'), add it to neighbours
   if (packet->path_len == 0 && !isShare(packet)) {
-    AdvertDataParser parser(app_data, app_data_len);
     if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
       putNeighbour(id, timestamp, packet->getSNR());
     }
@@ -1061,6 +1125,26 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
     // store a copy of path, for sendDirect()
     client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
     client->last_activity = getRTCClock()->getCurrentTime();
+
+    if (_prefs.atlas.export_enabled) {
+      char src_id[9];
+      char dst_id[9];
+      mesh::Utils::toHex(src_id, self_id.pub_key, 4);
+      mesh::Utils::toHex(dst_id, client->id.pub_key, 4);
+
+      Serial.printf("{\"v\":1,\"type\":\"path\",\"time\":%lu,\"src\":\"%s\",\"dst\":\"%s\",\"hops\":[\"%s\"",
+                    (unsigned long)getRTCClock()->getCurrentTime(), src_id, dst_id, src_id);
+
+      uint8_t hash_size = (path_len >> 6) + 1;
+      uint8_t hash_count = path_len & 63;
+      for (uint8_t h = 0; h < hash_count; h++) {
+        char hop_id[9];
+        mesh::Utils::toHex(hop_id, &path[h * hash_size], hash_size);
+        Serial.printf(",\"%s\"", hop_id);
+      }
+
+      Serial.printf(",\"%s\"]}\n", dst_id);
+    }
   } else {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
   }
@@ -1533,22 +1617,33 @@ void MyMesh::formatAtlasStatsReply(char *reply) {
 }
 
 void MyMesh::formatAtlasObserverReply(char *reply) {
-  if (!_prefs.atlas.enabled || !_prefs.atlas.export_enabled) {
-    strcpy(reply, "[]");
+  if (!_prefs.atlas.export_enabled) {
+    reply[0] = 0;
     return;
   }
 
   SimpleMeshTables *tables = (SimpleMeshTables *)getTables();
   dense_mesh_stats_t stats;
   getDenseStats(&stats);
-  snprintf(reply, 160,
-          "[{\"event\":\"DENSE_STATS\",\"heard\":%u,\"duplicate\":%lu,\"forward\":%lu,\"suppression\":%u,\"tx_air_ms\":%lu,\"rx_air_ms\":%lu}]",
+  char node_id[9];
+  char node_name[17];
+  mesh::Utils::toHex(node_id, self_id.pub_key, 4);
+  uint8_t i = 0;
+  for (; i < sizeof(node_name) - 1 && _prefs.node_name[i]; i++) {
+    char c = _prefs.node_name[i];
+    node_name[i] = ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_') ? c : '_';
+  }
+  node_name[i] = 0;
+  snprintf(reply, 512,
+          "{\"v\":1,\"type\":\"dense_stats\",\"time\":%lu,\"node\":\"%s\",\"node_id\":\"%s\",\"heard\":%u,\"duplicates\":%lu,\"forwards\":%lu,\"suppressed\":%u,\"airtime_ms\":%lu}",
+          (unsigned long)getRTCClock()->getCurrentTime(),
+          node_name,
+          node_id,
           (uint32_t)stats.unique_rx,
           (unsigned long)tables->getNumFloodDups() + tables->getNumDirectDups(),
           (unsigned long)getNumSentFlood() + getNumSentDirect(),
           (uint32_t)stats.suppressed_tx,
-          (unsigned long)stats.airtime_tx_ms,
-          (unsigned long)stats.airtime_rx_ms);
+          (unsigned long)stats.airtime_tx_ms + stats.airtime_rx_ms);
 }
 
 void MyMesh::formatSpamStatsReply(char *reply) {

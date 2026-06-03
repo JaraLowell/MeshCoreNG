@@ -412,10 +412,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
     } else if (memcmp(command, "observer export json", 20) == 0) {
-      if (_prefs->atlas.enabled && _prefs->atlas.export_enabled) {
+      if (sender_timestamp != 0) {
+        strcpy(reply, "Error: observer export is serial-only");
+      } else if (_prefs->atlas.export_enabled) {
         _callbacks->formatAtlasObserverReply(reply);
       } else {
-        strcpy(reply, "[]");
+        reply[0] = 0;
       }
     } else if (memcmp(command, "atlas ", 6) == 0) {
       const char* config = &command[6];
@@ -458,6 +460,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           strcpy(reply, "Error: expected on/off or 0-10");
         }
+      } else if (memcmp(config, "export status", 13) == 0) {
+        sprintf(reply, "atlas export %s", _prefs->atlas.export_enabled ? "on" : "off");
+      } else if (sender_timestamp == 0 && memcmp(config, "export test", 11) == 0) {
+        strcpy(reply,
+            "{\"v\":1,\"type\":\"position\",\"time\":1770000000,\"node\":\"PD4MV\",\"node_id\":\"abcd1234\",\"lat\":52.7034,\"lon\":5.2912,\"alt\":12,\"speed\":36,\"heading\":90}\n"
+            "{\"v\":1,\"type\":\"neighbor\",\"time\":1770000000,\"node\":\"PD4MV\",\"node_id\":\"abcd1234\",\"neighbors\":[{\"node_id\":\"beef5678\",\"rssi\":-97,\"snr\":7.5,\"last_heard\":1769999980}]}\n"
+            "{\"v\":1,\"type\":\"path\",\"time\":1770000000,\"src\":\"abcd1234\",\"dst\":\"beef5678\",\"hops\":[\"abcd1234\",\"11223344\",\"beef5678\"],\"latency_ms\":1850}\n"
+            "{\"v\":1,\"type\":\"dense_stats\",\"time\":1770000000,\"node\":\"PD4MV\",\"node_id\":\"abcd1234\",\"heard\":1234,\"duplicates\":321,\"forwards\":456,\"suppressed\":789,\"airtime_ms\":123456}\n"
+            "{\"v\":1,\"type\":\"node_seen\",\"time\":1770000000,\"node\":\"PD4MV\",\"node_id\":\"abcd1234\"}");
+      } else if (memcmp(config, "export test", 11) == 0) {
+        strcpy(reply, "Error: atlas export test is serial-only");
       } else if (memcmp(config, "export ", 7) == 0) {
         if (parseOnOff(&config[7], &_prefs->atlas.export_enabled)) {
           savePrefs();

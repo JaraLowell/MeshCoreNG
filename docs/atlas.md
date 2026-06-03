@@ -17,11 +17,13 @@ atlas position on
 atlas neighbors on
 atlas pathsample 1
 atlas export on
+atlas export status
+atlas export test
 get atlas.stats
 observer export json
 ```
 
-`atlas pathsample` accepts `on`, `off`, or a percentage from `0` to `10`. A future transport can consume observer events over serial, TCP, WebSocket or MQTT; Phase 1 only defines the reusable event layer and CLI output.
+`atlas pathsample` accepts `on`, `off`, or a percentage from `0` to `10`. `observer export json` emits Observer JSONL v1 over local serial only when export is enabled, and `atlas export test` prints deterministic test events for Atlas ingest.
 
 ## Payloads
 
