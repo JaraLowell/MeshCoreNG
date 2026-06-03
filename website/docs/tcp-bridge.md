@@ -31,7 +31,7 @@ The server also starts a small status page by default:
 http://localhost:8080/
 ```
 
-Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, its remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
+Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
 
 For monitoring during testing, start it with status and heartbeat timeouts:
 

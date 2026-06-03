@@ -6,6 +6,10 @@
 #include <WiFiClient.h>
 #include <string.h>
 
+#ifndef FIRMWARE_VERSION
+#define FIRMWARE_VERSION "unknown"
+#endif
+
 static WiFiClient _client;
 
 TCPBridge::TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
@@ -215,7 +219,7 @@ void TCPBridge::sendAuth() {
 }
 
 void TCPBridge::sendNodeInfo() {
-  uint8_t payload[6 + sizeof(_prefs->node_name)];
+  uint8_t payload[7 + sizeof(_prefs->node_name) + 32];
   payload[0] = 'M';
   payload[1] = 'C';
   payload[2] = 'N';
@@ -229,8 +233,17 @@ void TCPBridge::sendNodeInfo() {
   payload[5] = (uint8_t)name_len;
   memcpy(payload + 6, _prefs->node_name, name_len);
 
-  if (sendPayloadFrame(payload, 6 + name_len)) {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s'\n", _prefs->node_name);
+  const char *version = FIRMWARE_VERSION;
+  size_t version_len = 0;
+  while (version_len < 32 && version[version_len] != '\0') {
+    version_len++;
+  }
+  payload[6 + name_len] = (uint8_t)version_len;
+  memcpy(payload + 7 + name_len, version, version_len);
+
+  if (sendPayloadFrame(payload, 7 + name_len + version_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s' version '%s'\n",
+                         _prefs->node_name, version);
   }
 }
 

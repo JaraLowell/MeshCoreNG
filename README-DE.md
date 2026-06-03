@@ -234,12 +234,12 @@ MeshCoreNG hat mehrere Bridge-Routen:
 | Build-Typ | Transport | Typischer Einsatz |
 | --- | --- | --- |
 | `_bridge_tcp` | ESP32 WiFi TCP-Client | Ein WiFi-faehiger Repeater verbindet direkt zu einem kontrollierten Bridge-Server. |
-| `_bridge_rs232` | Serial/USB zu einem Host-Script | Boards ohne WiFi nutzen einen PC, Raspberry Pi oder anderen Host als Netzwerkseite. |
+| `_bridge_rs232` | Serial/UART Bridge | Boards ohne WiFi nutzen ein PC/Raspberry-Pi-Host-Script oder eine direkte drahtgebundene UART-Verbindung zu einem anderen Repeater. |
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32-Bridge-Experimente, bei denen WiFi-Infrastruktur nicht der Haupttransport ist. |
 
 Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit.
 
-**Route 2: Repeater ueber USB**
+**Route 2: Repeater ueber USB oder direkte UART**
 
 Manche Repeater haben kein WiFi, zum Beispiel nRF52-Boards (RAK4631), RP2040-Boards, STM32-Boards oder ESP32-Boards an Standorten ohne WiFi-Abdeckung. Diese Boards koennen einen PC oder Raspberry Pi per USB als Bridge-Transporthost nutzen.
 
@@ -265,6 +265,25 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 Unter Windows wird statt `/dev/ttyUSB0` typischerweise `COM3` oder ein anderer COM-Port genutzt. Das Script steht in dieser Repository unter [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
+
+Dieselbe `_bridge_rs232` Firmware kann auch als direkte drahtgebundene UART-Bridge zwischen zwei Repeatern genutzt werden, ohne WiFi und ohne USB-Host:
+
+```text
+Repeater A TX  -> Repeater B RX
+Repeater A RX  -> Repeater B TX
+Repeater A GND -> Repeater B GND
+```
+
+Nur 3.3V TTL-UART-Pegel verwenden. Echte +/-12V-RS232-Signale nicht direkt mit den Board-Pins verbinden.
+
+Beim Seeed SenseCAP Solar nutzt der RS232-Bridge-Build `Serial1` auf `D6`/`D7`:
+
+```text
+D6 = TX = GNSS_TX
+D7 = RX = GNSS_RX
+```
+
+SenseCAP-Solar-Repeater also so verbinden: `D6/TX -> D7/RX`, `D7/RX -> D6/TX` und `GND -> GND`. Diese Pins werden mit der GNSS-UART geteilt, daher kann GNSS/GPS diese UART nicht gleichzeitig nutzen.
 
 Bridge-Server starten, zum Beispiel auf VPS, Raspberry Pi oder normalem PC mit Python 3.7+:
 

@@ -226,12 +226,12 @@ MeshCoreNG heeft meerdere bridge-routes:
 | Build type | Transport | Typisch gebruik |
 | --- | --- | --- |
 | `_bridge_tcp` | ESP32 WiFi TCP-client | Een WiFi-repeater verbindt direct met een gecontroleerde bridge-server. |
-| `_bridge_rs232` | Serial/USB naar een host-script | Boards zonder WiFi gebruiken een PC, Raspberry Pi of andere host als netwerkkant. |
+| `_bridge_rs232` | Serial/UART bridge | Boards zonder WiFi gebruiken een PC/Raspberry Pi host-script of een directe bedrade UART-link naar een andere repeater. |
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
 
 Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina.
 
-**Route 2: Repeater via USB**
+**Route 2: Repeater via USB of directe UART**
 
 Sommige repeaters hebben geen WiFi, zoals nRF52-boards (RAK4631), RP2040-boards, STM32-boards en ESP32-boards op locaties zonder WiFi-bereik. Die kunnen een PC of Raspberry Pi via USB als bridge-transporthost gebruiken.
 
@@ -257,6 +257,25 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 Op Windows gebruik je `--serial COM3` in plaats van `/dev/ttyUSB0`. Het script staat in deze repository bij [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
+
+Dezelfde `_bridge_rs232` firmware kan ook als directe bedrade UART bridge tussen twee repeaters gebruikt worden, zonder WiFi en zonder USB-host:
+
+```text
+Repeater A TX  -> Repeater B RX
+Repeater A RX  -> Repeater B TX
+Repeater A GND -> Repeater B GND
+```
+
+Gebruik 3.3V TTL UART-niveaus. Sluit geen echte +/-12V RS232 direct op de board-pinnen aan.
+
+Voor Seeed SenseCAP Solar gebruikt de RS232 bridge build `Serial1` op `D6`/`D7`:
+
+```text
+D6 = TX = GNSS_TX
+D7 = RX = GNSS_RX
+```
+
+Verbind SenseCAP Solar repeaters als `D6/TX -> D7/RX`, `D7/RX -> D6/TX` en `GND -> GND`. Deze pinnen worden gedeeld met de GNSS UART, dus verwacht niet dat GNSS/GPS tegelijk dezelfde UART gebruikt.
 
 **Server starten** (op een VPS, Raspberry Pi of gewone pc met Python 3.7+):
 

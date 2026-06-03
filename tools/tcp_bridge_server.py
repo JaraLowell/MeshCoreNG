@@ -81,7 +81,7 @@ def parse_heartbeat(payload: bytes) -> int | None:
     return 0
 
 
-def parse_node_info(payload: bytes) -> str | None:
+def parse_node_info(payload: bytes) -> tuple[str, str] | None:
     if len(payload) < 6:
         return None
     if not payload.startswith(CONTROL_PREFIX):
@@ -94,7 +94,17 @@ def parse_node_info(payload: bytes) -> str | None:
     if len(raw_name) != name_len:
         return None
 
-    return raw_name.decode("utf-8", errors="replace").strip()[:32]
+    name = raw_name.decode("utf-8", errors="replace").strip()[:32]
+
+    firmware = ""
+    version_pos = 6 + name_len
+    if len(payload) > version_pos:
+        version_len = payload[version_pos]
+        raw_version = payload[version_pos + 1:version_pos + 1 + version_len]
+        if len(raw_version) == version_len:
+            firmware = raw_version.decode("utf-8", errors="replace").strip()[:32]
+
+    return name, firmware
 
 
 def parse_auth(payload: bytes) -> str | None:
@@ -149,6 +159,7 @@ class BridgeClient:
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
         self.node_name = ""
+        self.firmware_version = ""
         self.authenticated = not BRIDGE_PASSWORD
 
     @property
@@ -158,6 +169,7 @@ class BridgeClient:
     def status_dict(self, now: float) -> dict:
         return {
             "name": self.node_name,
+            "firmware_version": self.firmware_version,
             "display_name": self.display_name,
             "address": self.addr,
             "host": self.host,
@@ -324,8 +336,12 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 continue
             node_name = parse_node_info(payload)
             if node_name is not None:
-                client.node_name = node_name
-                log.info("%s: node name is %s", client.addr, client.node_name)
+                client.node_name, client.firmware_version = node_name
+                if client.firmware_version:
+                    log.info("%s: node name is %s firmware=%s",
+                             client.addr, client.node_name, client.firmware_version)
+                else:
+                    log.info("%s: node name is %s", client.addr, client.node_name)
                 continue
             client.packets_rx += 1
             if LOG_PACKETS:
@@ -361,6 +377,7 @@ def build_status_html() -> str:
         rows.append(
             "<tr>"
             f"<td>{html.escape(client['display_name'])}</td>"
+            f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
             f"<td>{html.escape(client['address'])}</td>"
             f"<td>{html.escape(client['connected_for'])}</td>"
             f"<td>{client['idle_seconds']}s</td>"
@@ -372,7 +389,7 @@ def build_status_html() -> str:
         )
 
     rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="8" class="empty">No bridge nodes connected</td></tr>'
+        '<tr><td colspan="9" class="empty">No bridge nodes connected</td></tr>'
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -416,6 +433,7 @@ def build_status_html() -> str:
         <thead>
           <tr>
             <th>Node</th>
+            <th>Firmware</th>
             <th>Address</th>
             <th>Connected</th>
             <th>Idle</th>

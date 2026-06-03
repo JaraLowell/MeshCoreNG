@@ -9,7 +9,7 @@ MeshCoreNG adds:
 - **Dense-mesh controls** — tune how aggressively repeaters forward flood adverts.
 - **Dense stats** — real-time network telemetry per repeater.
 - **Bridge firmware** — TCP, RS232 and ESP-NOW bridge variants for controlled transport between selected RF deployments.
-- **USB bridge** — connect RS232 bridge repeaters without WiFi via a USB relay script.
+- **RS232 bridge** — connect repeaters without WiFi through a USB relay script or a direct wired UART link.
 - **Web flasher** — browser flashing and firmware downloads backed by GitHub Release assets.
 - **Regional tooling** — Dutch region lookup data and region profile support for deployments that need scoped forwarding.
 - **Better channel detection** — hardware CAD scan before transmitting.

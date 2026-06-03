@@ -1419,6 +1419,25 @@ The Python room server stores its identity and recent posts in `python_room_serv
 
 **Default:** `115200`
 
+RS232 bridge firmware can be used either through a USB-connected host script or as a direct wired UART bridge between two repeaters:
+
+```text
+Repeater A TX  -> Repeater B RX
+Repeater A RX  -> Repeater B TX
+Repeater A GND -> Repeater B GND
+```
+
+Use 3.3V TTL UART levels. Do not connect true +/-12V RS232 directly to board pins.
+
+For Seeed SenseCAP Solar, `SenseCap_Solar_repeater_bridge_rs232` uses `Serial1` on `D6`/`D7`:
+
+```text
+D6 = TX = GNSS_TX
+D7 = RX = GNSS_RX
+```
+
+Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND -> GND`. These pins are shared with the GNSS UART, so GNSS/GPS cannot use that UART at the same time.
+
 ---
 
 #### View or change the channel used for bridging (ESPNow only)

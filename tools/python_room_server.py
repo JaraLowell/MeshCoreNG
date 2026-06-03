@@ -79,6 +79,7 @@ FIRMWARE_VER_LEVEL = 1
 CONTROL_TYPE_HEARTBEAT = 0x01
 CONTROL_TYPE_NODE_INFO = 0x02
 CONTROL_TYPE_AUTH = 0x03
+ROOM_SERVER_VERSION = "python-room-server"
 
 OUT_PATH_UNKNOWN = -1
 
@@ -402,7 +403,10 @@ class PythonRoomServer:
 
     async def send_node_info(self) -> None:
         name = self.args.name.encode("utf-8")[:32]
-        await self.send_payload(b"MCNG" + bytes([CONTROL_TYPE_NODE_INFO, len(name)]) + name)
+        version = ROOM_SERVER_VERSION.encode("utf-8")[:32]
+        await self.send_payload(
+            b"MCNG" + bytes([CONTROL_TYPE_NODE_INFO, len(name)]) + name + bytes([len(version)]) + version
+        )
 
     async def send_auth(self) -> None:
         if not self.args.bridge_password:

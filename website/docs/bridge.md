@@ -100,7 +100,7 @@ MeshCoreNG currently has three bridge-oriented paths:
 | Build type | Transport | Typical use |
 |---|---|---|
 | `_bridge_tcp` | ESP32 WiFi TCP client | A WiFi-capable repeater connects directly to a controlled bridge server. |
-| `_bridge_rs232` | Serial/USB to a host script | Boards without WiFi use a PC, Raspberry Pi or other host as the network side. |
+| `_bridge_rs232` | Serial/UART bridge | Boards without WiFi use a PC/Raspberry Pi host script or a direct wired UART link to another repeater. |
 | `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
 
 Use `get bridge.type` on the device to confirm which bridge mode is compiled in.
@@ -124,7 +124,7 @@ Check the bridge type:
 get bridge.type
 ```
 
-## Path 2: Repeater via USB
+## Path 2: Repeater via USB or direct UART
 
 Boards without WiFi, including nRF52 (RAK4631), RP2040, STM32, or ESP32 boards without WiFi access, can use a USB-connected PC or Raspberry Pi as the bridge transport host.
 
@@ -144,6 +144,25 @@ python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
 ```
 
 On Windows use `--serial COM3`.
+
+The same `_bridge_rs232` firmware can also be used as a direct wired UART bridge between two repeaters, without WiFi and without a USB host:
+
+```text
+Repeater A TX  -> Repeater B RX
+Repeater A RX  -> Repeater B TX
+Repeater A GND -> Repeater B GND
+```
+
+Use 3.3V TTL UART levels. Do not connect true +/-12V RS232 directly to board pins.
+
+For Seeed SenseCAP Solar, the RS232 bridge build uses `Serial1` on `D6`/`D7`:
+
+```text
+D6 = TX = GNSS_TX
+D7 = RX = GNSS_RX
+```
+
+Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND -> GND`. These pins are shared with the GNSS UART, so GNSS/GPS cannot use that UART at the same time.
 
 ## Status and health
 
