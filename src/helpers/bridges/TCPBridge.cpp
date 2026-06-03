@@ -83,6 +83,7 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
         _last_heartbeat_ms = 0;
         _state = State::RUNNING;
+        sendAuth();
         sendNodeInfo();
       } else {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
@@ -188,6 +189,29 @@ bool TCPBridge::sendPayloadFrame(const uint8_t *payload, uint16_t len) {
   buffer[5 + len] = checksum & 0xFF;
 
   return _client.write(buffer, len + TCP_OVERHEAD) == len + TCP_OVERHEAD;
+}
+
+void TCPBridge::sendAuth() {
+  if (_prefs->bridge_password[0] == '\0') return;
+
+  uint8_t payload[6 + sizeof(_prefs->bridge_password)];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_AUTH;
+
+  size_t password_len = 0;
+  while (password_len < sizeof(_prefs->bridge_password) &&
+         _prefs->bridge_password[password_len] != '\0') {
+    password_len++;
+  }
+  payload[5] = (uint8_t)password_len;
+  memcpy(payload + 6, _prefs->bridge_password, password_len);
+
+  if (sendPayloadFrame(payload, 6 + password_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent auth\n");
+  }
 }
 
 void TCPBridge::sendNodeInfo() {

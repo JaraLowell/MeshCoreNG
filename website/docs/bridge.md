@@ -114,6 +114,7 @@ set wifi.ssid     YourWiFi
 set wifi.password secret123
 set bridge.server yourserver.example.com
 set bridge.port   4200
+set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
@@ -138,7 +139,8 @@ Then run the relay script on the connected computer:
 ```bash
 pip install pyserial
 python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
-                                    --server yourserver.example.com --port 4200
+                                    --server yourserver.example.com --port 4200 \
+                                    --bridge-password bridgeSecret
 ```
 
 On Windows use `--serial COM3`.
@@ -163,11 +165,17 @@ Start the TCP bridge server on a machine the intended bridge repeaters can reach
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+To require a bridge password from TCP clients:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
+```
+
 No external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
 
 ## Security note
 
-The current TCP bridge does not encrypt traffic. Run the server on a trusted network or VPS with firewall rules limiting access. TLS support is planned for a future release.
+The TCP bridge password is an access check, not transport encryption. Run the server on a trusted network or VPS with firewall rules limiting access. TLS support is planned for a future release.
 
 ## FAQ
 

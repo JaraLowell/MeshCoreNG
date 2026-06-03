@@ -205,6 +205,7 @@ set wifi.ssid     MijnWiFi
 set wifi.password geheim123
 set bridge.server mijnserver.example.com
 set bridge.port   4200
+set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
@@ -251,7 +252,8 @@ Script starten op de PC of Raspberry Pi:
 ```bash
 pip install pyserial
 python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
-                                    --server mijnserver.example.com --port 4200
+                                    --server mijnserver.example.com --port 4200 \
+                                    --bridge-password bridgeSecret
 ```
 
 Op Windows gebruik je `--serial COM3` in plaats van `/dev/ttyUSB0`. Het script staat in deze repository bij [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
@@ -260,6 +262,8 @@ Op Windows gebruik je `--serial COM3` in plaats van `/dev/ttyUSB0`. Het script s
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
+# optioneel toegangswachtwoord:
+python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
 Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde gecontroleerde bridge-server verbonden zijn.
@@ -283,6 +287,7 @@ Python roomserver starten:
 ```bash
 pip install cryptography
 python3 tools/python_room_server.py --server mijnserver.example.com --port 4200 \
+  --bridge-password bridgeSecret \
   --name "Python Room" --password geheim \
   --state /home/pi/meshcore/python_room_server_state.json
 ```
@@ -614,6 +619,7 @@ set wifi.ssid     <netwerknaam>
 set wifi.password <wachtwoord>
 set bridge.server <hostnaam of IP>
 set bridge.port   4200
+set bridge.password <bridge wachtwoord>
 set bridge.enabled on
 set bridge.rf on
 get bridge.type

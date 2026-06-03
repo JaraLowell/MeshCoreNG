@@ -23,7 +23,8 @@ Requirements:
 
 Usage:
     python3 usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \\
-                                  --server mijnserver.example.com --port 4200
+                                  --server mijnserver.example.com --port 4200 \\
+                                  --bridge-password bridgeSecret
 
     Windows example:
     python3 usb_bridge_client.py --serial COM3 --server 192.168.1.10 --port 4200
@@ -56,6 +57,8 @@ MAX_PAYLOAD = 256       # MAX_TRANS_UNIT + 1
 FRAME_OVERHEAD = 6      # magic(2) + length(2) + checksum(2)
 MAX_FRAME = MAX_PAYLOAD + FRAME_OVERHEAD
 RECONNECT_DELAY = 5     # seconds between TCP reconnect attempts
+CONTROL_PREFIX = b"MCNG"
+CONTROL_TYPE_AUTH = 0x03
 
 
 def read_frame_from_serial(ser: serial.Serial) -> bytes | None:
@@ -138,6 +141,31 @@ def read_frame_from_tcp(sock: socket.socket) -> bytes | None:
     return magic_bytes + raw_len + rest
 
 
+def fletcher16(data: bytes) -> int:
+    s1, s2 = 0, 0
+    for b in data:
+        s1 = (s1 + b) % 255
+        s2 = (s2 + s1) % 255
+    return (s2 << 8) | s1
+
+
+def build_bridge_frame(payload: bytes) -> bytes:
+    return (
+        struct.pack(">H", BRIDGE_MAGIC)
+        + struct.pack(">H", len(payload))
+        + payload
+        + struct.pack(">H", fletcher16(payload))
+    )
+
+
+def send_auth(sock: socket.socket, password: str):
+    if not password:
+        return
+    raw_password = password.encode("utf-8")[:255]
+    payload = CONTROL_PREFIX + bytes([CONTROL_TYPE_AUTH, len(raw_password)]) + raw_password
+    sock.sendall(build_bridge_frame(payload))
+
+
 def serial_to_tcp(ser: serial.Serial, get_sock, stop: threading.Event):
     """Thread: read frames from serial, write to TCP socket."""
     while not stop.is_set():
@@ -176,7 +204,7 @@ def tcp_to_serial(ser: serial.Serial, get_sock, stop: threading.Event):
             time.sleep(0.2)
 
 
-def run(serial_port: str, baud: int, server: str, tcp_port: int):
+def run(serial_port: str, baud: int, server: str, tcp_port: int, bridge_password: str):
     log.info("Opening serial port %s at %d baud", serial_port, baud)
     try:
         ser = serial.Serial(serial_port, baud, timeout=1)
@@ -210,6 +238,7 @@ def run(serial_port: str, baud: int, server: str, tcp_port: int):
         try:
             sock = socket.create_connection((server, tcp_port), timeout=10)
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            send_auth(sock, bridge_password)
             set_sock(sock)
             log.info("Connected to TCP server %s:%d", server, tcp_port)
 
@@ -263,6 +292,10 @@ def main():
         help="TCP bridge server port (default: 4200)"
     )
     parser.add_argument(
+        "--bridge-password", default="",
+        help="Optional TCP bridge server password"
+    )
+    parser.add_argument(
         "--debug", action="store_true",
         help="Enable debug logging"
     )
@@ -272,7 +305,7 @@ def main():
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        run(args.serial, args.baud, args.server, args.port)
+        run(args.serial, args.baud, args.server, args.port, args.bridge_password)
     except KeyboardInterrupt:
         log.info("Stopped by user")
 

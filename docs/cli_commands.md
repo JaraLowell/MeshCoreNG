@@ -1306,6 +1306,7 @@ set wifi.ssid     YourWiFi
 set wifi.password secret123
 set bridge.server yourserver.example.com
 set bridge.port   4200
+set bridge.password optionalSecret
 set bridge.enabled on
 ```
 
@@ -1393,6 +1394,7 @@ Run the Python room server:
 
 ```bash
 python3 tools/python_room_server.py --server 127.0.0.1 --port 4200 \
+  --bridge-password bridgeSecret \
   --name "Python Room" --password secret
 ```
 
@@ -1485,6 +1487,18 @@ The Python room server stores its identity and recent posts in `python_room_serv
 - `port`: TCP port number (1–65535)
 
 **Default:** 4200
+
+---
+
+#### Set the TCP bridge password (TCP bridge only)
+**Usage:**
+- `get bridge.password`
+- `set bridge.password <password>`
+
+**Parameters:**
+- `password`: Optional TCP bridge server password, up to 63 characters
+
+**Note:** `get bridge.password` always returns `***` for security.
 
 ---
 

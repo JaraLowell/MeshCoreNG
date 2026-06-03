@@ -7,7 +7,7 @@ LoRa networks can act as one mesh. Each packet received from one repeater is
 broadcast to all other connected repeaters.
 
 Usage:
-    python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200]
+    python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
 
 Repeater firmware configuration (via CLI):
@@ -15,6 +15,7 @@ Repeater firmware configuration (via CLI):
     set wifi.password <your-password>
     set bridge.server <this-server-ip-or-hostname>
     set bridge.port   4200
+    set bridge.password <bridgeSecret>  # only when server --password is set
     set bridge.enabled on
 
 Requires Python 3.7+, no external dependencies.
@@ -41,11 +42,13 @@ MAX_PAYLOAD = 256   # MAX_TRANS_UNIT + 1
 CONTROL_PREFIX = b"MCNG"
 CONTROL_TYPE_HEARTBEAT = 0x01
 CONTROL_TYPE_NODE_INFO = 0x02
+CONTROL_TYPE_AUTH = 0x03
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 REPLACE_SAME_IP = False
+BRIDGE_PASSWORD = ""
 
 connected_clients: set["BridgeClient"] = set()
 
@@ -94,6 +97,22 @@ def parse_node_info(payload: bytes) -> str | None:
     return raw_name.decode("utf-8", errors="replace").strip()[:32]
 
 
+def parse_auth(payload: bytes) -> str | None:
+    if len(payload) < 6:
+        return None
+    if not payload.startswith(CONTROL_PREFIX):
+        return None
+    if payload[4] != CONTROL_TYPE_AUTH:
+        return None
+
+    password_len = payload[5]
+    raw_password = payload[6:6 + password_len]
+    if len(raw_password) != password_len:
+        return None
+
+    return raw_password.decode("utf-8", errors="replace")
+
+
 def format_duration(seconds: float) -> str:
     seconds = max(0, int(seconds))
     days, seconds = divmod(seconds, 86400)
@@ -130,6 +149,7 @@ class BridgeClient:
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
         self.node_name = ""
+        self.authenticated = not BRIDGE_PASSWORD
 
     @property
     def display_name(self) -> str:
@@ -149,6 +169,7 @@ class BridgeClient:
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "heartbeats_rx": self.heartbeats_rx,
+            "authenticated": self.authenticated,
         }
 
     async def read_packet(self) -> bytes | None:
@@ -281,6 +302,20 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             payload = await client.read_packet()
             if payload is None:
                 continue
+            auth_password = parse_auth(payload)
+            if auth_password is not None:
+                if not BRIDGE_PASSWORD or auth_password == BRIDGE_PASSWORD:
+                    client.authenticated = True
+                    log.info("%s: bridge auth ok", client.addr)
+                else:
+                    log.warning("%s: bridge auth failed", client.addr)
+                    await disconnect(client, reason="auth failed")
+                    return
+                continue
+            if not client.authenticated:
+                log.warning("%s: missing bridge auth", client.addr)
+                await disconnect(client, reason="missing auth")
+                return
             heartbeat_uptime = parse_heartbeat(payload)
             if heartbeat_uptime is not None:
                 client.heartbeats_rx += 1
@@ -490,6 +525,8 @@ if __name__ == "__main__":
                         help="HTTP status page port (default: 8080, 0 disables)")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
+    parser.add_argument("--password", default="",
+                        help="Optional TCP bridge password required from clients")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
     args = parser.parse_args()
@@ -501,6 +538,7 @@ if __name__ == "__main__":
     CLIENT_TIMEOUT_SECS = max(0, args.client_timeout)
     STATUS_INTERVAL_SECS = max(0, args.status_interval)
     REPLACE_SAME_IP = args.replace_same_ip
+    BRIDGE_PASSWORD = args.password
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))

@@ -289,6 +289,7 @@ set wifi.ssid     YourWiFi
 set wifi.password secret123
 set bridge.server yourserver.example.com
 set bridge.port   4200
+set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
@@ -335,7 +336,8 @@ Run the relay script on the PC or Raspberry Pi:
 ```bash
 pip install pyserial
 python3 tools/usb_bridge_client.py --serial /dev/ttyUSB0 --baud 115200 \
-                                    --server yourserver.example.com --port 4200
+                                    --server yourserver.example.com --port 4200 \
+                                    --bridge-password bridgeSecret
 ```
 
 On Windows, use `--serial COM3` instead of `/dev/ttyUSB0`. The script is included in this repository at [tools/usb_bridge_client.py](./tools/usb_bridge_client.py).
@@ -344,6 +346,8 @@ On Windows, use `--serial COM3` instead of `/dev/ttyUSB0`. The script is include
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
+# optional access password:
+python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
@@ -367,6 +371,7 @@ Start the Python room server:
 ```bash
 pip install cryptography
 python3 tools/python_room_server.py --server yourserver.example.com --port 4200 \
+  --bridge-password bridgeSecret \
   --name "Python Room" --password secret \
   --state /home/pi/meshcore/python_room_server_state.json
 ```
@@ -676,6 +681,7 @@ set wifi.ssid     <ssid>
 set wifi.password <password>
 set bridge.server <hostname or IP>
 set bridge.port   4200
+set bridge.password <bridge password>
 set bridge.enabled on
 set bridge.rf on
 get bridge.type

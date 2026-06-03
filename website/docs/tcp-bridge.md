@@ -19,6 +19,12 @@ Start the server on a machine that the bridge repeaters can reach. This can be a
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+To require a bridge password from TCP clients:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
+```
+
 The server also starts a small status page by default:
 
 ```text
@@ -69,9 +75,11 @@ set wifi.ssid MyWiFiName
 set wifi.password MyWiFiPassword
 set bridge.server 192.168.1.123
 set bridge.port 4200
+set bridge.password bridgeSecret
 ```
 
 Replace `192.168.1.123` with the IP address or hostname of your TCP bridge server.
+Skip `set bridge.password` if the server was started without `--password`.
 
 For a remote server:
 
@@ -106,6 +114,7 @@ get bridge.type
 get wifi.ssid
 get bridge.server
 get bridge.port
+get bridge.password
 get bridge.enabled
 ```
 
@@ -115,7 +124,7 @@ Expected bridge type:
 > tcp
 ```
 
-`get wifi.password` does not show the real password. It returns `***`.
+`get wifi.password` and `get bridge.password` do not show the real password. They return `***`.
 
 ## 6. Link selected repeaters
 
@@ -124,6 +133,7 @@ Flash the intended bridge repeater at each location with `_bridge_tcp` firmware 
 ```text
 set bridge.server myserver.example.com
 set bridge.port 4200
+set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 

@@ -9,7 +9,7 @@ traffic between this script and the RF mesh.
 
 Usage:
     python3 tools/python_room_server.py --server 127.0.0.1 --port 4200 \
-        --name "Python Room" --password secret
+        --bridge-password bridgeSecret --name "Python Room" --password secret
 
 Optional scoped flood traffic:
     python3 tools/python_room_server.py --scope nl-nh-hhw ...
@@ -78,6 +78,7 @@ RESP_SERVER_LOGIN_OK = 0
 FIRMWARE_VER_LEVEL = 1
 CONTROL_TYPE_HEARTBEAT = 0x01
 CONTROL_TYPE_NODE_INFO = 0x02
+CONTROL_TYPE_AUTH = 0x03
 
 OUT_PATH_UNKNOWN = -1
 
@@ -350,6 +351,7 @@ class PythonRoomServer:
                 log.info("Connecting to bridge server %s:%d", self.args.server, self.args.port)
                 self.reader, self.writer = await asyncio.open_connection(self.args.server, self.args.port)
                 log.info("Connected. Room pubkey: %s", self.pub.hex().upper())
+                await self.send_auth()
                 await self.send_node_info()
                 await asyncio.gather(self.read_loop(), self.advert_loop(), self.push_loop(), self.heartbeat_loop())
             except (OSError, asyncio.IncompleteReadError) as exc:
@@ -401,6 +403,12 @@ class PythonRoomServer:
     async def send_node_info(self) -> None:
         name = self.args.name.encode("utf-8")[:32]
         await self.send_payload(b"MCNG" + bytes([CONTROL_TYPE_NODE_INFO, len(name)]) + name)
+
+    async def send_auth(self) -> None:
+        if not self.args.bridge_password:
+            return
+        password = self.args.bridge_password.encode("utf-8")[:255]
+        await self.send_payload(b"MCNG" + bytes([CONTROL_TYPE_AUTH, len(password)]) + password)
 
     async def send_heartbeat(self) -> None:
         uptime_ms = int((time.monotonic() - self.started_at) * 1000) & 0xFFFFFFFF
@@ -698,6 +706,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="MeshCoreNG Python room server over TCP bridge")
     parser.add_argument("--server", default="127.0.0.1", help="TCP bridge server host")
     parser.add_argument("--port", type=int, default=4200, help="TCP bridge server port")
+    parser.add_argument("--bridge-password", default="", help="optional TCP bridge server password")
     parser.add_argument("--name", default="Python Room", help="room name advertised to clients")
     parser.add_argument("--password", default="password", help="room write password")
     parser.add_argument("--admin-password", default="password", help="admin password")

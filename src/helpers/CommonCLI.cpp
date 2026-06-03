@@ -161,7 +161,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
       _prefs->bridge_rf = bridge_rf;                                                               // 464 + sizeof(AtlasConfig)
     }
-    // next: 465 + sizeof(AtlasConfig)
+    char bridge_password[64] = {};
+    if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
+      memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 465 + sizeof(AtlasConfig)
+    }
+    // next: 529 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -284,7 +288,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->daily_reboot_enabled, sizeof(_prefs->daily_reboot_enabled));    // 462 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 463 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 464 + sizeof(AtlasConfig)
-    // next: 465 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 465 + sizeof(AtlasConfig)
+    // next: 529 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1029,6 +1034,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _callbacks->restartBridge();
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.password ", 16) == 0) {
+    StrHelper::strncpy(_prefs->bridge_password, &config[16], sizeof(_prefs->bridge_password));
+    _callbacks->restartBridge();
+    savePrefs();
+    strcpy(reply, "OK");
   } else if (memcmp(config, "bridge.port ", 12) == 0) {
     int port = _atoi(&config[12]);
     if (port > 0 && port <= 65535) {
@@ -1214,6 +1224,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     _callbacks->formatTcpBridgeStatusReply(reply);
   } else if (memcmp(config, "bridge.server", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_server);
+  } else if (memcmp(config, "bridge.password", 15) == 0) {
+    strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
 #endif

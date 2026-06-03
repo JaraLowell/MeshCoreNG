@@ -26,6 +26,7 @@
  *   set wifi.password <pw>       WiFi password
  *   set bridge.server <host>     TCP server hostname or IP
  *   set bridge.port <port>       TCP server port (default 4200)
+ *   set bridge.password <pw>     Optional TCP bridge server password
  *   set bridge.enabled on        Enable the bridge
  *
  * Firmware build flag: -D WITH_TCP_BRIDGE
@@ -52,6 +53,7 @@ private:
   static constexpr uint32_t HEARTBEAT_INTERVAL_MS    = 30000;
   static constexpr uint8_t  CONTROL_TYPE_HEARTBEAT   = 0x01;
   static constexpr uint8_t  CONTROL_TYPE_NODE_INFO   = 0x02;
+  static constexpr uint8_t  CONTROL_TYPE_AUTH        = 0x03;
 
   enum class State : uint8_t {
     IDLE,           // waiting for reconnect timer
@@ -70,6 +72,7 @@ private:
   uint16_t _rx_buffer_pos = 0;
 
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
+  void sendAuth();
   void sendNodeInfo();
   void sendHeartbeat();
   bool isControlPayload(const uint8_t *payload, uint16_t len) const;

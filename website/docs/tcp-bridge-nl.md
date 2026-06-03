@@ -19,6 +19,12 @@ Start de server op een machine die bereikbaar is vanaf de bridge-repeaters. Dat 
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+Om een bridge-wachtwoord voor TCP-clients te vereisen:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
+```
+
 Voor testen en monitoren kun je de server starten met statusregels en heartbeat-timeout:
 
 ```bash
@@ -61,9 +67,11 @@ set wifi.ssid MijnWiFiNaam
 set wifi.password MijnWiFiWachtwoord
 set bridge.server 192.168.1.123
 set bridge.port 4200
+set bridge.password bridgeSecret
 ```
 
 Gebruik in plaats van `192.168.1.123` het IP-adres of de hostname van jouw TCP bridge server.
+Sla `set bridge.password` over als de server zonder `--password` is gestart.
 
 Voor een server op internet:
 
@@ -98,6 +106,7 @@ get bridge.type
 get wifi.ssid
 get bridge.server
 get bridge.port
+get bridge.password
 get bridge.enabled
 ```
 
@@ -107,7 +116,7 @@ Verwachte bridge type:
 > tcp
 ```
 
-`get wifi.password` toont niet het echte wachtwoord, maar `***`.
+`get wifi.password` en `get bridge.password` tonen niet het echte wachtwoord, maar `***`.
 
 ## 6. Geselecteerde repeaters koppelen
 
@@ -116,6 +125,7 @@ Flash op elke locatie de bedoelde bridge-repeater met `_bridge_tcp` firmware en 
 ```text
 set bridge.server mijnserver.example.com
 set bridge.port 4200
+set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
