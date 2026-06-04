@@ -36,7 +36,7 @@ set bridge.port <port>
 set bridge.password <pass>
 set bridge.enabled on|off
 set bridge.rf on|off       — allow bridge flood packets onto LoRa RF
-get bridge.type            — shows "tcp", "rs232" or "espnow"
+get bridge.type            — shows "tcp", "rs232", "espnow" or "ble"
 ```
 
 Python room server over the TCP bridge:

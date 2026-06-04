@@ -28,6 +28,11 @@
 #define WITH_BRIDGE
 #endif
 
+#ifdef WITH_BLE_BRIDGE
+#include "helpers/bridges/BLEBridge.h"
+#define WITH_BRIDGE
+#endif
+
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
@@ -172,12 +177,17 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pending_sf;
   uint8_t pending_cr;
   int  matching_peer_indexes[MAX_CLIENTS];
-#if defined(WITH_RS232_BRIDGE)
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+  TCPBridge tcp_bridge;
+  BLEBridge ble_bridge;
+#elif defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
 #elif defined(WITH_TCP_BRIDGE)
   TCPBridge bridge;
+#elif defined(WITH_BLE_BRIDGE)
+  BLEBridge bridge;
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
@@ -322,6 +332,16 @@ public:
 
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    if (enable == (tcp_bridge.isRunning() && ble_bridge.isRunning())) return;
+    if (enable) {
+      tcp_bridge.begin();
+      ble_bridge.begin();
+    } else {
+      tcp_bridge.end();
+      ble_bridge.end();
+    }
+#else
     if (enable == bridge.isRunning()) return;
     if (enable)
     {
@@ -331,18 +351,31 @@ public:
     {
       bridge.end();
     }
+#endif
   }
 
   void restartBridge() override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    if (!tcp_bridge.isRunning() && !ble_bridge.isRunning()) return;
+    tcp_bridge.end();
+    ble_bridge.end();
+    tcp_bridge.begin();
+    ble_bridge.begin();
+#else
     if (!bridge.isRunning()) return;
     bridge.end();
     bridge.begin();
+#endif
   }
 #endif
 
 #if defined(WITH_TCP_BRIDGE)
   void formatTcpBridgeStatusReply(char *reply) override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.getStatusStr(reply);
+#else
     bridge.getStatusStr(reply);
+#endif
   }
 #endif
 

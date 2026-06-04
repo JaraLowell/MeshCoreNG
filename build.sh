@@ -19,6 +19,8 @@ Commands:
   build-bridge-tcp-firmwares: Build all TCP internet bridge repeater firmwares (ESP32 with WiFi).
   build-bridge-rs232-firmwares: Build all RS232/USB bridge repeater firmwares (all platforms).
   build-bridge-espnow-firmwares: Build all ESPNow bridge repeater firmwares (ESP32 with ESPNow).
+  build-bridge-ble-firmwares: Build all BLE bridge repeater firmwares (nRF52/Bluefruit and ESP32 BLE).
+  build-bridge-tcp-ble-firmwares: Build all combined TCP+BLE bridge repeater firmwares (selected ESP32 WiFi+BLE boards).
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
@@ -38,6 +40,12 @@ $ bash build.sh build-room-server-firmwares
 
 Build all ESPNow bridge firmwares
 $ bash build.sh build-bridge-espnow-firmwares
+
+Build all BLE bridge firmwares
+$ bash build.sh build-bridge-ble-firmwares
+
+Build all combined TCP+BLE bridge firmwares
+$ bash build.sh build-bridge-tcp-ble-firmwares
 
 Environment Variables:
   REGION_PROFILE=nl|de|border|none:
@@ -313,6 +321,20 @@ build_bridge_espnow_firmwares() {
 
 }
 
+build_bridge_ble_firmwares() {
+
+  # build all BLE bridge repeater firmwares (nRF52/Bluefruit and ESP32 BLE)
+  build_all_firmwares_by_suffix "_repeater_bridge_ble"
+
+}
+
+build_bridge_tcp_ble_firmwares() {
+
+  # build combined TCP+BLE bridge repeater firmwares (selected ESP32 WiFi+BLE boards)
+  build_all_firmwares_by_suffix "_repeater_bridge_tcp_ble"
+
+}
+
 build_firmwares() {
   build_companion_firmwares
   build_repeater_firmwares
@@ -320,6 +342,7 @@ build_firmwares() {
   build_bridge_tcp_firmwares
   build_bridge_rs232_firmwares
   build_bridge_espnow_firmwares
+  build_bridge_ble_firmwares
 }
 
 # clean build dir
@@ -358,4 +381,8 @@ elif [[ $1 == "build-bridge-rs232-firmwares" ]]; then
   build_bridge_rs232_firmwares
 elif [[ $1 == "build-bridge-espnow-firmwares" ]]; then
   build_bridge_espnow_firmwares
+elif [[ $1 == "build-bridge-ble-firmwares" ]]; then
+  build_bridge_ble_firmwares
+elif [[ $1 == "build-bridge-tcp-ble-firmwares" ]]; then
+  build_bridge_tcp_ble_firmwares
 fi

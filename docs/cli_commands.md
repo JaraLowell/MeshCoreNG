@@ -1279,13 +1279,15 @@ region save
 
 ### Bridge (When bridge support is compiled in)
 
-Three bridge types are available, each compiled in separately:
+Four bridge types are available, each compiled in separately:
 
 | Bridge | Build flag | Platform | Use case |
 |---|---|---|---|
 | **RS232** | `-D WITH_RS232_BRIDGE=Serial2` | All | Wired transport to another local device |
 | **ESPNow** | `-D WITH_ESPNOW_BRIDGE=1` | ESP32 | Local wireless transport between ESP32 boards |
 | **TCP** | `-D WITH_TCP_BRIDGE=1` | ESP32 | Optional controlled backhaul between selected RF deployments |
+| **BLE** | `-D WITH_BLE_BRIDGE=1` | nRF52/Bluefruit, ESP32 BLE | Short-range wireless bridge between BLE-capable repeaters |
+| **TCP+BLE** | `-D WITH_TCP_BRIDGE=1 -D WITH_BLE_BRIDGE=1` | Selected 8MB/16MB ESP32 WiFi+BLE | Combined controlled TCP backhaul and short-range BLE bridge transport |
 
 Bridge support is optional and defaults to disabled. MeshCoreNG remains RF-first; bridge transports are intended for controlled deployments such as isolated RF islands, remote RF gateways, temporary backhaul, research setups, and private infrastructure. They are not intended for worldwide uncontrolled flooding or unrestricted packet replication.
 
@@ -1450,13 +1452,13 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 
 ---
 
-#### Set the ESP-Now secret
+#### Set the wireless bridge secret
 **Usage:** 
 - `get bridge.secret`
 - `set bridge.secret <secret>`
 
 **Parameters:**
-- `secret`: ESP-NOW bridge secret, up to 15 characters
+- `secret`: ESP-NOW or BLE bridge secret, up to 15 characters
 
 **Default:** Varies by board
 

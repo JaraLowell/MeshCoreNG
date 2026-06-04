@@ -226,10 +226,14 @@ MeshCoreNG heeft meerdere bridge-routes:
 | Build type | Transport | Typisch gebruik |
 | --- | --- | --- |
 | `_bridge_tcp` | ESP32 WiFi TCP-client | Een WiFi-repeater verbindt direct met een gecontroleerde bridge-server. |
+| `_bridge_tcp_ble` | ESP32 WiFi TCP-client + BLE UART bridge | Geselecteerde 8MB/16MB ESP32 WiFi+BLE-repeaters kunnen TCP en BLE bridge transport in een firmware draaien. |
 | `_bridge_rs232` | Serial/UART bridge | Boards zonder WiFi gebruiken een PC/Raspberry Pi host-script of een directe bedrade UART-link naar een andere repeater. |
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
+| `_bridge_ble` | BLE UART bridge | nRF52- en ESP32-BLE-repeaters kunnen een korte-afstand bridge maken zonder WiFi, USB of extra UART-bedrading. |
 
 Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina.
+
+De BLE bridge is beschikbaar voor nRF52 BLE-varianten met Bluefruit en ESP32-varianten met BLE-support. Hij draait tegelijk als central en peripheral, zodat beide repeaters de BLE-link kunnen starten. Flash dezelfde `_bridge_ble` firmware op beide repeaters, zet eventueel op beide kanten dezelfde `bridge.secret` voor een private bridge-pair, en zet daarna `set bridge.enabled on`. Gecombineerde `_bridge_tcp_ble` builds zijn toegevoegd voor ESP32-boards met genoeg flash; 4MB ESP32-boards blijven per board testkandidaten omdat TCP+BLE daar krap kan worden.
 
 **Route 2: Repeater via USB of directe UART**
 

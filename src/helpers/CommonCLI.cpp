@@ -1014,6 +1014,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: channel must be between 1-14");
     }
+#endif
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.secret ", 14) == 0) {
     StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
     _callbacks->restartBridge();
@@ -1185,12 +1187,16 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _callbacks->getRole());
   } else if (memcmp(config, "bridge.type", 11) == 0) {
     sprintf(reply, "> %s",
-#ifdef WITH_RS232_BRIDGE
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+            "tcp+ble"
+#elif defined(WITH_RS232_BRIDGE)
             "rs232"
 #elif defined(WITH_ESPNOW_BRIDGE)
             "espnow"
 #elif defined(WITH_TCP_BRIDGE)
             "tcp"
+#elif defined(WITH_BLE_BRIDGE)
+            "ble"
 #else
             "none"
 #endif
@@ -1212,6 +1218,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #ifdef WITH_ESPNOW_BRIDGE
   } else if (memcmp(config, "bridge.channel", 14) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
+#endif
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_secret);
 #endif

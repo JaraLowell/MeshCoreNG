@@ -13,7 +13,7 @@
 #include <helpers/DutchRegionDb.h>
 #endif
 
-#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE)
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE) || defined(WITH_BLE_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
@@ -56,7 +56,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_rf;      // allow received bridge flood packets to be forwarded on RF
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
-  char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
+  char bridge_secret[16]; // for wireless bridge packet isolation (ESP-NOW/BLE)
   // Power setting
   uint8_t powersaving_enabled; // boolean
   // Gps settings

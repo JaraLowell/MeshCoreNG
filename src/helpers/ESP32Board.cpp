@@ -2,13 +2,13 @@
 
 #include "ESP32Board.h"
 
-#include <HTTPClient.h>
-#include <Update.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <stdarg.h>
 
 #if defined(ADMIN_PASSWORD)
+#include <HTTPClient.h>
+#include <Update.h>
+#include <WiFiClientSecure.h>
 
 #ifndef OTA_MANIFEST_URL
 #define OTA_MANIFEST_URL "https://michtronics.github.io/MeshCoreNG/flasher/ota-manifest.txt"

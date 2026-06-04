@@ -669,7 +669,12 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.sendPacket(pkt);
+    ble_bridge.sendPacket(pkt);
+#else
     bridge.sendPacket(pkt);
+#endif
   }
 #endif
 
@@ -695,7 +700,12 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 0) {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.sendPacket(pkt);
+    ble_bridge.sendPacket(pkt);
+#else
     bridge.sendPacket(pkt);
+#endif
   }
 #endif
 
@@ -1236,13 +1246,15 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
       anon_limiter(4, 180)   // max 4 every 3 minutes
-#if defined(WITH_RS232_BRIDGE)
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+      , tcp_bridge(&_prefs, _mgr, &rtc), ble_bridge(&_prefs, _mgr, &rtc)
+#elif defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
-#endif
-#if defined(WITH_ESPNOW_BRIDGE)
+#elif defined(WITH_ESPNOW_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
-#endif
-#if defined(WITH_TCP_BRIDGE)
+#elif defined(WITH_TCP_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc)
+#elif defined(WITH_BLE_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 {
@@ -1363,7 +1375,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.begin();
+    ble_bridge.begin();
+#else
     bridge.begin();
+#endif
   }
 #endif
 
@@ -1919,7 +1936,12 @@ void MyMesh::checkDailyReboot() {
 
 void MyMesh::loop() {
 #ifdef WITH_BRIDGE
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+  tcp_bridge.loop();
+  ble_bridge.loop();
+#else
   bridge.loop();
+#endif
 #endif
 
   mesh::Mesh::loop();
@@ -1966,7 +1988,11 @@ void MyMesh::loop() {
 
 bool MyMesh::isBridgeActive() const {
 #if defined(WITH_BRIDGE)
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+  return tcp_bridge.isRunning() || ble_bridge.isRunning();
+#else
   return bridge.isRunning();
+#endif
 #else
   return false;
 #endif

@@ -95,15 +95,19 @@ These mechanisms are intended to make controlled bridge deployments safer. They 
 
 ## Bridge firmware types
 
-MeshCoreNG currently has three bridge-oriented paths:
+MeshCoreNG currently has four bridge-oriented paths:
 
 | Build type | Transport | Typical use |
 |---|---|---|
 | `_bridge_tcp` | ESP32 WiFi TCP client | A WiFi-capable repeater connects directly to a controlled bridge server. |
+| `_bridge_tcp_ble` | ESP32 WiFi TCP client + BLE UART bridge | Selected 8MB/16MB ESP32 WiFi+BLE repeaters can run TCP and BLE bridge transports in one firmware. |
 | `_bridge_rs232` | Serial/UART bridge | Boards without WiFi use a PC/Raspberry Pi host script or a direct wired UART link to another repeater. |
 | `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
+| `_bridge_ble` | BLE UART bridge | nRF52 and ESP32 BLE repeaters can form a short-range bridge without WiFi, USB, or extra UART wiring. |
 
 Use `get bridge.type` on the device to confirm which bridge mode is compiled in.
+
+For BLE, flash the same `_bridge_ble` firmware on both BLE-capable repeaters. nRF52 variants use Bluefruit and ESP32 variants use the ESP32 BLE stack. The firmware advertises and scans at the same time, so either repeater can initiate the BLE link. Use the same `bridge.secret` on both sides when you want to keep a bridge pair separate from other BLE bridges in range. Combined `_bridge_tcp_ble` builds are provided for ESP32 boards with enough flash; 4MB ESP32 boards are left as board-by-board test candidates because TCP+BLE can be tight there.
 
 ## Path 1: ESP32 repeater with WiFi
 
