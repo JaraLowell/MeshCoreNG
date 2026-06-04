@@ -144,6 +144,8 @@ def release_files_for_asset(board, asset):
 
 def get_category(env_name):
     n = env_name.rstrip("_").lower()
+    if n.endswith("_repeater_bridge_tcp_ble"): return "bridge_tcp_ble"
+    if n.endswith("_repeater_bridge_ble"):     return "bridge_ble"
     if n.endswith("_repeater_bridge_tcp"):    return "bridge_tcp"
     if n.endswith("_repeater_bridge_rs232"):  return "bridge_rs232"
     if n.endswith("_repeater_bridge_espnow"): return "bridge_espnow"
