@@ -121,7 +121,19 @@ def find_ota_asset_for_board(all_assets, board):
 
 
 def download_asset(asset, destination, token):
-    data = github_request(asset["url"], token, accept="application/octet-stream")
+    try:
+        data = github_request(asset["url"], token, accept="application/octet-stream")
+    except urllib.error.HTTPError as api_error:
+        browser_url = asset.get("browser_download_url")
+        if not browser_url:
+            raise
+        try:
+            data = github_request(browser_url, None, accept="application/octet-stream")
+        except urllib.error.HTTPError as browser_error:
+            raise RuntimeError(
+                f"{asset.get('name', 'asset')} download failed: "
+                f"api HTTP {api_error.code}, browser HTTP {browser_error.code}"
+            ) from browser_error
     with destination.open("wb") as f:
         f.write(data)
 
@@ -224,7 +236,11 @@ def build_flasher(boards, all_assets):
             firmware_name = asset["name"]
             version = asset.get("release_tag") or asset.get("updated_at", "release")[:10]
             print(f"  Downloading {firmware_name} ...", file=sys.stderr)
-            download_asset(asset, board_dir / firmware_name, args_token)
+            try:
+                download_asset(asset, board_dir / firmware_name, args_token)
+            except Exception as e:
+                print(f"Warning: skipping {firmware_name}: {e}", file=sys.stderr)
+                continue
 
             releases.append({
                 "version": version,
@@ -234,6 +250,11 @@ def build_flasher(boards, all_assets):
                 "firmware": firmware_name,
                 "files": release_files_for_asset(board, asset),
             })
+
+        if not releases:
+            shutil.rmtree(board_dir, ignore_errors=True)
+            skipped.append(env_name)
+            continue
 
         latest = releases[0]
 
