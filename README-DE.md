@@ -848,6 +848,18 @@ ESP32-Repeater-Builds, die ueber diese Seite geflasht werden, haben malformed pu
 
 Die Firmware-Dateien kommen aus GitHub Release Assets. Der Release/CI-Workflow baut die Firmware-Varianten und haengt die Firmware-Dateien an die Release. Der GitHub Pages Workflow spiegelt flashbare Assets unter `/flasher/firmware/`, damit Browser sie ohne GitHub-Release-CORS-Probleme laden koennen.
 
+Release-Tag-Build-Pattern:
+
+| Tag-Pattern | Baut |
+|---|---|
+| `repeater-*` | Alle `_repeater` Varianten. |
+| `companion-*` | Alle `_companion_radio_ble` und `_companion_radio_usb` Varianten. |
+| `room-server-*` | Alle `_room_server` Varianten. |
+| `bridge-tcp-*` | Alle `_repeater_bridge_tcp` Varianten. |
+| `bridge-rs232-*` | Alle `_repeater_bridge_rs232` Varianten. |
+| `bridge-ble-*` | Alle `_repeater_bridge_ble` Varianten. |
+| `bridge-tcp-ble-*` | Alle `_repeater_bridge_tcp_ble` Varianten. |
+
 Wenn spaeter ein weiteres Board zum Webflasher hinzugefuegt werden soll, muessen PlatformIO Environment Name, Display Name, Chip-Family und Beschreibung in `website/public/flasher/boards.json` ergaenzt werden. ESP32 Release-Assets brauchen Namen wie `<env>-*-merged.bin`; nRF52 DFU Release-Assets brauchen Namen wie `<env>-*.zip`.
 
 Wio Tracker L1 und Wio Tracker L1 E-Ink/L1 Pro Firmware-Eintraege sind enthalten, damit Companion-, Repeater- und Room-Server-Varianten auf der Flasher-Seite gefunden werden, wenn Release-Assets existieren. Diese Boards sind nRF52-basiert: serial DFU `.zip` Dateien koennen ueber den Webflasher genutzt werden, wenn der Bootloader diesen Weg unterstuetzt; Vendor-DFU oder Bootloader-Recovery bleiben board-spezifisch.

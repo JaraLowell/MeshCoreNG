@@ -760,6 +760,18 @@ ESP32 repeater builds die je via deze site flasht hebben malformed public chat d
 
 De firmwarebestanden die de webflasher gebruikt komen uit GitHub Release assets. De release/CI workflow bouwt de firmwarevarianten en hangt de firmwarebestanden aan de release. De GitHub Pages workflow spiegelt de flashbare assets onder `/flasher/firmware/`, omdat browsers GitHub Release asset-bytes niet direct met `fetch()` kunnen ophalen door CORS.
 
+Release tag build-patronen:
+
+| Tag patroon | Wat het bouwt |
+|---|---|
+| `repeater-*` | Alle `_repeater` varianten. |
+| `companion-*` | Alle `_companion_radio_ble` en `_companion_radio_usb` varianten. |
+| `room-server-*` | Alle `_room_server` varianten. |
+| `bridge-tcp-*` | Alle `_repeater_bridge_tcp` varianten. |
+| `bridge-rs232-*` | Alle `_repeater_bridge_rs232` varianten. |
+| `bridge-ble-*` | Alle `_repeater_bridge_ble` varianten. |
+| `bridge-tcp-ble-*` | Alle `_repeater_bridge_tcp_ble` varianten. |
+
 Wil je later nog een board toevoegen aan de webflasher, dan voeg je de PlatformIO environment name, display name, chip family en beschrijving toe aan `website/public/flasher/boards.json`. ESP32 release-assets moeten een naam hebben zoals `<env>-*-merged.bin`; nRF52 DFU release-assets moeten een naam hebben zoals `<env>-*.zip`.
 
 Wio Tracker L1 en Wio Tracker L1 E-Ink/L1 Pro firmware entries zijn toegevoegd zodat companion-, repeater- en room-server varianten via de flasherpagina gevonden kunnen worden wanneer release assets bestaan. Deze boards zijn nRF52-based: serial DFU `.zip` bestanden kunnen via de webflasher wanneer de bootloader dat ondersteunt; vendor DFU of bootloader recovery blijft board-specifiek.

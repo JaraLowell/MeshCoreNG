@@ -39,6 +39,18 @@ The flasher matches assets by PlatformIO environment name:
 
 The exact version and commit parts can change, but the environment name must match the `env` field in `boards.json`.
 
+## Release tag build patterns
+
+| Tag pattern | Builds |
+|---|---|
+| `repeater-*` | All `_repeater` variants. |
+| `companion-*` | All `_companion_radio_ble` and `_companion_radio_usb` variants. |
+| `room-server-*` | All `_room_server` variants. |
+| `bridge-tcp-*` | All `_repeater_bridge_tcp` variants. |
+| `bridge-rs232-*` | All `_repeater_bridge_rs232` variants. |
+| `bridge-ble-*` | All `_repeater_bridge_ble` variants. |
+| `bridge-tcp-ble-*` | All `_repeater_bridge_tcp_ble` variants. |
+
 ## Adding a board
 
 Add a new entry to `website/public/flasher/boards.json`:
