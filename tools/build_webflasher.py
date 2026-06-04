@@ -110,9 +110,11 @@ def find_ota_asset_for_board(all_assets, board):
         return None
     env_name = board["env"]
     pattern = re.compile(rf"^{re.escape(env_name)}-.+\.bin$")
+    board_category = get_category(env_name)
     matches = [
         a for a in all_assets
         if pattern.match(a.get("name", "")) and not a.get("name", "").endswith("-merged.bin")
+        and release_category_matches(a, board_category)
     ]
     matches.sort(key=lambda a: a.get("release_published_at") or a.get("updated_at", ""), reverse=True)
     return matches[0] if matches else None
