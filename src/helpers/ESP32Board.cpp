@@ -79,19 +79,60 @@ static bool parseOtaLine(const String& line, const char* target, Esp32OtaAsset* 
   return asset->url.length() > 0 && asset->size > 0;
 }
 
+static void readHttpBody(HTTPClient& http, String* body) {
+  body->remove(0);
+  int size = http.getSize();
+  if (size > 0) body->reserve(size + 1);
+
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buffer[512];
+  uint32_t last_data = millis();
+  while ((http.connected() || stream->available()) && (size <= 0 || body->length() < (uint32_t)size)) {
+    int available = stream->available();
+    if (available <= 0) {
+      if (millis() - last_data > 15000) break;
+      delay(10);
+      continue;
+    }
+
+    int to_read = min(available, (int)sizeof(buffer));
+    if (size > 0) {
+      int remaining = size - (int)body->length();
+      if (remaining <= 0) break;
+      to_read = min(to_read, remaining);
+    }
+
+    int read_len = stream->readBytes(buffer, to_read);
+    if (read_len > 0) {
+      body->concat((const char*)buffer, read_len);
+      last_data = millis();
+    } else {
+      delay(10);
+    }
+  }
+}
+
 static bool fetchOtaAsset(const char* target, Esp32OtaAsset* asset, char reply[]) {
   WiFiClientSecure client;
   client.setInsecure();
 
+  String manifest_url = String(OTA_MANIFEST_URL);
+  manifest_url += manifest_url.indexOf('?') >= 0 ? "&t=" : "?t=";
+  manifest_url += String((uint32_t)millis());
+
   otaStatus("manifest fetching");
   HTTPClient http;
+  http.useHTTP10(true);
   http.setTimeout(15000);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  if (!http.begin(client, OTA_MANIFEST_URL)) {
+  if (!http.begin(client, manifest_url)) {
     strcpy(reply, "Error: manifest begin failed");
     otaStatus("manifest begin failed");
     return false;
   }
+  http.addHeader("Accept-Encoding", "identity");
+  http.addHeader("Cache-Control", "no-cache");
+  http.addHeader("Pragma", "no-cache");
 
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
@@ -101,12 +142,25 @@ static bool fetchOtaAsset(const char* target, Esp32OtaAsset* asset, char reply[]
     return false;
   }
 
-  String body = http.getString();
+  String body;
+  readHttpBody(http, &body);
+  int size = http.getSize();
+  otaStatusf("manifest bytes=%u size=%d", (uint32_t)body.length(), size);
+  if (body.length() == 0) {
+    snprintf(reply, 160, "Error: manifest empty HTTP %d size=%d", code, size);
+    http.end();
+    otaStatusf("manifest empty size=%d", size);
+    return false;
+  }
+
   int start = 0;
+  uint16_t line_count = 0;
   while (start < body.length()) {
     int end = body.indexOf('\n', start);
     if (end < 0) end = body.length();
     String line = body.substring(start, end);
+    line.trim();
+    if (line.length() > 0) line_count++;
     if (parseOtaLine(line, target, asset)) {
       http.end();
       otaStatusf("manifest ok latest=%s size=%u", asset->version.c_str(), (uint32_t)asset->size);
@@ -116,8 +170,8 @@ static bool fetchOtaAsset(const char* target, Esp32OtaAsset* asset, char reply[]
   }
 
   http.end();
-  snprintf(reply, 160, "Error: no OTA for %s", target);
-  otaStatusf("manifest no ota for %s", target);
+  snprintf(reply, 160, "Error: no OTA for %s (lines=%u)", target, (uint32_t)line_count);
+  otaStatusf("manifest no ota for %s lines=%u", target, (uint32_t)line_count);
   return false;
 }
 

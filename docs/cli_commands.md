@@ -508,6 +508,13 @@ These counters are RAM-only and reset on reboot or with `clear power.stats`.
 
 ---
 
+#### View this node's OTA firmware target
+**Usage:** `get firmware.target`
+
+This is the target name used by `ota.check` and `ota.update` to find a matching entry in the online OTA manifest.
+
+---
+
 #### View this node's configured role
 **Usage:** `get role`
 

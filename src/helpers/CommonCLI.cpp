@@ -346,15 +346,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
-        strcpy(reply, "Error");
+        if (reply[0] == 0) strcpy(reply, "Error");
       }
     } else if (memcmp(command, "ota.check", 9) == 0) {
       if (!_board->checkOnlineOTAUpdate(FIRMWARE_TARGET, _callbacks->getFirmwareVer(), _prefs->wifi_ssid, _prefs->wifi_password, reply)) {
-        strcpy(reply, "Error");
+        if (reply[0] == 0) strcpy(reply, "Error");
       }
     } else if (memcmp(command, "ota.update", 10) == 0) {
       if (!_board->startOnlineOTAUpdate(FIRMWARE_TARGET, _callbacks->getFirmwareVer(), _prefs->wifi_ssid, _prefs->wifi_password, reply)) {
-        strcpy(reply, "Error");
+        if (reply[0] == 0) strcpy(reply, "Error");
       }
     } else if (memcmp(command, "clock", 5) == 0) {
       uint32_t now = getRTCClock()->getCurrentTime();
@@ -1195,6 +1195,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "public.key", 10) == 0) {
     strcpy(reply, "> ");
     mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);
+  } else if (memcmp(config, "firmware.target", 15) == 0) {
+    sprintf(reply, "> %s", FIRMWARE_TARGET);
   } else if (memcmp(config, "role", 4) == 0) {
     sprintf(reply, "> %s", _callbacks->getRole());
   } else if (memcmp(config, "bridge.type", 11) == 0) {
