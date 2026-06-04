@@ -1,3583 +1,3583 @@
 [
   {
     "env": "Ebyte_EoRa-S3_companion_radio_ble",
-    "name": "Ebyte EoRa-S3 Companion Radio (BLE)",
+    "name": "ebyte eora-s3 companion radio (ble)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_companion_radio_usb",
-    "name": "Ebyte EoRa-S3 Companion Radio (USB)",
+    "name": "ebyte eora-s3 companion radio (usb)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater",
-    "name": "Ebyte EoRa-S3 Repeater",
+    "name": "ebyte eora-s3 repeater",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_ble",
-    "name": "ebyte eora-s3 BLE bridge",
+    "name": "ebyte eora-s3 ble bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for Ebyte EoRa-S3."
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_rs232",
-    "name": "Ebyte EoRa-S3 RS232 Bridge",
+    "name": "ebyte eora-s3 rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for Ebyte EoRa-S3."
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_tcp",
-    "name": "Ebyte EoRa-S3 Repeater (TCP Bridge)",
+    "name": "ebyte eora-s3 repeater (tcp bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_tcp_ble",
-    "name": "ebyte eora-s3 repeater (TCP+BLE bridge)",
+    "name": "ebyte eora-s3 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_room_server",
-    "name": "Ebyte EoRa-S3 Room Server",
+    "name": "ebyte eora-s3 room server",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Room Server firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "Ebyte_EoRa-S3_terminal_chat",
-    "name": "Ebyte EoRa-S3 Terminal Chat",
+    "name": "ebyte eora-s3 terminal chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_companion_radio_ble",
-    "name": "GAT562 30S Mesh Kit Companion Radio (BLE)",
+    "name": "gat562 30s mesh kit companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_companion_radio_usb",
-    "name": "GAT562 30S Mesh Kit Companion Radio (USB)",
+    "name": "gat562 30s mesh kit companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_repeater",
-    "name": "GAT562 30S Mesh Kit Repeater",
+    "name": "gat562 30s mesh kit repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_repeater_bridge_ble",
-    "name": "gat562 30s mesh kit BLE bridge",
+    "name": "gat562 30s mesh kit ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_repeater_bridge_rs232",
-    "name": "GAT562 30S Mesh Kit RS232 Bridge",
+    "name": "gat562 30s mesh kit rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_30S_Mesh_Kit_room_server",
-    "name": "GAT562 30S Mesh Kit Room Server",
+    "name": "gat562 30s mesh kit room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for GAT562 30S Mesh Kit."
   },
   {
     "env": "GAT562_Mesh_EVB_Pro_repeater",
-    "name": "GAT562 Mesh EVB Pro Repeater",
+    "name": "gat562 mesh evb pro repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for GAT562 Mesh EVB Pro."
   },
   {
     "env": "GAT562_Mesh_EVB_Pro_repeater_bridge_ble",
-    "name": "gat562 mesh evb pro BLE bridge",
+    "name": "gat562 mesh evb pro ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh EVB Pro."
   },
   {
     "env": "GAT562_Mesh_EVB_Pro_repeater_bridge_rs232",
-    "name": "GAT562 Mesh EVB Pro RS232 Bridge",
+    "name": "gat562 mesh evb pro rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh EVB Pro."
   },
   {
     "env": "GAT562_Mesh_EVB_Pro_room_server",
-    "name": "GAT562 Mesh EVB Pro Room Server",
+    "name": "gat562 mesh evb pro room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for GAT562 Mesh EVB Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_companion_radio_ble",
-    "name": "GAT562 Mesh Tracker Pro Companion Radio (BLE)",
+    "name": "gat562 mesh tracker pro companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_companion_radio_usb",
-    "name": "GAT562 Mesh Tracker Pro Companion Radio (USB)",
+    "name": "gat562 mesh tracker pro companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_repeater",
-    "name": "GAT562 Mesh Tracker Pro Repeater",
+    "name": "gat562 mesh tracker pro repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_repeater_bridge_ble",
-    "name": "gat562 mesh tracker pro BLE bridge",
+    "name": "gat562 mesh tracker pro ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_repeater_bridge_rs232",
-    "name": "GAT562 Mesh Tracker Pro RS232 Bridge",
+    "name": "gat562 mesh tracker pro rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_room_server",
-    "name": "GAT562 Mesh Tracker Pro Room Server",
+    "name": "gat562 mesh tracker pro room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for GAT562 Mesh Tracker Pro."
   },
   {
     "env": "GAT562_Mesh_Watch13_companion_radio_ble",
-    "name": "GAT562 Mesh Watch13 Companion Radio (BLE)",
+    "name": "gat562 mesh watch13 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for GAT562 Mesh Watch13."
   },
   {
     "env": "GAT562_Mesh_Watch13_repeater_bridge_ble",
-    "name": "gat562 mesh watch13 BLE bridge",
+    "name": "gat562 mesh watch13 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh Watch13."
   },
   {
     "env": "GAT562_Mesh_Watch13_repeater_bridge_rs232",
-    "name": "GAT562 Mesh Watch13 RS232 Bridge",
+    "name": "gat562 mesh watch13 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for GAT562 Mesh Watch13."
   },
   {
     "env": "Generic_E22_sx1262_companion_radio_ble",
-    "name": "Generic E22 SX1262 Companion Radio (BLE)",
+    "name": "generic e22 sx1262 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1262_companion_radio_usb",
-    "name": "Generic E22 SX1262 Companion Radio (USB)",
+    "name": "generic e22 sx1262 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1262_repeater",
-    "name": "Generic E22 SX1262 Repeater",
+    "name": "generic e22 sx1262 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_ble",
-    "name": "generic e22 sx1262 BLE bridge",
+    "name": "generic e22 sx1262 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Generic E22 SX1262."
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_espnow",
-    "name": "Generic E22 SX1262 Repeater (ESPNow Bridge)",
+    "name": "generic e22 sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_rs232",
-    "name": "Generic E22 SX1262 RS232 Bridge",
+    "name": "generic e22 sx1262 rs232 bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG RS232 Bridge firmware for Generic E22 SX1262."
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_tcp",
-    "name": "Generic E22 SX1262 Repeater (TCP Bridge)",
+    "name": "generic e22 sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_tcp_ble",
-    "name": "generic e22 sx1262 repeater (TCP+BLE bridge)",
+    "name": "generic e22 sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Generic E22 SX1262 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_companion_radio_ble",
-    "name": "Generic E22 SX1268 Companion Radio (BLE)",
+    "name": "generic e22 sx1268 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_companion_radio_usb",
-    "name": "Generic E22 SX1268 Companion Radio (USB)",
+    "name": "generic e22 sx1268 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_repeater",
-    "name": "Generic E22 SX1268 Repeater",
+    "name": "generic e22 sx1268 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_ble",
-    "name": "generic e22 sx1268 BLE bridge",
+    "name": "generic e22 sx1268 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Generic E22 SX1268."
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_espnow",
-    "name": "Generic E22 SX1268 Repeater (ESPNow Bridge)",
+    "name": "generic e22 sx1268 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_rs232",
-    "name": "Generic E22 SX1268 RS232 Bridge",
+    "name": "generic e22 sx1268 rs232 bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG RS232 Bridge firmware for Generic E22 SX1268."
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_tcp",
-    "name": "Generic E22 SX1268 Repeater (TCP Bridge)",
+    "name": "generic e22 sx1268 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_tcp_ble",
-    "name": "generic e22 sx1268 repeater (TCP+BLE bridge)",
+    "name": "generic e22 sx1268 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Generic E22 SX1268 (ESP32)."
   },
   {
     "env": "Generic_ESPNOW_comp_radio_usb",
-    "name": "Generic ESPNow Companion Radio (USB)",
+    "name": "generic espnow companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Generic ESPNow (ESP32)."
   },
   {
     "env": "Generic_ESPNOW_repeatr",
-    "name": "Generic ESPNow Repeater",
+    "name": "generic espnow repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Generic ESPNow (ESP32)."
   },
   {
     "env": "Generic_ESPNOW_room_svr",
-    "name": "Generic ESPNow Room Server",
+    "name": "generic espnow room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Generic ESPNow (ESP32)."
   },
   {
     "env": "Generic_ESPNOW_terminal_chat",
-    "name": "Generic ESPNow Terminal Chat",
+    "name": "generic espnow terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Generic ESPNow (ESP32)."
   },
   {
     "env": "Heltec_ct62_companion_radio_ble",
-    "name": "Heltec CT62 Companion Radio (BLE)",
+    "name": "heltec ct62 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_companion_radio_usb",
-    "name": "Heltec CT62 Companion Radio (USB)",
+    "name": "heltec ct62 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_repeater",
-    "name": "Heltec CT62 Repeater",
+    "name": "heltec ct62 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_repeater_bridge_ble",
-    "name": "heltec ct62 BLE bridge",
+    "name": "heltec ct62 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec CT62."
   },
   {
     "env": "Heltec_ct62_repeater_bridge_espnow",
-    "name": "Heltec CT62 Repeater (ESPNow Bridge)",
+    "name": "heltec ct62 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_repeater_bridge_tcp",
-    "name": "Heltec CT62 Repeater (TCP Bridge)",
+    "name": "heltec ct62 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_repeater_bridge_tcp_ble",
-    "name": "heltec ct62 repeater (TCP+BLE bridge)",
+    "name": "heltec ct62 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_ct62_sensor",
-    "name": "Heltec CT62 Sensor",
+    "name": "heltec ct62 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec CT62 (ESP32)."
   },
   {
     "env": "Heltec_E213_companion_radio_ble",
-    "name": "Heltec E213 Companion Radio (BLE)",
+    "name": "heltec e213 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_companion_radio_usb",
-    "name": "Heltec E213 Companion Radio (USB)",
+    "name": "heltec e213 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_repeater",
-    "name": "Heltec E213 Repeater",
+    "name": "heltec e213 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_repeater_bridge_ble",
-    "name": "heltec e213 BLE bridge",
+    "name": "heltec e213 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec E213."
   },
   {
     "env": "Heltec_E213_repeater_bridge_espnow",
-    "name": "Heltec E213 Repeater (ESPNow Bridge)",
+    "name": "heltec e213 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_repeater_bridge_tcp",
-    "name": "Heltec E213 Repeater (TCP Bridge)",
+    "name": "heltec e213 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_repeater_bridge_tcp_ble",
-    "name": "heltec e213 repeater (TCP+BLE bridge)",
+    "name": "heltec e213 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E213_room_server",
-    "name": "Heltec E213 Room Server",
+    "name": "heltec e213 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec E213 (ESP32)."
   },
   {
     "env": "Heltec_E290_companion_ble",
-    "name": "Heltec E290 Companion Radio (BLE)",
+    "name": "heltec e290 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_E290_companion_usb",
-    "name": "Heltec E290 Companion Radio (USB)",
+    "name": "heltec e290 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_E290_repeater",
-    "name": "Heltec E290 Repeater",
+    "name": "heltec e290 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_E290_repeater_bridge_espnow",
-    "name": "Heltec E290 Repeater (ESPNow Bridge)",
+    "name": "heltec e290 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_E290_repeater_bridge_tcp",
-    "name": "Heltec E290 Repeater (TCP Bridge)",
+    "name": "heltec e290 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_E290_room_server",
-    "name": "Heltec E290 Room Server",
+    "name": "heltec e290 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec E290 (ESP32)."
   },
   {
     "env": "Heltec_mesh_solar_companion_radio_ble",
-    "name": "Heltec Mesh Solar Companion Radio (BLE)",
+    "name": "heltec mesh solar companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_mesh_solar_companion_radio_usb",
-    "name": "Heltec Mesh Solar Companion Radio (USB)",
+    "name": "heltec mesh solar companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_mesh_solar_repeater",
-    "name": "Heltec Mesh Solar Repeater",
+    "name": "heltec mesh solar repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_mesh_solar_repeater_bridge_ble",
-    "name": "heltec mesh solar BLE bridge",
+    "name": "heltec mesh solar ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_mesh_solar_repeater_bridge_rs232",
-    "name": "Heltec Mesh Solar RS232 Bridge",
+    "name": "heltec mesh solar rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_mesh_solar_room_server",
-    "name": "Heltec Mesh Solar Room Server",
+    "name": "heltec mesh solar room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Heltec Mesh Solar."
   },
   {
     "env": "Heltec_t096_companion_radio_ble",
-    "name": "Heltec T096 Companion Radio (BLE)",
+    "name": "heltec t096 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T096."
   },
   {
     "env": "Heltec_t096_companion_radio_usb",
-    "name": "Heltec T096 Companion Radio (USB)",
+    "name": "heltec t096 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T096."
   },
   {
     "env": "Heltec_t096_repeater",
-    "name": "Heltec T096 Repeater",
+    "name": "heltec t096 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Heltec T096."
   },
   {
     "env": "Heltec_t096_repeater_bridge_ble",
-    "name": "heltec t096 BLE bridge",
+    "name": "heltec t096 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T096."
   },
   {
     "env": "Heltec_t096_repeater_bridge_rs232",
-    "name": "Heltec T096 RS232 Bridge",
+    "name": "heltec t096 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec T096."
   },
   {
     "env": "Heltec_t096_room_server",
-    "name": "Heltec T096 Room Server",
+    "name": "heltec t096 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Heltec T096."
   },
   {
     "env": "Heltec_t114_companion_radio_ble",
-    "name": "Heltec T114 Companion Radio (BLE)",
+    "name": "heltec t114 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_companion_radio_usb",
-    "name": "Heltec T114 Companion Radio (USB)",
+    "name": "heltec t114 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_repeater",
-    "name": "Heltec T114 Repeater",
+    "name": "heltec t114 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_repeater_bridge_ble",
-    "name": "heltec t114 BLE bridge",
+    "name": "heltec t114 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_repeater_bridge_rs232",
-    "name": "Heltec T114 RS232 Bridge",
+    "name": "heltec t114 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_room_server",
-    "name": "Heltec T114 Room Server",
+    "name": "heltec t114 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Heltec T114."
   },
   {
     "env": "Heltec_t114_without_display_companion_radio_ble",
-    "name": "Heltec T114 Without Display Companion Radio (BLE)",
+    "name": "heltec t114 without display companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_t114_without_display_companion_radio_usb",
-    "name": "Heltec T114 Without Display Companion Radio (USB)",
+    "name": "heltec t114 without display companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_t114_without_display_repeater",
-    "name": "Heltec T114 Without Display Repeater",
+    "name": "heltec t114 without display repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_t114_without_display_repeater_bridge_ble",
-    "name": "heltec t114 without display BLE bridge",
+    "name": "heltec t114 without display ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_t114_without_display_repeater_bridge_rs232",
-    "name": "Heltec T114 Without Display RS232 Bridge",
+    "name": "heltec t114 without display rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_t114_without_display_room_server",
-    "name": "Heltec T114 Without Display Room Server",
+    "name": "heltec t114 without display room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Heltec T114 Without Display."
   },
   {
     "env": "Heltec_T190_companion_radio_ble_",
-    "name": "Heltec T190 Companion Radio (BLE)",
+    "name": "heltec t190 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_companion_radio_usb_",
-    "name": "Heltec T190 Companion Radio (USB)",
+    "name": "heltec t190 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_repeater_",
-    "name": "Heltec T190 Repeater",
+    "name": "heltec t190 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_repeater_bridge_ble",
-    "name": "heltec t190 BLE bridge",
+    "name": "heltec t190 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T190."
   },
   {
     "env": "Heltec_T190_repeater_bridge_espnow_",
-    "name": "Heltec T190 Repeater (ESPNow Bridge)",
+    "name": "heltec t190 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_repeater_bridge_tcp",
-    "name": "Heltec T190 Repeater (TCP Bridge)",
+    "name": "heltec t190 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_repeater_bridge_tcp_ble",
-    "name": "heltec t190 repeater (TCP+BLE bridge)",
+    "name": "heltec t190 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "Heltec_T190_room_server_",
-    "name": "Heltec T190 Room Server",
+    "name": "heltec t190 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec T190 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_companion_radio_ble",
-    "name": "Heltec Tracker V2 Companion Radio (BLE)",
+    "name": "heltec tracker v2 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_companion_radio_usb",
-    "name": "Heltec Tracker V2 Companion Radio (USB)",
+    "name": "heltec tracker v2 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_companion_radio_wifi",
-    "name": "Heltec Tracker V2 Companion Radio (WiFi)",
+    "name": "heltec tracker v2 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_repeater",
-    "name": "Heltec Tracker V2 Repeater",
+    "name": "heltec tracker v2 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_ble",
-    "name": "heltec tracker v2 BLE bridge",
+    "name": "heltec tracker v2 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Tracker V2."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_espnow",
-    "name": "Heltec Tracker V2 Repeater (ESPNow Bridge)",
+    "name": "heltec tracker v2 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_rs232",
-    "name": "Heltec Wireless Tracker v2 RS232 Bridge",
+    "name": "heltec wireless tracker v2 rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec Wireless Tracker v2."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_tcp",
-    "name": "Heltec Tracker V2 Repeater (TCP Bridge)",
+    "name": "heltec tracker v2 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_tcp_ble",
-    "name": "heltec tracker v2 repeater (TCP+BLE bridge)",
+    "name": "heltec tracker v2 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_room_server",
-    "name": "Heltec Tracker V2 Room Server",
+    "name": "heltec tracker v2 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_sensor",
-    "name": "Heltec Tracker V2 Sensor",
+    "name": "heltec tracker v2 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "heltec_tracker_v2_terminal_chat",
-    "name": "Heltec Tracker V2 Terminal Chat",
+    "name": "heltec tracker v2 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec Tracker V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_companion_radio_ble",
-    "name": "Heltec LoRa V2 Companion Radio (BLE)",
+    "name": "heltec lora v2 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_companion_radio_usb",
-    "name": "Heltec LoRa V2 Companion Radio (USB)",
+    "name": "heltec lora v2 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_companion_radio_wifi",
-    "name": "Heltec LoRa V2 Companion Radio (WiFi)",
+    "name": "heltec lora v2 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_repeater",
-    "name": "Heltec LoRa V2 Repeater",
+    "name": "heltec lora v2 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_repeater_bridge_ble",
-    "name": "heltec lora v2 BLE bridge",
+    "name": "heltec lora v2 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V2."
   },
   {
     "env": "Heltec_v2_repeater_bridge_espnow",
-    "name": "Heltec LoRa V2 Repeater (ESPNow Bridge)",
+    "name": "heltec lora v2 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_repeater_bridge_tcp",
-    "name": "Heltec LoRa V2 Repeater (TCP Bridge)",
+    "name": "heltec lora v2 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_repeater_bridge_tcp_ble",
-    "name": "heltec lora v2 repeater (TCP+BLE bridge)",
+    "name": "heltec lora v2 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_room_server",
-    "name": "Heltec LoRa V2 Room Server",
+    "name": "heltec lora v2 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v2_terminal_chat",
-    "name": "Heltec LoRa V2 Terminal Chat",
+    "name": "heltec lora v2 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V2 (ESP32)."
   },
   {
     "env": "Heltec_v3_companion_radio_ble",
-    "name": "Heltec LoRa V3 Companion Radio (BLE)",
+    "name": "heltec lora v3 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_companion_radio_usb",
-    "name": "Heltec LoRa V3 Companion Radio (USB)",
+    "name": "heltec lora v3 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_companion_radio_wifi",
-    "name": "Heltec LoRa V3 Companion Radio (WiFi)",
+    "name": "heltec lora v3 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_kiss_modem",
-    "name": "Heltec LoRa V3 KISS Modem",
+    "name": "heltec lora v3 kiss modem",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG KISS Modem firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_repeater",
-    "name": "Heltec LoRa V3 Repeater",
+    "name": "heltec lora v3 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_repeater_bridge_ble",
-    "name": "heltec lora v3 BLE bridge",
+    "name": "heltec lora v3 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V3."
   },
   {
     "env": "Heltec_v3_repeater_bridge_espnow",
-    "name": "Heltec LoRa V3 Repeater (ESPNow Bridge)",
+    "name": "heltec lora v3 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_repeater_bridge_rs232",
-    "name": "Heltec LoRa V3 Repeater (RS232 Bridge)",
+    "name": "heltec lora v3 repeater (rs232 bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_repeater_bridge_tcp",
-    "name": "Heltec LoRa V3 Repeater (TCP Bridge)",
+    "name": "heltec lora v3 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_repeater_bridge_tcp_ble",
-    "name": "heltec lora v3 repeater (TCP+BLE bridge)",
+    "name": "heltec lora v3 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_room_server",
-    "name": "Heltec LoRa V3 Room Server",
+    "name": "heltec lora v3 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_sensor",
-    "name": "Heltec LoRa V3 Sensor",
+    "name": "heltec lora v3 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec LoRa V3 (ESP32)."
   },
   {
     "env": "Heltec_v3_terminal_chat",
-    "name": "Heltec LoRa V3 Terminal Chat",
+    "name": "heltec lora v3 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V3 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_companion_radio_ble",
-    "name": "heltec lora v3 433 companion radio (BLE)",
+    "env": "heltec_v3_433_companion_radio_ble",
+    "name": "heltec lora v3 433 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_companion_radio_usb",
-    "name": "heltec lora v3 433 companion radio (USB)",
+    "env": "heltec_v3_433_companion_radio_usb",
+    "name": "heltec lora v3 433 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_companion_radio_wifi",
-    "name": "heltec lora v3 433 companion radio (WiFi)",
+    "env": "heltec_v3_433_companion_radio_wifi",
+    "name": "heltec lora v3 433 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_kiss_modem",
+    "env": "heltec_v3_433_kiss_modem",
     "name": "heltec lora v3 433 kiss modem",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG KISS Modem firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_repeater",
+    "env": "heltec_v3_433_repeater",
     "name": "heltec lora v3 433 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_repeater_bridge_ble",
-    "name": "heltec lora v3 433 BLE bridge",
+    "env": "heltec_v3_433_repeater_bridge_ble",
+    "name": "heltec lora v3 433 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V3 433/SX1268."
   },
   {
-    "env": "Heltec_v3_433_repeater_bridge_espnow",
-    "name": "heltec lora v3 433 repeater (ESPNow bridge)",
+    "env": "heltec_v3_433_repeater_bridge_espnow",
+    "name": "heltec lora v3 433 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_repeater_bridge_rs232",
-    "name": "heltec lora v3 433 repeater (RS232 bridge)",
+    "env": "heltec_v3_433_repeater_bridge_rs232",
+    "name": "heltec lora v3 433 repeater (rs232 bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_repeater_bridge_tcp",
-    "name": "heltec lora v3 433 repeater (TCP bridge)",
+    "env": "heltec_v3_433_repeater_bridge_tcp",
+    "name": "heltec lora v3 433 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_repeater_bridge_tcp_ble",
-    "name": "heltec lora v3 433 repeater (TCP+BLE bridge)",
+    "env": "heltec_v3_433_repeater_bridge_tcp_ble",
+    "name": "heltec lora v3 433 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_room_server",
+    "env": "heltec_v3_433_room_server",
     "name": "heltec lora v3 433 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_sensor",
+    "env": "heltec_v3_433_sensor",
     "name": "heltec lora v3 433 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
-    "env": "Heltec_v3_433_terminal_chat",
+    "env": "heltec_v3_433_terminal_chat",
     "name": "heltec lora v3 433 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
     "env": "heltec_v4_companion_radio_ble",
-    "name": "Heltec LoRa V4 Companion Radio (BLE)",
+    "name": "heltec lora v4 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_companion_radio_usb",
-    "name": "Heltec LoRa V4 Companion Radio (USB)",
+    "name": "heltec lora v4 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_companion_radio_wifi",
-    "name": "Heltec LoRa V4 Companion Radio (WiFi)",
+    "name": "heltec lora v4 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_repeater",
-    "name": "Heltec LoRa V4 Repeater",
+    "name": "heltec lora v4 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_repeater_bridge_ble",
-    "name": "heltec lora v4 BLE bridge",
+    "name": "heltec lora v4 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V4."
   },
   {
     "env": "heltec_v4_repeater_bridge_espnow",
-    "name": "Heltec LoRa V4 Repeater (ESPNow Bridge)",
+    "name": "heltec lora v4 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_repeater_bridge_rs232",
-    "name": "Heltec LoRa32 v4 OLED RS232 Bridge",
+    "name": "heltec lora32 v4 oled rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec LoRa32 v4 OLED."
   },
   {
     "env": "heltec_v4_repeater_bridge_tcp",
-    "name": "Heltec LoRa V4 Repeater (TCP Bridge)",
+    "name": "heltec lora v4 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_repeater_bridge_tcp_ble",
-    "name": "heltec lora v4 repeater (TCP+BLE bridge)",
+    "name": "heltec lora v4 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_room_server",
-    "name": "Heltec LoRa V4 Room Server",
+    "name": "heltec lora v4 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_sensor",
-    "name": "Heltec LoRa V4 Sensor",
+    "name": "heltec lora v4 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_terminal_chat",
-    "name": "Heltec LoRa V4 Terminal Chat",
+    "name": "heltec lora v4 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V4 (ESP32)."
   },
   {
     "env": "heltec_v4_tft_companion_radio_ble",
-    "name": "Heltec LoRa V4 TFT Companion Radio (BLE)",
+    "name": "heltec lora v4 tft companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_companion_radio_usb",
-    "name": "Heltec LoRa V4 TFT Companion Radio (USB)",
+    "name": "heltec lora v4 tft companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_companion_radio_wifi",
-    "name": "Heltec LoRa V4 TFT Companion Radio (WiFi)",
+    "name": "heltec lora v4 tft companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_repeater",
-    "name": "Heltec LoRa V4 TFT Repeater",
+    "name": "heltec lora v4 tft repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_ble",
-    "name": "heltec lora v4 tft BLE bridge",
+    "name": "heltec lora v4 tft ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V4 TFT."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_espnow",
-    "name": "Heltec LoRa V4 TFT Repeater (ESPNow Bridge)",
+    "name": "heltec lora v4 tft repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_rs232",
-    "name": "Heltec LoRa32 v4 TFT RS232 Bridge",
+    "name": "heltec lora32 v4 tft rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec LoRa32 v4 TFT."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_tcp",
-    "name": "Heltec LoRa V4 TFT Repeater (TCP Bridge)",
+    "name": "heltec lora v4 tft repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_tcp_ble",
-    "name": "heltec lora v4 tft repeater (TCP+BLE bridge)",
+    "name": "heltec lora v4 tft repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_room_server",
-    "name": "Heltec LoRa V4 TFT Room Server",
+    "name": "heltec lora v4 tft room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_sensor",
-    "name": "Heltec LoRa V4 TFT Sensor",
+    "name": "heltec lora v4 tft sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "heltec_v4_tft_terminal_chat",
-    "name": "Heltec LoRa V4 TFT Terminal Chat",
+    "name": "heltec lora v4 tft terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V4 TFT (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_companion_radio_ble",
-    "name": "Heltec Wireless Paper Companion Radio (BLE)",
+    "name": "heltec wireless paper companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_companion_radio_usb",
-    "name": "Heltec Wireless Paper Companion Radio (USB)",
+    "name": "heltec wireless paper companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_repeater",
-    "name": "Heltec Wireless Paper Repeater",
+    "name": "heltec wireless paper repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_ble",
-    "name": "heltec wireless paper BLE bridge",
+    "name": "heltec wireless paper ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Wireless Paper."
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_espnow",
-    "name": "Heltec Wireless Paper Repeater (ESPNow Bridge)",
+    "name": "heltec wireless paper repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_tcp",
-    "name": "Heltec Wireless Paper Repeater (TCP Bridge)",
+    "name": "heltec wireless paper repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_tcp_ble",
-    "name": "heltec wireless paper repeater (TCP+BLE bridge)",
+    "name": "heltec wireless paper repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Paper_room_server",
-    "name": "Heltec Wireless Paper Room Server",
+    "name": "heltec wireless paper room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec Wireless Paper (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_companion_radio_ble",
-    "name": "Heltec Wireless Tracker Companion Radio (BLE)",
+    "name": "heltec wireless tracker companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_companion_radio_usb",
-    "name": "Heltec Wireless Tracker Companion Radio (USB)",
+    "name": "heltec wireless tracker companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater",
-    "name": "Heltec Wireless Tracker Repeater",
+    "name": "heltec wireless tracker repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_ble",
-    "name": "heltec wireless tracker BLE bridge",
+    "name": "heltec wireless tracker ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Wireless Tracker."
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_espnow",
-    "name": "Heltec Wireless Tracker Repeater (ESPNow Bridge)",
+    "name": "heltec wireless tracker repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_tcp",
-    "name": "Heltec Wireless Tracker Repeater (TCP Bridge)",
+    "name": "heltec wireless tracker repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_tcp_ble",
-    "name": "heltec wireless tracker repeater (TCP+BLE bridge)",
+    "name": "heltec wireless tracker repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_Wireless_Tracker_room_server",
-    "name": "Heltec Wireless Tracker Room Server",
+    "name": "heltec wireless tracker room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec Wireless Tracker (ESP32)."
   },
   {
     "env": "Heltec_WSL3_companion_radio_ble",
-    "name": "Heltec WSL3 Companion Radio (BLE)",
+    "name": "heltec wsl3 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_companion_radio_usb",
-    "name": "Heltec WSL3 Companion Radio (USB)",
+    "name": "heltec wsl3 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_companion_radio_wifi",
-    "name": "Heltec WSL3 Companion Radio (WiFi)",
+    "name": "heltec wsl3 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_repeater",
-    "name": "Heltec WSL3 Repeater",
+    "name": "heltec wsl3 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_ble",
-    "name": "heltec wsl3 BLE bridge",
+    "name": "heltec wsl3 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec WSL3."
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_espnow",
-    "name": "Heltec WSL3 Repeater (ESPNow Bridge)",
+    "name": "heltec wsl3 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_rs232",
-    "name": "Heltec WSL3 Repeater (RS232 Bridge)",
+    "name": "heltec wsl3 repeater (rs232 bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_tcp",
-    "name": "Heltec WSL3 Repeater (TCP Bridge)",
+    "name": "heltec wsl3 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_tcp_ble",
-    "name": "heltec wsl3 repeater (TCP+BLE bridge)",
+    "name": "heltec wsl3 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_room_server",
-    "name": "Heltec WSL3 Room Server",
+    "name": "heltec wsl3 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "Heltec_WSL3_sensor",
-    "name": "Heltec WSL3 Sensor",
+    "name": "heltec wsl3 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for Heltec WSL3 (ESP32)."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_096_companion_radio_ble",
-    "name": "Ikoka Handheld nRF E22 30dbm 096 Companion Radio (BLE)",
+    "name": "ikoka handheld nrf e22 30dbm 096 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Handheld nRF E22 30dbm 096."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_096_companion_radio_usb",
-    "name": "Ikoka Handheld nRF E22 30dbm 096 Companion Radio (USB)",
+    "name": "ikoka handheld nrf e22 30dbm 096 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Handheld nRF E22 30dbm 096."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_096_rotated_companion_radio_ble",
-    "name": "Ikoka Handheld nRF E22 30dbm 096 Rotated Companion Radio (BLE)",
+    "name": "ikoka handheld nrf e22 30dbm 096 rotated companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Handheld nRF E22 30dbm 096 Rotated."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_096_rotated_companion_radio_usb",
-    "name": "Ikoka Handheld nRF E22 30dbm 096 Rotated Companion Radio (USB)",
+    "name": "ikoka handheld nrf e22 30dbm 096 rotated companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Handheld nRF E22 30dbm 096 Rotated."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_repeater",
-    "name": "Ikoka Handheld nRF E22 30dbm Repeater",
+    "name": "ikoka handheld nrf e22 30dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Handheld nRF E22 30dbm."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_repeater_bridge_ble",
-    "name": "ikoka handheld nrf e22 30dbm BLE bridge",
+    "name": "ikoka handheld nrf e22 30dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Handheld nRF E22 30dbm."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_repeater_bridge_rs232",
-    "name": "Ikoka Handheld nRF E22 30dBm RS232 Bridge",
+    "name": "ikoka handheld nrf e22 30dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Handheld nRF E22 30dBm."
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_room_server",
-    "name": "Ikoka Handheld nRF E22 30dbm Room Server",
+    "name": "ikoka handheld nrf e22 30dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Handheld nRF E22 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_companion_radio_ble",
-    "name": "Ikoka Nano nRF 22dbm Companion Radio (BLE)",
+    "name": "ikoka nano nrf 22dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 22dbm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_companion_radio_usb",
-    "name": "Ikoka Nano nRF 22dbm Companion Radio (USB)",
+    "name": "ikoka nano nrf 22dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 22dbm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_repeater",
-    "name": "Ikoka Nano nRF 22dbm Repeater",
+    "name": "ikoka nano nrf 22dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 22dbm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 22dbm BLE bridge",
+    "name": "ikoka nano nrf 22dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 22dbm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_repeater_bridge_rs232",
-    "name": "Ikoka Nano nRF 22dBm RS232 Bridge",
+    "name": "ikoka nano nrf 22dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 22dBm."
   },
   {
     "env": "ikoka_nano_nrf_22dbm_room_server",
-    "name": "Ikoka Nano nRF 22dbm Room Server",
+    "name": "ikoka nano nrf 22dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 22dbm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_companion_radio_ble",
-    "name": "Ikoka Nano nRF 30dbm Companion Radio (BLE)",
+    "name": "ikoka nano nrf 30dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_companion_radio_usb",
-    "name": "Ikoka Nano nRF 30dbm Companion Radio (USB)",
+    "name": "ikoka nano nrf 30dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_repeater",
-    "name": "Ikoka Nano nRF 30dbm Repeater",
+    "name": "ikoka nano nrf 30dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 30dbm BLE bridge",
+    "name": "ikoka nano nrf 30dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_repeater_bridge_rs232",
-    "name": "Ikoka Nano nRF 30dBm RS232 Bridge",
+    "name": "ikoka nano nrf 30dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 30dBm."
   },
   {
     "env": "ikoka_nano_nrf_30dbm_room_server",
-    "name": "Ikoka Nano nRF 30dbm Room Server",
+    "name": "ikoka nano nrf 30dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 30dbm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_companion_radio_ble",
-    "name": "Ikoka Nano nRF 33dbm Companion Radio (BLE)",
+    "name": "ikoka nano nrf 33dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Nano nRF 33dbm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_companion_radio_usb",
-    "name": "Ikoka Nano nRF 33dbm Companion Radio (USB)",
+    "name": "ikoka nano nrf 33dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Nano nRF 33dbm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_repeater",
-    "name": "Ikoka Nano nRF 33dbm Repeater",
+    "name": "ikoka nano nrf 33dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Nano nRF 33dbm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 33dbm BLE bridge",
+    "name": "ikoka nano nrf 33dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 33dbm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_repeater_bridge_rs232",
-    "name": "Ikoka Nano nRF 33dBm RS232 Bridge",
+    "name": "ikoka nano nrf 33dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Nano nRF 33dBm."
   },
   {
     "env": "ikoka_nano_nrf_33dbm_room_server",
-    "name": "Ikoka Nano nRF 33dbm Room Server",
+    "name": "ikoka nano nrf 33dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Nano nRF 33dbm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_companion_radio_ble",
-    "name": "Ikoka Stick nRF 22dbm Companion Radio (BLE)",
+    "name": "ikoka stick nrf 22dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 22dbm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_companion_radio_usb",
-    "name": "Ikoka Stick nRF 22dbm Companion Radio (USB)",
+    "name": "ikoka stick nrf 22dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 22dbm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_repeater",
-    "name": "Ikoka Stick nRF 22dbm Repeater",
+    "name": "ikoka stick nrf 22dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 22dbm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 22dbm BLE bridge",
+    "name": "ikoka stick nrf 22dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 22dbm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_repeater_bridge_rs232",
-    "name": "Ikoka Stick nRF 22dBm RS232 Bridge",
+    "name": "ikoka stick nrf 22dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 22dBm."
   },
   {
     "env": "ikoka_stick_nrf_22dbm_room_server",
-    "name": "Ikoka Stick nRF 22dbm Room Server",
+    "name": "ikoka stick nrf 22dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 22dbm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_companion_radio_ble",
-    "name": "Ikoka Stick nRF 30dbm Companion Radio (BLE)",
+    "name": "ikoka stick nrf 30dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 30dbm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_companion_radio_usb",
-    "name": "Ikoka Stick nRF 30dbm Companion Radio (USB)",
+    "name": "ikoka stick nrf 30dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 30dbm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_repeater",
-    "name": "Ikoka Stick nRF 30dbm Repeater",
+    "name": "ikoka stick nrf 30dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 30dbm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 30dbm BLE bridge",
+    "name": "ikoka stick nrf 30dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 30dbm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_repeater_bridge_rs232",
-    "name": "Ikoka Stick nRF 30dBm RS232 Bridge",
+    "name": "ikoka stick nrf 30dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 30dBm."
   },
   {
     "env": "ikoka_stick_nrf_30dbm_room_server",
-    "name": "Ikoka Stick nRF 30dbm Room Server",
+    "name": "ikoka stick nrf 30dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 30dbm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_companion_radio_ble",
-    "name": "Ikoka Stick nRF 33dbm Companion Radio (BLE)",
+    "name": "ikoka stick nrf 33dbm companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Ikoka Stick nRF 33dbm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_companion_radio_usb",
-    "name": "Ikoka Stick nRF 33dbm Companion Radio (USB)",
+    "name": "ikoka stick nrf 33dbm companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Ikoka Stick nRF 33dbm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_repeater",
-    "name": "Ikoka Stick nRF 33dbm Repeater",
+    "name": "ikoka stick nrf 33dbm repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Ikoka Stick nRF 33dbm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 33dbm BLE bridge",
+    "name": "ikoka stick nrf 33dbm ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 33dbm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_repeater_bridge_rs232",
-    "name": "Ikoka Stick nRF 33dBm RS232 Bridge",
+    "name": "ikoka stick nrf 33dbm rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Ikoka Stick nRF 33dBm."
   },
   {
     "env": "ikoka_stick_nrf_33dbm_room_server",
-    "name": "Ikoka Stick nRF 33dbm Room Server",
+    "name": "ikoka stick nrf 33dbm room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Ikoka Stick nRF 33dbm."
   },
   {
     "env": "KeepteenLT1_companion_radio_ble",
-    "name": "KeepteenLT1 Companion Radio (BLE)",
+    "name": "keepteenlt1 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for KeepteenLT1."
   },
   {
     "env": "KeepteenLT1_companion_radio_usb",
-    "name": "KeepteenLT1 Companion Radio (USB)",
+    "name": "keepteenlt1 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for KeepteenLT1."
   },
   {
     "env": "KeepteenLT1_repeater",
-    "name": "KeepteenLT1 Repeater",
+    "name": "keepteenlt1 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for KeepteenLT1."
   },
   {
     "env": "KeepteenLT1_repeater_bridge_ble",
-    "name": "keepteenlt1 BLE bridge",
+    "name": "keepteenlt1 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for KeepteenLT1."
   },
   {
     "env": "KeepteenLT1_repeater_bridge_rs232",
-    "name": "KeepteenLT1 RS232 Bridge",
+    "name": "keepteenlt1 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for KeepteenLT1."
   },
   {
     "env": "KeepteenLT1_room_server",
-    "name": "KeepteenLT1 Room Server",
+    "name": "keepteenlt1 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for KeepteenLT1."
   },
   {
     "env": "LilyGo_T-Echo-Lite_companion_radio_ble",
-    "name": "LilyGo T Echo Lite Companion Radio (BLE)",
+    "name": "lilygo t echo lite companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T Echo Lite."
   },
   {
     "env": "LilyGo_T-Echo-Lite_repeater",
-    "name": "LilyGo T Echo Lite Repeater",
+    "name": "lilygo t echo lite repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for LilyGo T Echo Lite."
   },
   {
     "env": "LilyGo_T-Echo-Lite_repeater_bridge_ble",
-    "name": "lilygo t echo lite BLE bridge",
+    "name": "lilygo t echo lite ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T Echo Lite."
   },
   {
     "env": "LilyGo_T-Echo-Lite_repeater_bridge_rs232",
-    "name": "LilyGo T-Echo Lite RS232 Bridge",
+    "name": "lilygo t-echo lite rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Echo Lite."
   },
   {
     "env": "LilyGo_T-Echo-Lite_room_server",
-    "name": "LilyGo T Echo Lite Room Server",
+    "name": "lilygo t echo lite room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for LilyGo T Echo Lite."
   },
   {
     "env": "LilyGo_T-Echo_companion_radio_ble",
-    "name": "LilyGo T Echo Companion Radio (BLE)",
+    "name": "lilygo t echo companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T Echo."
   },
   {
     "env": "LilyGo_T-Echo_companion_radio_usb",
-    "name": "LilyGo T Echo Companion Radio (USB)",
+    "name": "lilygo t echo companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T Echo."
   },
   {
     "env": "LilyGo_T-Echo_repeater",
-    "name": "LilyGo T Echo Repeater",
+    "name": "lilygo t echo repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for LilyGo T Echo."
   },
   {
     "env": "LilyGo_T-Echo_repeater_bridge_ble",
-    "name": "lilygo t echo BLE bridge",
+    "name": "lilygo t echo ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T Echo."
   },
   {
     "env": "LilyGo_T-Echo_repeater_bridge_rs232",
-    "name": "LilyGo T-Echo RS232 Bridge",
+    "name": "lilygo t-echo rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Echo."
   },
   {
     "env": "LilyGo_T-Echo_room_server",
-    "name": "LilyGo T Echo Room Server",
+    "name": "lilygo t echo room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for LilyGo T Echo."
   },
   {
     "env": "LilyGo_T3S3_sx1262_companion_radio_ble",
-    "name": "LilyGo T3S3 SX1262 Companion Radio (BLE)",
+    "name": "lilygo t3s3 sx1262 companion radio (ble)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_companion_radio_usb",
-    "name": "LilyGo T3S3 SX1262 Companion Radio (USB)",
+    "name": "lilygo t3s3 sx1262 companion radio (usb)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater",
-    "name": "LilyGo T3S3 SX1262 Repeater",
+    "name": "lilygo t3s3 sx1262 repeater",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_ble",
-    "name": "lilygo t3s3 sx1262 BLE bridge",
+    "name": "lilygo t3s3 sx1262 ble bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T3S3 SX1262."
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_espnow",
-    "name": "LilyGo T3S3 SX1262 Repeater (ESPNow Bridge)",
+    "name": "lilygo t3s3 sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_tcp",
-    "name": "LilyGo T3S3 SX1262 Repeater (TCP Bridge)",
+    "name": "lilygo t3s3 sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t3s3 sx1262 repeater (TCP+BLE bridge)",
+    "name": "lilygo t3s3 sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_room_server",
-    "name": "LilyGo T3S3 SX1262 Room Server",
+    "name": "lilygo t3s3 sx1262 room server",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Room Server firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1262_terminal_chat",
-    "name": "LilyGo T3S3 SX1262 Terminal Chat",
+    "name": "lilygo t3s3 sx1262 terminal chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_companion_radio_ble",
-    "name": "LilyGo T3S3 SX1276 Companion Radio (BLE)",
+    "name": "lilygo t3s3 sx1276 companion radio (ble)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_companion_radio_usb",
-    "name": "LilyGo T3S3 SX1276 Companion Radio (USB)",
+    "name": "lilygo t3s3 sx1276 companion radio (usb)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater",
-    "name": "LilyGo T3S3 SX1276 Repeater",
+    "name": "lilygo t3s3 sx1276 repeater",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_ble",
-    "name": "lilygo t3s3 sx1276 BLE bridge",
+    "name": "lilygo t3s3 sx1276 ble bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T3S3 SX1276."
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_espnow",
-    "name": "LilyGo T3S3 SX1276 Repeater (ESPNow Bridge)",
+    "name": "lilygo t3s3 sx1276 repeater (espnow bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_tcp",
-    "name": "LilyGo T3S3 SX1276 Repeater (TCP Bridge)",
+    "name": "lilygo t3s3 sx1276 repeater (tcp bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_tcp_ble",
-    "name": "lilygo t3s3 sx1276 repeater (TCP+BLE bridge)",
+    "name": "lilygo t3s3 sx1276 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_room_server",
-    "name": "LilyGo T3S3 SX1276 Room Server",
+    "name": "lilygo t3s3 sx1276 room server",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Room Server firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_T3S3_sx1276_terminal_chat",
-    "name": "LilyGo T3S3 SX1276 Terminal Chat",
+    "name": "lilygo t3s3 sx1276 terminal chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
   {
     "env": "LilyGo_TBeam_1W_companion_radio_ble",
-    "name": "LilyGo T-Beam 1W Companion Radio (BLE)",
+    "name": "lilygo t-beam 1w companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_companion_radio_usb",
-    "name": "LilyGo T-Beam 1W Companion Radio (USB)",
+    "name": "lilygo t-beam 1w companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_companion_radio_wifi",
-    "name": "LilyGo T-Beam 1W Companion Radio (WiFi)",
+    "name": "lilygo t-beam 1w companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater",
-    "name": "LilyGo T-Beam 1W Repeater",
+    "name": "lilygo t-beam 1w repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_ble",
-    "name": "lilygo t-beam 1w BLE bridge",
+    "name": "lilygo t-beam 1w ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam 1W."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_espnow",
-    "name": "LilyGo T-Beam 1W Repeater (ESPNow Bridge)",
+    "name": "lilygo t-beam 1w repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_rs232",
-    "name": "LilyGo T-Beam 1W RS232 Bridge",
+    "name": "lilygo t-beam 1w rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Beam 1W."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_tcp",
-    "name": "LilyGo T-Beam 1W Repeater (TCP Bridge)",
+    "name": "lilygo t-beam 1w repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam 1w repeater (TCP+BLE bridge)",
+    "name": "lilygo t-beam 1w repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TBeam_1W_room_server",
-    "name": "LilyGo T-Beam 1W Room Server",
+    "name": "lilygo t-beam 1w room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-Beam 1W (ESP32)."
   },
   {
     "env": "LilyGo_TDeck_companion_radio_ble",
-    "name": "LilyGo T-Deck Companion Radio (BLE)",
+    "name": "lilygo t-deck companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Deck (ESP32)."
   },
   {
     "env": "LilyGo_TDeck_companion_radio_usb",
-    "name": "LilyGo T-Deck Companion Radio (USB)",
+    "name": "lilygo t-deck companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T-Deck (ESP32)."
   },
   {
     "env": "LilyGo_TDeck_repeater",
-    "name": "LilyGo T-Deck Repeater",
+    "name": "lilygo t-deck repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Deck (ESP32)."
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_ble",
-    "name": "lilygo t-deck BLE bridge",
+    "name": "lilygo t-deck ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Deck."
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_rs232",
-    "name": "LilyGo T-Deck RS232 Bridge",
+    "name": "lilygo t-deck rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Deck."
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_tcp",
-    "name": "LilyGo T-Deck Repeater (TCP Bridge)",
+    "name": "lilygo t-deck repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-Deck (ESP32)."
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_tcp_ble",
-    "name": "lilygo t-deck repeater (TCP+BLE bridge)",
+    "name": "lilygo t-deck repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Deck (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_companion_radio_ble",
-    "name": "LilyGo T-ETH Elite SX1262 Companion Radio (BLE)",
+    "name": "lilygo t-eth elite sx1262 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_companion_radio_usb",
-    "name": "LilyGo T-ETH Elite SX1262 Companion Radio (USB)",
+    "name": "lilygo t-eth elite sx1262 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater",
-    "name": "LilyGo T-ETH Elite SX1262 Repeater",
+    "name": "lilygo t-eth elite sx1262 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_ble",
-    "name": "lilygo t-eth elite sx1262 BLE bridge",
+    "name": "lilygo t-eth elite sx1262 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-ETH Elite SX1262."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_rs232",
-    "name": "LilyGo T-ETH Elite RS232 Bridge",
+    "name": "lilygo t-eth elite rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-ETH Elite."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_tcp",
-    "name": "LilyGo T-ETH Elite SX1262 Repeater (TCP Bridge)",
+    "name": "lilygo t-eth elite sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-eth elite sx1262 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-eth elite sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_room_server",
-    "name": "LilyGo T-ETH Elite SX1262 Room Server",
+    "name": "lilygo t-eth elite sx1262 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
   {
     "env": "LilyGo_Tlora_C6_companion_radio_ble_",
-    "name": "LilyGo T-LoRa C6 Companion Radio (BLE)",
+    "name": "lilygo t-lora c6 companion radio (ble)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_",
-    "name": "LilyGo T-LoRa C6 Repeater",
+    "name": "lilygo t-lora c6 repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_ble",
-    "name": "lilygo t-lora c6 BLE bridge",
+    "name": "lilygo t-lora c6 ble bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-LoRa C6."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_rs232_",
-    "name": "LilyGo TLora C6 RS232 Bridge",
+    "name": "lilygo tlora c6 rs232 bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG RS232 Bridge firmware for LilyGo TLora C6."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_tcp",
-    "name": "LilyGo T-LoRa C6 Repeater (TCP Bridge)",
+    "name": "lilygo t-lora c6 repeater (tcp bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_tcp_ble",
-    "name": "lilygo t-lora c6 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-lora c6 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
   {
     "env": "LilyGo_Tlora_C6_room_server_",
-    "name": "LilyGo T-LoRa C6 Room Server",
+    "name": "lilygo t-lora c6 room server",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_companion_radio_ble",
-    "name": "LilyGo T-LoRa V2.1.1.6 Companion Radio (BLE)",
+    "name": "lilygo t-lora v2.1.1.6 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_companion_radio_usb",
-    "name": "LilyGo T-LoRa V2.1.1.6 Companion Radio (USB)",
+    "name": "lilygo t-lora v2.1.1.6 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_companion_radio_wifi",
-    "name": "LilyGo T-LoRa V2.1.1.6 Companion Radio (WiFi)",
+    "name": "lilygo t-lora v2.1.1.6 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater",
-    "name": "LilyGo T-LoRa V2.1.1.6 Repeater",
+    "name": "lilygo t-lora v2.1.1.6 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_ble",
-    "name": "lilygo t-lora v2.1.1.6 BLE bridge",
+    "name": "lilygo t-lora v2.1.1.6 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-LoRa V2.1.1.6."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_espnow",
-    "name": "LilyGo T-LoRa V2.1.1.6 Repeater (ESPNow Bridge)",
+    "name": "lilygo t-lora v2.1.1.6 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_rs232",
-    "name": "LilyGo T-LoRa V2.1.1.6 Repeater (RS232 Bridge)",
+    "name": "lilygo t-lora v2.1.1.6 repeater (rs232 bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_tcp",
-    "name": "LilyGo T-LoRa V2.1.1.6 Repeater (TCP Bridge)",
+    "name": "lilygo t-lora v2.1.1.6 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_tcp_ble",
-    "name": "lilygo t-lora v2.1.1.6 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-lora v2.1.1.6 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_room_server",
-    "name": "LilyGo T-LoRa V2.1.1.6 Room Server",
+    "name": "lilygo t-lora v2.1.1.6 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_terminal_chat",
-    "name": "LilyGo T-LoRa V2.1.1.6 Terminal Chat",
+    "name": "lilygo t-lora v2.1.1.6 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
   {
     "env": "M5Stack_Unit_C6L_companion_radio_ble",
-    "name": "M5Stack Unit C6L Companion Radio (BLE)",
+    "name": "m5stack unit c6l companion radio (ble)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "M5Stack_Unit_C6L_companion_radio_usb",
-    "name": "M5Stack Unit C6L Companion Radio (USB)",
+    "name": "m5stack unit c6l companion radio (usb)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (USB) firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "M5Stack_Unit_C6L_repeater",
-    "name": "M5Stack Unit C6L Repeater",
+    "name": "m5stack unit c6l repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_ble",
-    "name": "m5stack unit c6l BLE bridge",
+    "name": "m5stack unit c6l ble bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for M5Stack Unit C6L."
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_rs232",
-    "name": "M5Stack Unit C6L RS232 Bridge",
+    "name": "m5stack unit c6l rs232 bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG RS232 Bridge firmware for M5Stack Unit C6L."
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_tcp",
-    "name": "M5Stack Unit C6L Repeater (TCP Bridge)",
+    "name": "m5stack unit c6l repeater (tcp bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_tcp_ble",
-    "name": "m5stack unit c6l repeater (TCP+BLE bridge)",
+    "name": "m5stack unit c6l repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "M5Stack_Unit_C6L_room_server",
-    "name": "M5Stack Unit C6L Room Server",
+    "name": "m5stack unit c6l room server",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Room Server firmware for M5Stack Unit C6L (ESP32-C6)."
   },
   {
     "env": "Mesh_pocket_companion_radio_ble",
-    "name": "Mesh Pocket Companion Radio (BLE)",
+    "name": "mesh pocket companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Mesh Pocket."
   },
   {
     "env": "Mesh_pocket_companion_radio_usb",
-    "name": "Mesh Pocket Companion Radio (USB)",
+    "name": "mesh pocket companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Mesh Pocket."
   },
   {
     "env": "Mesh_pocket_repeater",
-    "name": "Mesh Pocket Repeater",
+    "name": "mesh pocket repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Mesh Pocket."
   },
   {
     "env": "Mesh_pocket_repeater_bridge_ble",
-    "name": "mesh pocket BLE bridge",
+    "name": "mesh pocket ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Pocket."
   },
   {
     "env": "Mesh_pocket_repeater_bridge_rs232",
-    "name": "Heltec Mesh Pocket RS232 Bridge",
+    "name": "heltec mesh pocket rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Heltec Mesh Pocket."
   },
   {
     "env": "Mesh_pocket_room_server",
-    "name": "Mesh Pocket Room Server",
+    "name": "mesh pocket room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Mesh Pocket."
   },
   {
     "env": "Meshadventurer_sx1262_companion_radio_ble",
-    "name": "Mesh Adventurer SX1262 Companion Radio (BLE)",
+    "name": "mesh adventurer sx1262 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_companion_radio_usb",
-    "name": "Mesh Adventurer SX1262 Companion Radio (USB)",
+    "name": "mesh adventurer sx1262 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_repeater",
-    "name": "Mesh Adventurer SX1262 Repeater",
+    "name": "mesh adventurer sx1262 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_ble",
-    "name": "mesh adventurer sx1262 BLE bridge",
+    "name": "mesh adventurer sx1262 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Adventurer SX1262."
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_espnow",
-    "name": "Mesh Adventurer SX1262 Repeater (ESPNow Bridge)",
+    "name": "mesh adventurer sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_tcp",
-    "name": "Mesh Adventurer SX1262 Repeater (TCP Bridge)",
+    "name": "mesh adventurer sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_tcp_ble",
-    "name": "mesh adventurer sx1262 repeater (TCP+BLE bridge)",
+    "name": "mesh adventurer sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_room_server",
-    "name": "Mesh Adventurer SX1262 Room Server",
+    "name": "mesh adventurer sx1262 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1262_terminal_chat",
-    "name": "Mesh Adventurer SX1262 Terminal Chat",
+    "name": "mesh adventurer sx1262 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Mesh Adventurer SX1262 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_companion_radio_ble",
-    "name": "Mesh Adventurer SX1268 Companion Radio (BLE)",
+    "name": "mesh adventurer sx1268 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_companion_radio_usb",
-    "name": "Mesh Adventurer SX1268 Companion Radio (USB)",
+    "name": "mesh adventurer sx1268 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_repeater",
-    "name": "Mesh Adventurer SX1268 Repeater",
+    "name": "mesh adventurer sx1268 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_ble",
-    "name": "mesh adventurer sx1268 BLE bridge",
+    "name": "mesh adventurer sx1268 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Adventurer SX1268."
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_espnow",
-    "name": "Mesh Adventurer SX1268 Repeater (ESPNow Bridge)",
+    "name": "mesh adventurer sx1268 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_tcp",
-    "name": "Mesh Adventurer SX1268 Repeater (TCP Bridge)",
+    "name": "mesh adventurer sx1268 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_tcp_ble",
-    "name": "mesh adventurer sx1268 repeater (TCP+BLE bridge)",
+    "name": "mesh adventurer sx1268 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_room_server",
-    "name": "Mesh Adventurer SX1268 Room Server",
+    "name": "mesh adventurer sx1268 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshadventurer_sx1268_terminal_chat",
-    "name": "Mesh Adventurer SX1268 Terminal Chat",
+    "name": "mesh adventurer sx1268 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Mesh Adventurer SX1268 (ESP32)."
   },
   {
     "env": "Meshimi_companion_radio_ble_",
-    "name": "Meshimi Companion Radio (BLE)",
+    "name": "meshimi companion radio (ble)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Meshimi (ESP32-C6)."
   },
   {
     "env": "Meshimi_repeater_",
-    "name": "Meshimi Repeater",
+    "name": "meshimi repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for Meshimi (ESP32-C6)."
   },
   {
     "env": "Meshimi_repeater_bridge_ble",
-    "name": "meshimi BLE bridge",
+    "name": "meshimi ble bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for Meshimi."
   },
   {
     "env": "Meshimi_repeater_bridge_tcp",
-    "name": "Meshimi Repeater (TCP Bridge)",
+    "name": "meshimi repeater (tcp bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Meshimi (ESP32-C6)."
   },
   {
     "env": "Meshimi_repeater_bridge_tcp_ble",
-    "name": "meshimi repeater (TCP+BLE bridge)",
+    "name": "meshimi repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Meshimi (ESP32-C6)."
   },
   {
     "env": "Meshtiny_companion_radio_ble",
-    "name": "Meshtiny Companion Radio (BLE)",
+    "name": "meshtiny companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Meshtiny."
   },
   {
     "env": "Meshtiny_companion_radio_usb",
-    "name": "Meshtiny Companion Radio (USB)",
+    "name": "meshtiny companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Meshtiny."
   },
   {
     "env": "Meshtiny_repeater_bridge_ble",
-    "name": "meshtiny BLE bridge",
+    "name": "meshtiny ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Meshtiny."
   },
   {
     "env": "Meshtiny_repeater_bridge_rs232",
-    "name": "Meshtiny RS232 Bridge",
+    "name": "meshtiny rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Meshtiny."
   },
   {
     "env": "Minewsemi_me25ls01_companion_radio_ble",
-    "name": "Minewsemi Me25ls01 Companion Radio (BLE)",
+    "name": "minewsemi me25ls01 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Minewsemi Me25ls01."
   },
   {
     "env": "Minewsemi_me25ls01_companion_radio_usb",
-    "name": "Minewsemi Me25ls01 Companion Radio (USB)",
+    "name": "minewsemi me25ls01 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Minewsemi Me25ls01."
   },
   {
     "env": "Minewsemi_me25ls01_repeater",
-    "name": "Minewsemi Me25ls01 Repeater",
+    "name": "minewsemi me25ls01 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Minewsemi Me25ls01."
   },
   {
     "env": "Minewsemi_me25ls01_repeater_bridge_ble",
-    "name": "minewsemi me25ls01 BLE bridge",
+    "name": "minewsemi me25ls01 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Minewsemi Me25ls01."
   },
   {
     "env": "Minewsemi_me25ls01_repeater_bridge_rs232",
-    "name": "Minewsemi ME25LS01 RS232 Bridge",
+    "name": "minewsemi me25ls01 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Minewsemi ME25LS01."
   },
   {
     "env": "Minewsemi_me25ls01_room_server",
-    "name": "Minewsemi Me25ls01 Room Server",
+    "name": "minewsemi me25ls01 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Minewsemi Me25ls01."
   },
   {
     "env": "Nano_G2_Ultra_companion_radio_ble",
-    "name": "Nano G2 Ultra Companion Radio (BLE)",
+    "name": "nano g2 ultra companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Nano G2 Ultra."
   },
   {
     "env": "Nano_G2_Ultra_companion_radio_usb",
-    "name": "Nano G2 Ultra Companion Radio (USB)",
+    "name": "nano g2 ultra companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Nano G2 Ultra."
   },
   {
     "env": "Nano_G2_Ultra_repeater_bridge_ble",
-    "name": "nano g2 ultra BLE bridge",
+    "name": "nano g2 ultra ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Nano G2 Ultra."
   },
   {
     "env": "Nano_G2_Ultra_repeater_bridge_rs232",
-    "name": "Nano G2 Ultra RS232 Bridge",
+    "name": "nano g2 ultra rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Nano G2 Ultra."
   },
   {
     "env": "nibble_screen_connect_companion_radio_ble",
-    "name": "Nibble Screen Connect Companion Radio (BLE)",
+    "name": "nibble screen connect companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_companion_radio_usb",
-    "name": "Nibble Screen Connect Companion Radio (USB)",
+    "name": "nibble screen connect companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_companion_radio_wifi",
-    "name": "Nibble Screen Connect Companion Radio (WiFi)",
+    "name": "nibble screen connect companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_repeater",
-    "name": "Nibble Screen Connect Repeater",
+    "name": "nibble screen connect repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_ble",
-    "name": "nibble screen connect BLE bridge",
+    "name": "nibble screen connect ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Nibble Screen Connect."
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_espnow",
-    "name": "Nibble Screen Connect Repeater (ESPNow Bridge)",
+    "name": "nibble screen connect repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_rs232",
-    "name": "Nibble Screen Connect RS232 Bridge",
+    "name": "nibble screen connect rs232 bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG RS232 Bridge firmware for Nibble Screen Connect."
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_tcp",
-    "name": "Nibble Screen Connect Repeater (TCP Bridge)",
+    "name": "nibble screen connect repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_tcp_ble",
-    "name": "nibble screen connect repeater (TCP+BLE bridge)",
+    "name": "nibble screen connect repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_room_server",
-    "name": "Nibble Screen Connect Room Server",
+    "name": "nibble screen connect room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "nibble_screen_connect_terminal_chat",
-    "name": "Nibble Screen Connect Terminal Chat",
+    "name": "nibble screen connect terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Nibble Screen Connect (ESP32)."
   },
   {
     "env": "PicoW_companion_radio_usb",
-    "name": "PicoW Companion Radio (USB)",
+    "name": "picow companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for PicoW."
   },
   {
     "env": "PicoW_repeater",
-    "name": "PicoW Repeater",
+    "name": "picow repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for PicoW."
   },
   {
     "env": "PicoW_repeater_bridge_rs232",
-    "name": "Raspberry Pi Pico W RS232 Bridge",
+    "name": "raspberry pi pico w rs232 bridge",
     "chipFamily": "RP2040",
     "description": "MeshCoreNG RS232 Bridge firmware for Raspberry Pi Pico W."
   },
   {
     "env": "PicoW_room_server",
-    "name": "PicoW Room Server",
+    "name": "picow room server",
     "chipFamily": "Download",
     "description": "MeshCoreNG Room Server firmware for PicoW."
   },
   {
     "env": "ProMicro_companion_radio_ble",
-    "name": "ProMicro Companion Radio (BLE)",
+    "name": "promicro companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ProMicro."
   },
   {
     "env": "ProMicro_companion_radio_usb",
-    "name": "ProMicro Companion Radio (USB)",
+    "name": "promicro companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ProMicro."
   },
   {
     "env": "ProMicro_repeater",
-    "name": "ProMicro Repeater",
+    "name": "promicro repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for ProMicro."
   },
   {
     "env": "ProMicro_repeater_bridge_ble",
-    "name": "promicro BLE bridge",
+    "name": "promicro ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ProMicro."
   },
   {
     "env": "ProMicro_room_server",
-    "name": "ProMicro Room Server",
+    "name": "promicro room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for ProMicro."
   },
   {
     "env": "R1Neo_companion_radio_ble",
-    "name": "R1Neo Companion Radio (BLE)",
+    "name": "r1neo companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for R1Neo."
   },
   {
     "env": "R1Neo_companion_radio_usb",
-    "name": "R1Neo Companion Radio (USB)",
+    "name": "r1neo companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for R1Neo."
   },
   {
     "env": "R1Neo_repeater",
-    "name": "R1Neo Repeater",
+    "name": "r1neo repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for R1Neo."
   },
   {
     "env": "R1Neo_repeater_bridge_ble",
-    "name": "r1neo BLE bridge",
+    "name": "r1neo ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for R1Neo."
   },
   {
     "env": "R1Neo_repeater_bridge_rs232",
-    "name": "Muziworks R1 Neo RS232 Bridge",
+    "name": "muziworks r1 neo rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Muziworks R1 Neo."
   },
   {
     "env": "R1Neo_room_server",
-    "name": "R1Neo Room Server",
+    "name": "r1neo room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for R1Neo."
   },
   {
     "env": "RAK_11310_companion_radio_usb",
-    "name": "RAK 11310 Companion Radio (USB)",
+    "name": "rak 11310 companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 11310."
   },
   {
     "env": "RAK_11310_repeater",
-    "name": "RAK 11310 Repeater",
+    "name": "rak 11310 repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for RAK 11310."
   },
   {
     "env": "RAK_11310_repeater_bridge_rs232",
-    "name": "RAK 11310 RS232 Bridge",
+    "name": "rak 11310 rs232 bridge",
     "chipFamily": "Download",
     "description": "MeshCoreNG RS232 Bridge firmware for RAK 11310."
   },
   {
     "env": "RAK_11310_room_server",
-    "name": "RAK 11310 Room Server",
+    "name": "rak 11310 room server",
     "chipFamily": "Download",
     "description": "MeshCoreNG Room Server firmware for RAK 11310."
   },
   {
     "env": "RAK_3112_companion_radio_ble",
-    "name": "RAK3112 Companion Radio (BLE)",
+    "name": "rak3112 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_companion_radio_usb",
-    "name": "RAK3112 Companion Radio (USB)",
+    "name": "rak3112 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_companion_radio_wifi",
-    "name": "RAK3112 Companion Radio (WiFi)",
+    "name": "rak3112 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_repeater",
-    "name": "RAK3112 Repeater",
+    "name": "rak3112 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_repeater_bridge_ble",
-    "name": "rak3112 BLE bridge",
+    "name": "rak3112 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for RAK3112."
   },
   {
     "env": "RAK_3112_repeater_bridge_espnow",
-    "name": "RAK3112 Repeater (ESPNow Bridge)",
+    "name": "rak3112 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_repeater_bridge_rs232",
-    "name": "RAK3112 Repeater (RS232 Bridge)",
+    "name": "rak3112 repeater (rs232 bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_repeater_bridge_tcp",
-    "name": "RAK3112 Repeater (TCP Bridge)",
+    "name": "rak3112 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_repeater_bridge_tcp_ble",
-    "name": "rak3112 repeater (TCP+BLE bridge)",
+    "name": "rak3112 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_room_server",
-    "name": "RAK3112 Room Server",
+    "name": "rak3112 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_sensor",
-    "name": "RAK3112 Sensor",
+    "name": "rak3112 sensor",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Sensor firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3112_terminal_chat",
-    "name": "RAK3112 Terminal Chat",
+    "name": "rak3112 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for RAK3112 (ESP32)."
   },
   {
     "env": "RAK_3401_companion_radio_ble",
-    "name": "RAK 3401 Companion Radio (BLE)",
+    "name": "rak 3401 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK 3401."
   },
   {
     "env": "RAK_3401_companion_radio_usb",
-    "name": "RAK 3401 Companion Radio (USB)",
+    "name": "rak 3401 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 3401."
   },
   {
     "env": "RAK_3401_repeater",
-    "name": "RAK 3401 Repeater",
+    "name": "rak 3401 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for RAK 3401."
   },
   {
     "env": "RAK_3401_repeater_bridge_ble",
-    "name": "rak 3401 BLE bridge",
+    "name": "rak 3401 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK 3401."
   },
   {
     "env": "RAK_3401_repeater_bridge_rs232",
-    "name": "RAK3401 RS232 Bridge",
+    "name": "rak3401 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for RAK3401."
   },
   {
     "env": "RAK_3401_room_server",
-    "name": "RAK 3401 Room Server",
+    "name": "rak 3401 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for RAK 3401."
   },
   {
     "env": "RAK_3x72_companion_radio_usb",
-    "name": "RAK 3x72 Companion Radio (USB)",
+    "name": "rak 3x72 companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 3x72."
   },
   {
     "env": "RAK_3x72_repeater",
-    "name": "RAK 3x72 Repeater",
+    "name": "rak 3x72 repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for RAK 3x72."
   },
   {
     "env": "RAK_3x72_repeater_bridge_rs232",
-    "name": "RAK3x72 RS232 Bridge",
+    "name": "rak3x72 rs232 bridge",
     "chipFamily": "STM32",
     "description": "MeshCoreNG RS232 Bridge firmware for RAK3x72."
   },
   {
     "env": "RAK_4631_companion_radio_ble",
-    "name": "RAK 4631 Companion Radio (BLE)",
+    "name": "rak 4631 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK 4631."
   },
   {
     "env": "RAK_4631_companion_radio_usb",
-    "name": "RAK 4631 Companion Radio (USB)",
+    "name": "rak 4631 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK 4631."
   },
   {
     "env": "RAK_4631_repeater",
-    "name": "RAK 4631 Repeater",
+    "name": "rak 4631 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for RAK 4631."
   },
   {
     "env": "RAK_4631_repeater_bridge_ble",
-    "name": "rak 4631 BLE bridge",
+    "name": "rak 4631 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK 4631."
   },
   {
     "env": "RAK_4631_room_server",
-    "name": "RAK 4631 Room Server",
+    "name": "rak 4631 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for RAK 4631."
   },
   {
     "env": "RAK_WisMesh_Tag_companion_radio_ble",
-    "name": "RAK WisMesh Tag Companion Radio (BLE)",
+    "name": "rak wismesh tag companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for RAK WisMesh Tag."
   },
   {
     "env": "RAK_WisMesh_Tag_companion_radio_usb",
-    "name": "RAK WisMesh Tag Companion Radio (USB)",
+    "name": "rak wismesh tag companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for RAK WisMesh Tag."
   },
   {
     "env": "RAK_WisMesh_Tag_repeater",
-    "name": "RAK WisMesh Tag Repeater",
+    "name": "rak wismesh tag repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for RAK WisMesh Tag."
   },
   {
     "env": "RAK_WisMesh_Tag_repeater_bridge_ble",
-    "name": "rak wismesh tag BLE bridge",
+    "name": "rak wismesh tag ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK WisMesh Tag."
   },
   {
     "env": "RAK_WisMesh_Tag_repeater_bridge_rs232",
-    "name": "RAK WisMesh Tag RS232 Bridge",
+    "name": "rak wismesh tag rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for RAK WisMesh Tag."
   },
   {
     "env": "RAK_WisMesh_Tag_room_server",
-    "name": "RAK WisMesh Tag Room Server",
+    "name": "rak wismesh tag room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for RAK WisMesh Tag."
   },
   {
     "env": "SenseCap_Solar_companion_radio_ble",
-    "name": "SenseCap Solar Companion Radio (BLE)",
+    "name": "sensecap solar companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for SenseCap Solar."
   },
   {
     "env": "SenseCap_Solar_companion_radio_usb",
-    "name": "SenseCap Solar Companion Radio (USB)",
+    "name": "sensecap solar companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for SenseCap Solar."
   },
   {
     "env": "SenseCap_Solar_repeater",
-    "name": "SenseCap Solar Repeater",
+    "name": "sensecap solar repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for SenseCap Solar."
   },
   {
     "env": "SenseCap_Solar_repeater_bridge_ble",
-    "name": "sensecap solar BLE bridge",
+    "name": "sensecap solar ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for SenseCap Solar."
   },
   {
     "env": "SenseCap_Solar_repeater_bridge_rs232",
-    "name": "SenseCap Solar RS232 Bridge",
+    "name": "sensecap solar rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for SenseCap Solar."
   },
   {
     "env": "SenseCap_Solar_room_server",
-    "name": "SenseCap Solar Room Server",
+    "name": "sensecap solar room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for SenseCap Solar."
   },
   {
     "env": "SenseCapIndicator-ESPNow_comp_radio_usb",
-    "name": "SenseCap Indicator (ESPNow) Companion Radio (USB)",
+    "name": "sensecap indicator (espnow) companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for SenseCap Indicator (ESPNow) (ESP32)."
   },
   {
     "env": "Station_G2_companion_radio_ble",
-    "name": "Station G2 Companion Radio (BLE)",
+    "name": "station g2 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_companion_radio_usb",
-    "name": "Station G2 Companion Radio (USB)",
+    "name": "station g2 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_companion_radio_wifi",
-    "name": "Station G2 Companion Radio (WiFi)",
+    "name": "station g2 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_logging_repeater",
-    "name": "Station G2 Repeater (Debug Logging)",
+    "name": "station g2 repeater (debug logging)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (Debug Logging) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_logging_repeater_bridge_espnow",
-    "name": "Station G2 Repeater (ESPNow Bridge, Debug Logging)",
+    "name": "station g2 repeater (espnow bridge, debug logging)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge, Debug Logging) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_logging_repeater_bridge_tcp",
-    "name": "Station G2 Repeater (TCP Bridge, Debug Logging)",
+    "name": "station g2 repeater (tcp bridge, debug logging)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge, Debug Logging) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_repeater",
-    "name": "Station G2 Repeater",
+    "name": "station g2 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_repeater_bridge_ble",
-    "name": "station g2 BLE bridge",
+    "name": "station g2 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Station G2."
   },
   {
     "env": "Station_G2_repeater_bridge_espnow",
-    "name": "Station G2 Repeater (ESPNow Bridge)",
+    "name": "station g2 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_repeater_bridge_tcp",
-    "name": "Station G2 Repeater (TCP Bridge)",
+    "name": "station g2 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_repeater_bridge_tcp_ble",
-    "name": "station g2 repeater (TCP+BLE bridge)",
+    "name": "station g2 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Station G2 (ESP32)."
   },
   {
     "env": "Station_G2_room_server",
-    "name": "Station G2 Room Server",
+    "name": "station g2 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for Station G2 (ESP32)."
   },
   {
     "env": "t1000e_companion_radio_ble",
-    "name": "T1000-E Companion Radio (BLE)",
+    "name": "t1000-e companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for T1000-E."
   },
   {
     "env": "t1000e_companion_radio_usb",
-    "name": "T1000-E Companion Radio (USB)",
+    "name": "t1000-e companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for T1000-E."
   },
   {
     "env": "t1000e_repeater",
-    "name": "T1000-E Repeater",
+    "name": "t1000-e repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for T1000-E."
   },
   {
     "env": "t1000e_repeater_bridge_ble",
-    "name": "t1000-e BLE bridge",
+    "name": "t1000-e ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for T1000-E."
   },
   {
     "env": "t1000e_repeater_bridge_rs232",
-    "name": "T1000-E RS232 Bridge",
+    "name": "t1000-e rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for T1000-E."
   },
   {
     "env": "t1000e_room_server",
-    "name": "T1000-E Room Server",
+    "name": "t1000-e room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for T1000-E."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_companion_radio_ble",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Companion Radio (BLE)",
+    "name": "lilygo t-beam s3 supreme sx1262 companion radio (ble)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_companion_radio_wifi",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Companion Radio (WiFi)",
+    "name": "lilygo t-beam s3 supreme sx1262 companion radio (wifi)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Repeater",
+    "name": "lilygo t-beam s3 supreme sx1262 repeater",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_ble",
-    "name": "lilygo t-beam s3 supreme sx1262 BLE bridge",
+    "name": "lilygo t-beam s3 supreme sx1262 ble bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam S3 Supreme SX1262."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_espnow",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Repeater (ESPNow Bridge)",
+    "name": "lilygo t-beam s3 supreme sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_tcp",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Repeater (TCP Bridge)",
+    "name": "lilygo t-beam s3 supreme sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam s3 supreme sx1262 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-beam s3 supreme sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_room_server",
-    "name": "LilyGo T-Beam S3 Supreme SX1262 Room Server",
+    "name": "lilygo t-beam s3 supreme sx1262 room server",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
   {
     "env": "Tbeam_SX1262_companion_radio_ble",
-    "name": "LilyGo T-Beam SX1262 Companion Radio (BLE)",
+    "name": "lilygo t-beam sx1262 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1262_repeater",
-    "name": "LilyGo T-Beam SX1262 Repeater",
+    "name": "lilygo t-beam sx1262 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_ble",
-    "name": "lilygo t-beam sx1262 BLE bridge",
+    "name": "lilygo t-beam sx1262 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam SX1262."
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_espnow",
-    "name": "LilyGo T-Beam SX1262 Repeater (ESPNow Bridge)",
+    "name": "lilygo t-beam sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_tcp",
-    "name": "LilyGo T-Beam SX1262 Repeater (TCP Bridge)",
+    "name": "lilygo t-beam sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam sx1262 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-beam sx1262 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1262_room_server",
-    "name": "LilyGo T-Beam SX1262 Room Server",
+    "name": "lilygo t-beam sx1262 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_companion_radio_ble",
-    "name": "LilyGo T-Beam SX1276 Companion Radio (BLE)",
+    "name": "lilygo t-beam sx1276 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_repeater",
-    "name": "LilyGo T-Beam SX1276 Repeater",
+    "name": "lilygo t-beam sx1276 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_ble",
-    "name": "lilygo t-beam sx1276 BLE bridge",
+    "name": "lilygo t-beam sx1276 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam SX1276."
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_espnow",
-    "name": "LilyGo T-Beam SX1276 Repeater (ESPNow Bridge)",
+    "name": "lilygo t-beam sx1276 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_tcp",
-    "name": "LilyGo T-Beam SX1276 Repeater (TCP Bridge)",
+    "name": "lilygo t-beam sx1276 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam sx1276 repeater (TCP+BLE bridge)",
+    "name": "lilygo t-beam sx1276 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tbeam_SX1276_room_server",
-    "name": "LilyGo T-Beam SX1276 Room Server",
+    "name": "lilygo t-beam sx1276 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
   {
     "env": "Tenstar_C3_sx1262_repeater",
-    "name": "Tenstar C3 SX1262 Repeater",
+    "name": "tenstar c3 sx1262 repeater",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater firmware for Tenstar C3 SX1262 (ESP32-C3)."
   },
   {
     "env": "Tenstar_C3_sx1262_repeater_bridge_espnow",
-    "name": "Tenstar C3 SX1262 Repeater (ESPNow Bridge)",
+    "name": "tenstar c3 sx1262 repeater (espnow bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Tenstar C3 SX1262 (ESP32-C3)."
   },
   {
     "env": "Tenstar_C3_sx1262_repeater_bridge_tcp",
-    "name": "Tenstar C3 SX1262 Repeater (TCP Bridge)",
+    "name": "tenstar c3 sx1262 repeater (tcp bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Tenstar C3 SX1262 (ESP32-C3)."
   },
   {
     "env": "Tenstar_C3_sx1268_repeater",
-    "name": "Tenstar C3 SX1268 Repeater",
+    "name": "tenstar c3 sx1268 repeater",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater firmware for Tenstar C3 SX1268 (ESP32-C3)."
   },
   {
     "env": "Tenstar_C3_sx1268_repeater_bridge_espnow",
-    "name": "Tenstar C3 SX1268 Repeater (ESPNow Bridge)",
+    "name": "tenstar c3 sx1268 repeater (espnow bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Tenstar C3 SX1268 (ESP32-C3)."
   },
   {
     "env": "Tenstar_C3_sx1268_repeater_bridge_tcp",
-    "name": "Tenstar C3 SX1268 Repeater (TCP Bridge)",
+    "name": "tenstar c3 sx1268 repeater (tcp bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Tenstar C3 SX1268 (ESP32-C3)."
   },
   {
     "env": "ThinkNode_M1_companion_radio_ble",
-    "name": "ThinkNode M1 Companion Radio (BLE)",
+    "name": "thinknode m1 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M1_companion_radio_usb",
-    "name": "ThinkNode M1 Companion Radio (USB)",
+    "name": "thinknode m1 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M1_repeater",
-    "name": "ThinkNode M1 Repeater",
+    "name": "thinknode m1 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M1_repeater_bridge_ble",
-    "name": "thinknode m1 BLE bridge",
+    "name": "thinknode m1 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M1_Repeater_bridge_rs232",
-    "name": "ThinkNode M1 RS232 Bridge",
+    "name": "thinknode m1 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M1_room_server",
-    "name": "ThinkNode M1 Room Server",
+    "name": "thinknode m1 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for ThinkNode M1."
   },
   {
     "env": "ThinkNode_M2_companion_radio_ble",
-    "name": "ThinkNode M2 Companion Radio (BLE)",
+    "name": "thinknode m2 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_companion_radio_serial",
-    "name": "ThinkNode M2 Companion Radio (Serial)",
+    "name": "thinknode m2 companion radio (serial)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (Serial) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_companion_radio_usb",
-    "name": "ThinkNode M2 Companion Radio (USB)",
+    "name": "thinknode m2 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_companion_radio_wifi",
-    "name": "ThinkNode M2 Companion Radio (WiFi)",
+    "name": "thinknode m2 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_Repeater",
-    "name": "ThinkNode M2 Repeater",
+    "name": "thinknode m2 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_ble",
-    "name": "thinknode m2 BLE bridge",
+    "name": "thinknode m2 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M2."
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_espnow",
-    "name": "ThinkNode M2 Repeater (ESPNow Bridge)",
+    "name": "thinknode m2 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_tcp",
-    "name": "ThinkNode M2 Repeater (TCP Bridge)",
+    "name": "thinknode m2 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_tcp_ble",
-    "name": "thinknode m2 repeater (TCP+BLE bridge)",
+    "name": "thinknode m2 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_room_server",
-    "name": "ThinkNode M2 Room Server",
+    "name": "thinknode m2 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M2_terminal_chat",
-    "name": "ThinkNode M2 Terminal Chat",
+    "name": "thinknode m2 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for ThinkNode M2 (ESP32)."
   },
   {
     "env": "ThinkNode_M3_companion_radio_ble",
-    "name": "ThinkNode M3 Companion Radio (BLE)",
+    "name": "thinknode m3 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M3_companion_radio_usb",
-    "name": "ThinkNode M3 Companion Radio (USB)",
+    "name": "thinknode m3 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M3_repeater",
-    "name": "ThinkNode M3 Repeater",
+    "name": "thinknode m3 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M3_repeater_bridge_ble",
-    "name": "thinknode m3 BLE bridge",
+    "name": "thinknode m3 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M3_Repeater_bridge_rs232",
-    "name": "ThinkNode M3 RS232 Bridge",
+    "name": "thinknode m3 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M3_room_server",
-    "name": "ThinkNode M3 Room Server",
+    "name": "thinknode m3 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for ThinkNode M3."
   },
   {
     "env": "ThinkNode_M5_companion_radio_ble",
-    "name": "ThinkNode M5 Companion Radio (BLE)",
+    "name": "thinknode m5 companion radio (ble)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_companion_radio_serial",
-    "name": "ThinkNode M5 Companion Radio (Serial)",
+    "name": "thinknode m5 companion radio (serial)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (Serial) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_companion_radio_usb",
-    "name": "ThinkNode M5 Companion Radio (USB)",
+    "name": "thinknode m5 companion radio (usb)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_companion_radio_wifi",
-    "name": "ThinkNode M5 Companion Radio (WiFi)",
+    "name": "thinknode m5 companion radio (wifi)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_Repeater",
-    "name": "ThinkNode M5 Repeater",
+    "name": "thinknode m5 repeater",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_ble",
-    "name": "thinknode m5 BLE bridge",
+    "name": "thinknode m5 ble bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M5."
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_espnow",
-    "name": "ThinkNode M5 Repeater (ESPNow Bridge)",
+    "name": "thinknode m5 repeater (espnow bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_tcp",
-    "name": "ThinkNode M5 Repeater (TCP Bridge)",
+    "name": "thinknode m5 repeater (tcp bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_tcp_ble",
-    "name": "thinknode m5 repeater (TCP+BLE bridge)",
+    "name": "thinknode m5 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_room_server",
-    "name": "ThinkNode M5 Room Server",
+    "name": "thinknode m5 room server",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Room Server firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M5_terminal_chat",
-    "name": "ThinkNode M5 Terminal Chat",
+    "name": "thinknode m5 terminal chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for ThinkNode M5 (ESP32)."
   },
   {
     "env": "ThinkNode_M6_companion_radio_ble",
-    "name": "ThinkNode M6 Companion Radio (BLE)",
+    "name": "thinknode m6 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for ThinkNode M6."
   },
   {
     "env": "ThinkNode_M6_companion_radio_usb",
-    "name": "ThinkNode M6 Companion Radio (USB)",
+    "name": "thinknode m6 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for ThinkNode M6."
   },
   {
     "env": "ThinkNode_M6_repeater",
-    "name": "ThinkNode M6 Repeater",
+    "name": "thinknode m6 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for ThinkNode M6."
   },
   {
     "env": "ThinkNode_M6_repeater_bridge_ble",
-    "name": "thinknode m6 BLE bridge",
+    "name": "thinknode m6 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M6."
   },
   {
     "env": "ThinkNode_M6_Repeater_bridge_rs232",
-    "name": "ThinkNode M6 RS232 Bridge",
+    "name": "thinknode m6 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for ThinkNode M6."
   },
   {
     "env": "ThinkNode_M6_room_server",
-    "name": "ThinkNode M6 Room Server",
+    "name": "thinknode m6 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for ThinkNode M6."
   },
   {
     "env": "Tiny_Relay_companion_radio_usb",
-    "name": "Tiny Relay Companion Radio (USB)",
+    "name": "tiny relay companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Tiny Relay."
   },
   {
     "env": "Tiny_Relay_repeater",
-    "name": "Tiny Relay Repeater",
+    "name": "tiny relay repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for Tiny Relay."
   },
   {
     "env": "Tiny_Relay_repeater_bridge_rs232",
-    "name": "Tiny Relay RS232 Bridge",
+    "name": "tiny relay rs232 bridge",
     "chipFamily": "STM32",
     "description": "MeshCoreNG RS232 Bridge firmware for Tiny Relay."
   },
   {
     "env": "waveshare_rp2040_lora_companion_radio_usb",
-    "name": "Waveshare Rp2040 Lora Companion Radio (USB)",
+    "name": "waveshare rp2040 lora companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Waveshare Rp2040 Lora."
   },
   {
     "env": "waveshare_rp2040_lora_repeater",
-    "name": "Waveshare Rp2040 Lora Repeater",
+    "name": "waveshare rp2040 lora repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for Waveshare Rp2040 Lora."
   },
   {
     "env": "waveshare_rp2040_lora_repeater_bridge_rs232",
-    "name": "Waveshare Rp2040 Lora RS232 Bridge",
+    "name": "waveshare rp2040 lora rs232 bridge",
     "chipFamily": "Download",
     "description": "MeshCoreNG RS232 Bridge firmware for Waveshare Rp2040 Lora."
   },
   {
     "env": "waveshare_rp2040_lora_room_server",
-    "name": "Waveshare Rp2040 Lora Room Server",
+    "name": "waveshare rp2040 lora room server",
     "chipFamily": "Download",
     "description": "MeshCoreNG Room Server firmware for Waveshare Rp2040 Lora."
   },
   {
     "env": "WHY2025_badge_companion_radio_ble_",
-    "name": "WHY2025 Badge Companion Radio (BLE)",
+    "name": "why2025 badge companion radio (ble)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for WHY2025 Badge (ESP32-C6)."
   },
   {
     "env": "WHY2025_badge_repeater_",
-    "name": "WHY2025 Badge Repeater",
+    "name": "why2025 badge repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for WHY2025 Badge (ESP32-C6)."
   },
   {
     "env": "WHY2025_badge_repeater_bridge_ble",
-    "name": "why2025 badge BLE bridge",
+    "name": "why2025 badge ble bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for WHY2025 Badge."
   },
   {
     "env": "WHY2025_badge_repeater_bridge_tcp",
-    "name": "WHY2025 Badge Repeater (TCP Bridge)",
+    "name": "why2025 badge repeater (tcp bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for WHY2025 Badge (ESP32-C6)."
   },
   {
     "env": "WHY2025_badge_repeater_bridge_tcp_ble",
-    "name": "why2025 badge repeater (TCP+BLE bridge)",
+    "name": "why2025 badge repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for WHY2025 Badge (ESP32-C6)."
   },
   {
     "env": "wio-e5-mini_companion_radio_usb",
-    "name": "Wio-E5 Mini Companion Radio (USB)",
+    "name": "wio-e5 mini companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Wio-E5 Mini."
   },
   {
     "env": "wio-e5-mini_repeater",
-    "name": "Wio-E5 Mini Repeater",
+    "name": "wio-e5 mini repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for Wio-E5 Mini."
   },
   {
     "env": "wio-e5-mini_repeater_bridge_rs232",
-    "name": "Wio-E5 Mini RS232 Bridge",
+    "name": "wio-e5 mini rs232 bridge",
     "chipFamily": "STM32",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio-E5 Mini."
   },
   {
     "env": "wio-e5_companion_radio_usb",
-    "name": "Wio-E5 Companion Radio (USB)",
+    "name": "wio-e5 companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Wio-E5."
   },
   {
     "env": "wio-e5_repeater",
-    "name": "Wio-E5 Repeater",
+    "name": "wio-e5 repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for Wio-E5."
   },
   {
     "env": "wio_wm1110_companion_radio_ble",
-    "name": "Wio WM1110 Companion Radio (BLE)",
+    "name": "wio wm1110 companion radio (ble)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio WM1110."
   },
   {
     "env": "wio_wm1110_repeater",
-    "name": "Wio WM1110 Repeater",
+    "name": "wio wm1110 repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for Wio WM1110."
   },
   {
     "env": "wio_wm1110_repeater_bridge_ble",
-    "name": "wio wm1110 BLE bridge",
+    "name": "wio wm1110 ble bridge",
     "chipFamily": "Download",
     "description": "MeshCoreNG BLE Bridge firmware for Wio WM1110."
   },
   {
     "env": "wio_wm1110_repeater_bridge_rs232",
-    "name": "Wio WM1110 RS232 Bridge",
+    "name": "wio wm1110 rs232 bridge",
     "chipFamily": "Download",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio WM1110."
   },
   {
     "env": "wio_wm1110_room_server",
-    "name": "Wio WM1110 Room Server",
+    "name": "wio wm1110 room server",
     "chipFamily": "Download",
     "description": "MeshCoreNG Room Server firmware for Wio WM1110."
   },
   {
     "env": "WioTrackerL1_companion_radio_ble",
-    "name": "Wio Tracker L1 Companion Radio (BLE)",
+    "name": "wio tracker l1 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio Tracker L1 / L1 Pro."
   },
   {
     "env": "WioTrackerL1_companion_radio_usb",
-    "name": "Wio Tracker L1 Companion Radio (USB)",
+    "name": "wio tracker l1 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Wio Tracker L1 / L1 Pro."
   },
   {
     "env": "WioTrackerL1_repeater",
-    "name": "Wio Tracker L1 Repeater",
+    "name": "wio tracker l1 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for Wio Tracker L1 / L1 Pro."
   },
   {
     "env": "WioTrackerL1_repeater_bridge_ble",
-    "name": "wio tracker l1 BLE bridge",
+    "name": "wio tracker l1 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Wio Tracker L1."
   },
   {
     "env": "WioTrackerL1_repeater_bridge_rs232",
-    "name": "Wio Tracker L1 RS232 Bridge",
+    "name": "wio tracker l1 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio Tracker L1."
   },
   {
     "env": "WioTrackerL1_room_server",
-    "name": "Wio Tracker L1 Room Server",
+    "name": "wio tracker l1 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for Wio Tracker L1 / L1 Pro."
   },
   {
     "env": "WioTrackerL1Eink_companion_radio_ble",
-    "name": "Wio Tracker L1 E-Ink Companion Radio (BLE)",
+    "name": "wio tracker l1 e-ink companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Wio Tracker L1 E-Ink."
   },
   {
     "env": "WioTrackerL1Eink_repeater_bridge_ble",
-    "name": "wio tracker l1 e-ink BLE bridge",
+    "name": "wio tracker l1 e-ink ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Wio Tracker L1 E-Ink."
   },
   {
     "env": "WioTrackerL1Eink_repeater_bridge_rs232",
-    "name": "Wio Tracker L1 E-Ink RS232 Bridge",
+    "name": "wio tracker l1 e-ink rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Wio Tracker L1 E-Ink."
   },
   {
     "env": "Xiao_C3_companion_radio_ble",
-    "name": "Seeed XIAO ESP32-C3 Companion Radio (BLE)",
+    "name": "seeed xiao esp32-c3 companion radio (ble)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_companion_radio_usb",
-    "name": "Seeed XIAO ESP32-C3 Companion Radio (USB)",
+    "name": "seeed xiao esp32-c3 companion radio (usb)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_companion_radio_wifi",
-    "name": "Seeed XIAO ESP32-C3 Companion Radio (WiFi)",
+    "name": "seeed xiao esp32-c3 companion radio (wifi)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_repeater",
-    "name": "Seeed XIAO ESP32-C3 Repeater",
+    "name": "seeed xiao esp32-c3 repeater",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_repeater_bridge_ble",
-    "name": "seeed xiao esp32-c3 BLE bridge",
+    "name": "seeed xiao esp32-c3 ble bridge",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-C3."
   },
   {
     "env": "Xiao_C3_repeater_bridge_rs232",
-    "name": "Xiao ESP32-C3 RS232 Bridge",
+    "name": "xiao esp32-c3 rs232 bridge",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG RS232 Bridge firmware for Xiao ESP32-C3."
   },
   {
     "env": "Xiao_C3_repeater_bridge_tcp",
-    "name": "Seeed XIAO ESP32-C3 Repeater (TCP Bridge)",
+    "name": "seeed xiao esp32-c3 repeater (tcp bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-c3 repeater (TCP+BLE bridge)",
+    "name": "seeed xiao esp32-c3 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C3_room_server",
-    "name": "Seeed XIAO ESP32-C3 Room Server",
+    "name": "seeed xiao esp32-c3 room server",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Room Server firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
   {
     "env": "Xiao_C6_companion_radio_ble_",
-    "name": "Seeed XIAO ESP32-C6 Companion Radio (BLE)",
+    "name": "seeed xiao esp32-c6 companion radio (ble)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
   {
     "env": "Xiao_C6_repeater_",
-    "name": "Seeed XIAO ESP32-C6 Repeater",
+    "name": "seeed xiao esp32-c6 repeater",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
   {
     "env": "Xiao_C6_repeater_bridge_ble",
-    "name": "seeed xiao esp32-c6 BLE bridge",
+    "name": "seeed xiao esp32-c6 ble bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-C6."
   },
   {
     "env": "Xiao_C6_repeater_bridge_rs232",
-    "name": "Xiao ESP32-C6 RS232 Bridge",
+    "name": "xiao esp32-c6 rs232 bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG RS232 Bridge firmware for Xiao ESP32-C6."
   },
   {
     "env": "Xiao_C6_repeater_bridge_tcp",
-    "name": "Seeed XIAO ESP32-C6 Repeater (TCP Bridge)",
+    "name": "seeed xiao esp32-c6 repeater (tcp bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
   {
     "env": "Xiao_C6_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-c6 repeater (TCP+BLE bridge)",
+    "name": "seeed xiao esp32-c6 repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
   {
     "env": "Xiao_nrf52_companion_radio_ble",
-    "name": "XIAO Nrf52 Companion Radio (BLE)",
+    "name": "xiao nrf52 companion radio (ble)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for XIAO Nrf52."
   },
   {
     "env": "Xiao_nrf52_companion_radio_usb",
-    "name": "XIAO Nrf52 Companion Radio (USB)",
+    "name": "xiao nrf52 companion radio (usb)",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Companion Radio (USB) firmware for XIAO Nrf52."
   },
   {
     "env": "Xiao_nrf52_repeater",
-    "name": "XIAO Nrf52 Repeater",
+    "name": "xiao nrf52 repeater",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Repeater firmware for XIAO Nrf52."
   },
   {
     "env": "Xiao_nrf52_repeater_bridge_ble",
-    "name": "xiao nrf52 BLE bridge",
+    "name": "xiao nrf52 ble bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for XIAO Nrf52."
   },
   {
     "env": "Xiao_nrf52_repeater_bridge_rs232",
-    "name": "Xiao nRF52 RS232 Bridge",
+    "name": "xiao nrf52 rs232 bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG RS232 Bridge firmware for Xiao nRF52."
   },
   {
     "env": "Xiao_nrf52_room_server",
-    "name": "XIAO Nrf52 Room Server",
+    "name": "xiao nrf52 room server",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG Room Server firmware for XIAO Nrf52."
   },
   {
     "env": "Xiao_rp2040_companion_radio_usb",
-    "name": "XIAO Rp2040 Companion Radio (USB)",
+    "name": "xiao rp2040 companion radio (usb)",
     "chipFamily": "Download",
     "description": "MeshCoreNG Companion Radio (USB) firmware for XIAO Rp2040."
   },
   {
     "env": "Xiao_rp2040_repeater",
-    "name": "XIAO Rp2040 Repeater",
+    "name": "xiao rp2040 repeater",
     "chipFamily": "Download",
     "description": "MeshCoreNG Repeater firmware for XIAO Rp2040."
   },
   {
     "env": "Xiao_rp2040_repeater_bridge_rs232",
-    "name": "Xiao RP2040 RS232 Bridge",
+    "name": "xiao rp2040 rs232 bridge",
     "chipFamily": "RP2040",
     "description": "MeshCoreNG RS232 Bridge firmware for Xiao RP2040."
   },
   {
     "env": "Xiao_rp2040_room_server",
-    "name": "XIAO Rp2040 Room Server",
+    "name": "xiao rp2040 room server",
     "chipFamily": "Download",
     "description": "MeshCoreNG Room Server firmware for XIAO Rp2040."
   },
   {
     "env": "Xiao_S3_WIO_companion_radio_ble",
-    "name": "Seeed XIAO ESP32-S3 WIO Companion Radio (BLE)",
+    "name": "seeed xiao esp32-s3 wio companion radio (ble)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (BLE) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_companion_radio_serial",
-    "name": "Seeed XIAO ESP32-S3 WIO Companion Radio (Serial)",
+    "name": "seeed xiao esp32-s3 wio companion radio (serial)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (Serial) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_companion_radio_usb",
-    "name": "Seeed XIAO ESP32-S3 WIO Companion Radio (USB)",
+    "name": "seeed xiao esp32-s3 wio companion radio (usb)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (USB) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_companion_radio_wifi",
-    "name": "Seeed XIAO ESP32-S3 WIO Companion Radio (WiFi)",
+    "name": "seeed xiao esp32-s3 wio companion radio (wifi)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Companion Radio (WiFi) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_repeater",
-    "name": "Seeed XIAO ESP32-S3 WIO Repeater",
+    "name": "seeed xiao esp32-s3 wio repeater",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_ble",
-    "name": "seeed xiao esp32-s3 wio BLE bridge",
+    "name": "seeed xiao esp32-s3 wio ble bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-S3 WIO."
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_espnow",
-    "name": "Seeed XIAO ESP32-S3 WIO Repeater (ESPNow Bridge)",
+    "name": "seeed xiao esp32-s3 wio repeater (espnow bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_tcp",
-    "name": "Seeed XIAO ESP32-S3 WIO Repeater (TCP Bridge)",
+    "name": "seeed xiao esp32-s3 wio repeater (tcp bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-s3 wio repeater (TCP+BLE bridge)",
+    "name": "seeed xiao esp32-s3 wio repeater (tcp+ble bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_room_server",
-    "name": "Seeed XIAO ESP32-S3 WIO Room Server",
+    "name": "seeed xiao esp32-s3 wio room server",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Room Server firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_sensor",
-    "name": "Seeed XIAO ESP32-S3 WIO Sensor",
+    "name": "seeed xiao esp32-s3 wio sensor",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Sensor firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },
   {
     "env": "Xiao_S3_WIO_terminal_chat",
-    "name": "Seeed XIAO ESP32-S3 WIO Terminal Chat",
+    "name": "seeed xiao esp32-s3 wio terminal chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   }

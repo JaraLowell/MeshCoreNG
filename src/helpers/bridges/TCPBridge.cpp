@@ -53,7 +53,11 @@ void TCPBridge::loop() {
       } else {
         WiFi.persistent(false);
         WiFi.mode(WIFI_STA);
+#if defined(WITH_BLE_BRIDGE)
+        WiFi.setSleep(true);
+#else
         WiFi.setSleep(false);
+#endif
         WiFi.begin(_prefs->wifi_ssid, _prefs->wifi_password);
         _wifi_start_ms = now;
         _state = State::WIFI_WAIT;

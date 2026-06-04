@@ -52,7 +52,7 @@ struct NodePrefs { // persisted to file
   // Bridge settings
   uint8_t bridge_enabled; // boolean
   uint16_t bridge_delay;  // milliseconds (default 500 ms)
-  uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx (default logTx)
+  uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx, 2 = both (default logTx)
   uint8_t bridge_rf;      // allow received bridge flood packets to be forwarded on RF
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
@@ -147,6 +147,10 @@ public:
   }
 
   virtual void formatTcpBridgeStatusReply(char *reply) {
+    reply[0] = 0;
+  }
+
+  virtual void formatBleBridgeStatusReply(char *reply) {
     reply[0] = 0;
   }
 

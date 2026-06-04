@@ -35,6 +35,7 @@ public:
   void loop() override;
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
+  void getStatusStr(char *reply) const;
 
 private:
   static constexpr uint16_t BLE_BRIDGE_OVERHEAD = BRIDGE_MAGIC_SIZE + BRIDGE_LENGTH_SIZE + BRIDGE_CHECKSUM_SIZE;
@@ -75,6 +76,12 @@ private:
   bool _should_connect;
   unsigned long _next_scan_at;
   unsigned long _last_write_at;
+  uint32_t _tx_frames;
+  uint32_t _rx_frames;
+  uint32_t _rx_bad_checksum;
+  uint32_t _rx_parse_fail;
+  uint32_t _tx_seen_drop;
+  uint32_t _tx_no_link;
 
   uint8_t _peripheral_rx_buffer[MAX_BLE_BRIDGE_PACKET_SIZE];
   uint16_t _peripheral_rx_buffer_pos;

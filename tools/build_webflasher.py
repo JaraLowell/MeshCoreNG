@@ -95,7 +95,11 @@ def find_assets_for_board(all_assets, board):
         pattern = re.compile(rf"^{re.escape(env_name)}-.+\.zip$")
     else:
         pattern = re.compile(rf"^{re.escape(env_name)}-.+\.(uf2|hex|zip|bin)$")
-    matches = [a for a in all_assets if pattern.match(a.get("name", ""))]
+    board_category = get_category(env_name)
+    matches = [
+        a for a in all_assets
+        if pattern.match(a.get("name", "")) and release_category_matches(a, board_category)
+    ]
     matches.sort(key=lambda a: a.get("release_published_at") or a.get("updated_at", ""), reverse=True)
     return matches
 
@@ -160,6 +164,38 @@ def get_category(env_name):
     if n.endswith("_kiss_modem"):             return "kiss_modem"
     if n.endswith("_terminal_chat"):          return "terminal_chat"
     return "other"
+
+
+def get_release_category(asset):
+    """Return the firmware category implied by a category-specific release name/tag."""
+    text = f"{asset.get('release_tag', '')} {asset.get('release_name', '')}".lower()
+    text = text.replace("_", "-")
+
+    # Check longer names first so bridge-tcp-ble is not treated as bridge-tcp.
+    release_categories = [
+        ("bridge-tcp-ble", "bridge_tcp_ble"),
+        ("bridge-espnow", "bridge_espnow"),
+        ("bridge-rs232", "bridge_rs232"),
+        ("bridge-ble", "bridge_ble"),
+        ("bridge-tcp", "bridge_tcp"),
+        ("companion-ble", "companion_ble"),
+        ("companion-usb", "companion_usb"),
+        ("companion-wifi", "companion_wifi"),
+        ("room-server", "room_server"),
+        ("kiss-modem", "kiss_modem"),
+        ("terminal-chat", "terminal_chat"),
+        ("repeater", "repeater"),
+        ("sensor", "sensor"),
+    ]
+    for marker, category in release_categories:
+        if marker in text:
+            return category
+    return None
+
+
+def release_category_matches(asset, board_category):
+    release_category = get_release_category(asset)
+    return release_category is None or release_category == board_category
 
 
 def build_flasher(boards, all_assets):

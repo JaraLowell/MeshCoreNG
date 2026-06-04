@@ -1314,7 +1314,7 @@ set bridge.enabled on
 
 **3. Available firmware variants** (compile with PlatformIO):
 - `Heltec_v3_repeater_bridge_tcp`
-- `Heltec_v3_433_repeater_bridge_tcp`
+- `heltec_v3_433_repeater_bridge_tcp`
 - `Heltec_WSL3_repeater_bridge_tcp`
 - `heltec_v4_repeater_bridge_tcp`
 - `Tbeam_SX1262_repeater_bridge_tcp`
@@ -1364,6 +1364,7 @@ set bridge.enabled on
 - `source`: 
   - `logRx`: bridges received packets
   - `logTx`: bridges transmitted packets
+  - `both`: bridges received and transmitted packets
 
 **Default:** `logTx`
 

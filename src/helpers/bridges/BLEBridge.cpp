@@ -53,6 +53,12 @@ void BLEBridge::begin() {
   _should_connect = false;
   _peripheral_rx_buffer_pos = 0;
   _central_rx_buffer_pos = 0;
+  _tx_frames = 0;
+  _rx_frames = 0;
+  _rx_bad_checksum = 0;
+  _rx_parse_fail = 0;
+  _tx_seen_drop = 0;
+  _tx_no_link = 0;
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.configCentralBandwidth(BANDWIDTH_MAX);
@@ -256,6 +262,12 @@ void BLEBridge::begin() {
   _should_connect = false;
   _peripheral_rx_buffer_pos = 0;
   _central_rx_buffer_pos = 0;
+  _tx_frames = 0;
+  _rx_frames = 0;
+  _rx_bad_checksum = 0;
+  _rx_parse_fail = 0;
+  _tx_seen_drop = 0;
+  _tx_no_link = 0;
 
   BLEDevice::init(BLE_BRIDGE_DEVICE_NAME);
   BLEDevice::setMTU(517);
@@ -268,7 +280,8 @@ void BLEBridge::begin() {
       _service->createCharacteristic(BLE_BRIDGE_TX_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
   _server_tx_characteristic->addDescriptor(new BLE2902());
 
-  _server_rx_characteristic = _service->createCharacteristic(BLE_BRIDGE_RX_UUID, BLECharacteristic::PROPERTY_WRITE);
+  _server_rx_characteristic =
+      _service->createCharacteristic(BLE_BRIDGE_RX_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
   _server_rx_characteristic->setCallbacks(this);
 
   _service->start();
@@ -433,6 +446,14 @@ void BLEBridge::onResult(BLEAdvertisedDevice advertised_device) {
   }
 
   if (advertised_device.haveServiceUUID() && advertised_device.isAdvertisingService(BLEUUID(BLE_BRIDGE_SERVICE_UUID))) {
+    BLEAddress local_address = BLEDevice::getAddress();
+    BLEAddress peer_address = advertised_device.getAddress();
+    if (!(local_address < peer_address)) {
+      BRIDGE_DEBUG_PRINTLN("ESP32 BLE peer %s seen, waiting for peer to connect\n",
+                           peer_address.toString().c_str());
+      return;
+    }
+
     BLEDevice::getScan()->stop();
     delete _advertised_device;
     _advertised_device = new BLEAdvertisedDevice(advertised_device);
@@ -460,7 +481,8 @@ void BLEBridge::sendClientFrame(const uint8_t *buffer, size_t len) {
 
   for (size_t offset = 0; offset < len; offset += BLE_BRIDGE_WRITE_CHUNK) {
     const size_t chunk_len = min((size_t)BLE_BRIDGE_WRITE_CHUNK, len - offset);
-    _client_rx_characteristic->writeValue((uint8_t *)(buffer + offset), chunk_len, false);
+    _client_rx_characteristic->writeValue((uint8_t *)(buffer + offset), chunk_len,
+                                          !_client_rx_characteristic->canWriteNoResponse());
     delay(BLE_BRIDGE_WRITE_INTERVAL_MS);
   }
 }
@@ -537,9 +559,11 @@ void BLEBridge::handleByte(uint8_t b, uint8_t *buffer, uint16_t &buffer_pos) {
     mesh::Packet *pkt = _mgr->allocNew();
     if (pkt) {
       if (pkt->readFrom(buffer + 4, len)) {
+        _rx_frames++;
         BRIDGE_DEBUG_PRINTLN("BLE RX, len=%d crc=0x%04x\n", len, received_checksum);
         onPacketReceived(pkt);
       } else {
+        _rx_parse_fail++;
         BRIDGE_DEBUG_PRINTLN("BLE RX failed to parse packet\n");
         _mgr->free(pkt);
       }
@@ -547,6 +571,7 @@ void BLEBridge::handleByte(uint8_t b, uint8_t *buffer, uint16_t &buffer_pos) {
       BRIDGE_DEBUG_PRINTLN("BLE RX failed to allocate packet\n");
     }
   } else {
+    _rx_bad_checksum++;
     BRIDGE_DEBUG_PRINTLN("BLE RX checksum mismatch, rcv=0x%04x\n", received_checksum);
   }
 
@@ -558,7 +583,14 @@ void BLEBridge::sendPacket(mesh::Packet *packet) {
     return;
   }
 
+  const bool has_link = _peripheral_connected || (_central_connected && _central_discovered);
+  if (!has_link) {
+    _tx_no_link++;
+    return;
+  }
+
   if (_seen_packets.hasSeen(packet)) {
+    _tx_seen_drop++;
     return;
   }
 
@@ -589,11 +621,25 @@ void BLEBridge::sendPacket(mesh::Packet *packet) {
   sendClientFrame(buffer, frame_len);
 #endif
 
+  _tx_frames++;
   BRIDGE_DEBUG_PRINTLN("BLE TX, len=%d crc=0x%04x\n", len, checksum);
 }
 
 void BLEBridge::onPacketReceived(mesh::Packet *packet) {
   handleReceivedPacket(packet);
+}
+
+void BLEBridge::getStatusStr(char *reply) const {
+  sprintf(reply, "> BLE: %s | central: %s | peripheral: %s | tx=%lu rx=%lu badcrc=%lu parse=%lu seen=%lu nolink=%lu",
+          _initialized ? "running" : "stopped",
+          _central_connected && _central_discovered ? "connected" : "disconnected",
+          _peripheral_connected ? "connected" : "disconnected",
+          (unsigned long)_tx_frames,
+          (unsigned long)_rx_frames,
+          (unsigned long)_rx_bad_checksum,
+          (unsigned long)_rx_parse_fail,
+          (unsigned long)_tx_seen_drop,
+          (unsigned long)_tx_no_link);
 }
 
 #endif

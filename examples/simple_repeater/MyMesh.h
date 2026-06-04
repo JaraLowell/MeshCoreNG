@@ -379,6 +379,16 @@ public:
   }
 #endif
 
+#if defined(WITH_BLE_BRIDGE)
+  void formatBleBridgeStatusReply(char *reply) override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    ble_bridge.getStatusStr(reply);
+#else
+    bridge.getStatusStr(reply);
+#endif
+  }
+#endif
+
   // To check if there is pending work
   bool isBridgeActive() const;
   bool hasOutboundWork() const;
