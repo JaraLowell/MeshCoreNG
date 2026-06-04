@@ -19,7 +19,7 @@
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_ble",
-    "name": "ebyte eora-s3 ble bridge",
+    "name": "ebyte eora-s3 BLE bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for Ebyte EoRa-S3."
   },
@@ -37,7 +37,7 @@
   },
   {
     "env": "Ebyte_EoRa-S3_Repeater_bridge_tcp_ble",
-    "name": "ebyte eora-s3 repeater (tcp+ble bridge)",
+    "name": "ebyte eora-s3 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Ebyte EoRa-S3 (ESP32-S3)."
   },
@@ -73,7 +73,7 @@
   },
   {
     "env": "GAT562_30S_Mesh_Kit_repeater_bridge_ble",
-    "name": "gat562 30s mesh kit ble bridge",
+    "name": "gat562 30s mesh kit BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 30S Mesh Kit."
   },
@@ -97,7 +97,7 @@
   },
   {
     "env": "GAT562_Mesh_EVB_Pro_repeater_bridge_ble",
-    "name": "gat562 mesh evb pro ble bridge",
+    "name": "gat562 mesh evb pro BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh EVB Pro."
   },
@@ -133,7 +133,7 @@
   },
   {
     "env": "GAT562_Mesh_Tracker_Pro_repeater_bridge_ble",
-    "name": "gat562 mesh tracker pro ble bridge",
+    "name": "gat562 mesh tracker pro BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh Tracker Pro."
   },
@@ -157,7 +157,7 @@
   },
   {
     "env": "GAT562_Mesh_Watch13_repeater_bridge_ble",
-    "name": "gat562 mesh watch13 ble bridge",
+    "name": "gat562 mesh watch13 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for GAT562 Mesh Watch13."
   },
@@ -187,7 +187,7 @@
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_ble",
-    "name": "generic e22 sx1262 ble bridge",
+    "name": "generic e22 sx1262 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Generic E22 SX1262."
   },
@@ -211,7 +211,7 @@
   },
   {
     "env": "Generic_E22_sx1262_repeater_bridge_tcp_ble",
-    "name": "generic e22 sx1262 repeater (tcp+ble bridge)",
+    "name": "generic e22 sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Generic E22 SX1262 (ESP32)."
   },
@@ -235,7 +235,7 @@
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_ble",
-    "name": "generic e22 sx1268 ble bridge",
+    "name": "generic e22 sx1268 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Generic E22 SX1268."
   },
@@ -259,7 +259,7 @@
   },
   {
     "env": "Generic_E22_sx1268_repeater_bridge_tcp_ble",
-    "name": "generic e22 sx1268 repeater (tcp+ble bridge)",
+    "name": "generic e22 sx1268 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Generic E22 SX1268 (ESP32)."
   },
@@ -307,7 +307,7 @@
   },
   {
     "env": "Heltec_ct62_repeater_bridge_ble",
-    "name": "heltec ct62 ble bridge",
+    "name": "heltec ct62 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec CT62."
   },
@@ -325,7 +325,7 @@
   },
   {
     "env": "Heltec_ct62_repeater_bridge_tcp_ble",
-    "name": "heltec ct62 repeater (tcp+ble bridge)",
+    "name": "heltec ct62 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec CT62 (ESP32)."
   },
@@ -355,7 +355,7 @@
   },
   {
     "env": "Heltec_E213_repeater_bridge_ble",
-    "name": "heltec e213 ble bridge",
+    "name": "heltec e213 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec E213."
   },
@@ -373,7 +373,7 @@
   },
   {
     "env": "Heltec_E213_repeater_bridge_tcp_ble",
-    "name": "heltec e213 repeater (tcp+ble bridge)",
+    "name": "heltec e213 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec E213 (ESP32)."
   },
@@ -439,7 +439,7 @@
   },
   {
     "env": "Heltec_mesh_solar_repeater_bridge_ble",
-    "name": "heltec mesh solar ble bridge",
+    "name": "heltec mesh solar BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Mesh Solar."
   },
@@ -475,7 +475,7 @@
   },
   {
     "env": "Heltec_t096_repeater_bridge_ble",
-    "name": "heltec t096 ble bridge",
+    "name": "heltec t096 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T096."
   },
@@ -511,7 +511,7 @@
   },
   {
     "env": "Heltec_t114_repeater_bridge_ble",
-    "name": "heltec t114 ble bridge",
+    "name": "heltec t114 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T114."
   },
@@ -547,7 +547,7 @@
   },
   {
     "env": "Heltec_t114_without_display_repeater_bridge_ble",
-    "name": "heltec t114 without display ble bridge",
+    "name": "heltec t114 without display BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T114 Without Display."
   },
@@ -583,7 +583,7 @@
   },
   {
     "env": "Heltec_T190_repeater_bridge_ble",
-    "name": "heltec t190 ble bridge",
+    "name": "heltec t190 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec T190."
   },
@@ -601,7 +601,7 @@
   },
   {
     "env": "Heltec_T190_repeater_bridge_tcp_ble",
-    "name": "heltec t190 repeater (tcp+ble bridge)",
+    "name": "heltec t190 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec T190 (ESP32)."
   },
@@ -637,7 +637,7 @@
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_ble",
-    "name": "heltec tracker v2 ble bridge",
+    "name": "heltec tracker v2 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Tracker V2."
   },
@@ -661,7 +661,7 @@
   },
   {
     "env": "heltec_tracker_v2_repeater_bridge_tcp_ble",
-    "name": "heltec tracker v2 repeater (tcp+ble bridge)",
+    "name": "heltec tracker v2 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Tracker V2 (ESP32)."
   },
@@ -709,7 +709,7 @@
   },
   {
     "env": "Heltec_v2_repeater_bridge_ble",
-    "name": "heltec lora v2 ble bridge",
+    "name": "heltec lora v2 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V2."
   },
@@ -727,7 +727,7 @@
   },
   {
     "env": "Heltec_v2_repeater_bridge_tcp_ble",
-    "name": "heltec lora v2 repeater (tcp+ble bridge)",
+    "name": "heltec lora v2 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V2 (ESP32)."
   },
@@ -775,7 +775,7 @@
   },
   {
     "env": "Heltec_v3_repeater_bridge_ble",
-    "name": "heltec lora v3 ble bridge",
+    "name": "heltec lora v3 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V3."
   },
@@ -799,7 +799,7 @@
   },
   {
     "env": "Heltec_v3_repeater_bridge_tcp_ble",
-    "name": "heltec lora v3 repeater (tcp+ble bridge)",
+    "name": "heltec lora v3 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V3 (ESP32)."
   },
@@ -820,6 +820,84 @@
     "name": "Heltec LoRa V3 Terminal Chat",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V3 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_companion_radio_ble",
+    "name": "heltec lora v3 433 companion radio (BLE)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_companion_radio_usb",
+    "name": "heltec lora v3 433 companion radio (USB)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_companion_radio_wifi",
+    "name": "heltec lora v3 433 companion radio (WiFi)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Companion Radio (WiFi) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_kiss_modem",
+    "name": "heltec lora v3 433 kiss modem",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG KISS Modem firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_repeater",
+    "name": "heltec lora v3 433 repeater",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Repeater firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_repeater_bridge_ble",
+    "name": "heltec lora v3 433 BLE bridge",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V3 433/SX1268."
+  },
+  {
+    "env": "Heltec_v3_433_repeater_bridge_espnow",
+    "name": "heltec lora v3 433 repeater (ESPNow bridge)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_repeater_bridge_rs232",
+    "name": "heltec lora v3 433 repeater (RS232 bridge)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Repeater (RS232 Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_repeater_bridge_tcp",
+    "name": "heltec lora v3 433 repeater (TCP bridge)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_repeater_bridge_tcp_ble",
+    "name": "heltec lora v3 433 repeater (TCP+BLE bridge)",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_room_server",
+    "name": "heltec lora v3 433 room server",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Room Server firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_sensor",
+    "name": "heltec lora v3 433 sensor",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Sensor firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
+  },
+  {
+    "env": "Heltec_v3_433_terminal_chat",
+    "name": "heltec lora v3 433 terminal chat",
+    "chipFamily": "ESP32",
+    "description": "MeshCoreNG Terminal Chat firmware for Heltec LoRa V3 433/SX1268 (ESP32)."
   },
   {
     "env": "heltec_v4_companion_radio_ble",
@@ -847,7 +925,7 @@
   },
   {
     "env": "heltec_v4_repeater_bridge_ble",
-    "name": "heltec lora v4 ble bridge",
+    "name": "heltec lora v4 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V4."
   },
@@ -871,7 +949,7 @@
   },
   {
     "env": "heltec_v4_repeater_bridge_tcp_ble",
-    "name": "heltec lora v4 repeater (tcp+ble bridge)",
+    "name": "heltec lora v4 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V4 (ESP32)."
   },
@@ -919,7 +997,7 @@
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_ble",
-    "name": "heltec lora v4 tft ble bridge",
+    "name": "heltec lora v4 tft BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec LoRa V4 TFT."
   },
@@ -943,7 +1021,7 @@
   },
   {
     "env": "heltec_v4_tft_repeater_bridge_tcp_ble",
-    "name": "heltec lora v4 tft repeater (tcp+ble bridge)",
+    "name": "heltec lora v4 tft repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec LoRa V4 TFT (ESP32)."
   },
@@ -985,7 +1063,7 @@
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_ble",
-    "name": "heltec wireless paper ble bridge",
+    "name": "heltec wireless paper BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Wireless Paper."
   },
@@ -1003,7 +1081,7 @@
   },
   {
     "env": "Heltec_Wireless_Paper_repeater_bridge_tcp_ble",
-    "name": "heltec wireless paper repeater (tcp+ble bridge)",
+    "name": "heltec wireless paper repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Wireless Paper (ESP32)."
   },
@@ -1033,7 +1111,7 @@
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_ble",
-    "name": "heltec wireless tracker ble bridge",
+    "name": "heltec wireless tracker BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec Wireless Tracker."
   },
@@ -1051,7 +1129,7 @@
   },
   {
     "env": "Heltec_Wireless_Tracker_repeater_bridge_tcp_ble",
-    "name": "heltec wireless tracker repeater (tcp+ble bridge)",
+    "name": "heltec wireless tracker repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec Wireless Tracker (ESP32)."
   },
@@ -1087,7 +1165,7 @@
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_ble",
-    "name": "heltec wsl3 ble bridge",
+    "name": "heltec wsl3 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Heltec WSL3."
   },
@@ -1111,7 +1189,7 @@
   },
   {
     "env": "Heltec_WSL3_repeater_bridge_tcp_ble",
-    "name": "heltec wsl3 repeater (tcp+ble bridge)",
+    "name": "heltec wsl3 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Heltec WSL3 (ESP32)."
   },
@@ -1159,7 +1237,7 @@
   },
   {
     "env": "ikoka_handheld_nrf_e22_30dbm_repeater_bridge_ble",
-    "name": "ikoka handheld nrf e22 30dbm ble bridge",
+    "name": "ikoka handheld nrf e22 30dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Handheld nRF E22 30dbm."
   },
@@ -1195,7 +1273,7 @@
   },
   {
     "env": "ikoka_nano_nrf_22dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 22dbm ble bridge",
+    "name": "ikoka nano nrf 22dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 22dbm."
   },
@@ -1231,7 +1309,7 @@
   },
   {
     "env": "ikoka_nano_nrf_30dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 30dbm ble bridge",
+    "name": "ikoka nano nrf 30dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 30dbm."
   },
@@ -1267,7 +1345,7 @@
   },
   {
     "env": "ikoka_nano_nrf_33dbm_repeater_bridge_ble",
-    "name": "ikoka nano nrf 33dbm ble bridge",
+    "name": "ikoka nano nrf 33dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Nano nRF 33dbm."
   },
@@ -1303,7 +1381,7 @@
   },
   {
     "env": "ikoka_stick_nrf_22dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 22dbm ble bridge",
+    "name": "ikoka stick nrf 22dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 22dbm."
   },
@@ -1339,7 +1417,7 @@
   },
   {
     "env": "ikoka_stick_nrf_30dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 30dbm ble bridge",
+    "name": "ikoka stick nrf 30dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 30dbm."
   },
@@ -1375,7 +1453,7 @@
   },
   {
     "env": "ikoka_stick_nrf_33dbm_repeater_bridge_ble",
-    "name": "ikoka stick nrf 33dbm ble bridge",
+    "name": "ikoka stick nrf 33dbm BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Ikoka Stick nRF 33dbm."
   },
@@ -1411,7 +1489,7 @@
   },
   {
     "env": "KeepteenLT1_repeater_bridge_ble",
-    "name": "keepteenlt1 ble bridge",
+    "name": "keepteenlt1 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for KeepteenLT1."
   },
@@ -1441,7 +1519,7 @@
   },
   {
     "env": "LilyGo_T-Echo-Lite_repeater_bridge_ble",
-    "name": "lilygo t echo lite ble bridge",
+    "name": "lilygo t echo lite BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T Echo Lite."
   },
@@ -1477,7 +1555,7 @@
   },
   {
     "env": "LilyGo_T-Echo_repeater_bridge_ble",
-    "name": "lilygo t echo ble bridge",
+    "name": "lilygo t echo BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T Echo."
   },
@@ -1513,7 +1591,7 @@
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_ble",
-    "name": "lilygo t3s3 sx1262 ble bridge",
+    "name": "lilygo t3s3 sx1262 BLE bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T3S3 SX1262."
   },
@@ -1531,7 +1609,7 @@
   },
   {
     "env": "LilyGo_T3S3_sx1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t3s3 sx1262 repeater (tcp+ble bridge)",
+    "name": "lilygo t3s3 sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T3S3 SX1262 (ESP32-S3)."
   },
@@ -1567,7 +1645,7 @@
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_ble",
-    "name": "lilygo t3s3 sx1276 ble bridge",
+    "name": "lilygo t3s3 sx1276 BLE bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T3S3 SX1276."
   },
@@ -1585,7 +1663,7 @@
   },
   {
     "env": "LilyGo_T3S3_sx1276_repeater_bridge_tcp_ble",
-    "name": "lilygo t3s3 sx1276 repeater (tcp+ble bridge)",
+    "name": "lilygo t3s3 sx1276 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T3S3 SX1276 (ESP32-S3)."
   },
@@ -1627,7 +1705,7 @@
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_ble",
-    "name": "lilygo t-beam 1w ble bridge",
+    "name": "lilygo t-beam 1w BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam 1W."
   },
@@ -1651,7 +1729,7 @@
   },
   {
     "env": "LilyGo_TBeam_1W_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam 1w repeater (tcp+ble bridge)",
+    "name": "lilygo t-beam 1w repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam 1W (ESP32)."
   },
@@ -1681,7 +1759,7 @@
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_ble",
-    "name": "lilygo t-deck ble bridge",
+    "name": "lilygo t-deck BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Deck."
   },
@@ -1699,7 +1777,7 @@
   },
   {
     "env": "LilyGo_TDeck_repeater_bridge_tcp_ble",
-    "name": "lilygo t-deck repeater (tcp+ble bridge)",
+    "name": "lilygo t-deck repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Deck (ESP32)."
   },
@@ -1723,7 +1801,7 @@
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_ble",
-    "name": "lilygo t-eth elite sx1262 ble bridge",
+    "name": "lilygo t-eth elite sx1262 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-ETH Elite SX1262."
   },
@@ -1741,7 +1819,7 @@
   },
   {
     "env": "LilyGo_TETH_Elite_sx1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-eth elite sx1262 repeater (tcp+ble bridge)",
+    "name": "lilygo t-eth elite sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-ETH Elite SX1262 (ESP32)."
   },
@@ -1765,7 +1843,7 @@
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_ble",
-    "name": "lilygo t-lora c6 ble bridge",
+    "name": "lilygo t-lora c6 BLE bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-LoRa C6."
   },
@@ -1783,7 +1861,7 @@
   },
   {
     "env": "LilyGo_Tlora_C6_repeater_bridge_tcp_ble",
-    "name": "lilygo t-lora c6 repeater (tcp+ble bridge)",
+    "name": "lilygo t-lora c6 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-LoRa C6 (ESP32-C6)."
   },
@@ -1819,7 +1897,7 @@
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_ble",
-    "name": "lilygo t-lora v2.1.1.6 ble bridge",
+    "name": "lilygo t-lora v2.1.1.6 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-LoRa V2.1.1.6."
   },
@@ -1843,7 +1921,7 @@
   },
   {
     "env": "LilyGo_TLora_V2_1_1_6_repeater_bridge_tcp_ble",
-    "name": "lilygo t-lora v2.1.1.6 repeater (tcp+ble bridge)",
+    "name": "lilygo t-lora v2.1.1.6 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-LoRa V2.1.1.6 (ESP32)."
   },
@@ -1879,7 +1957,7 @@
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_ble",
-    "name": "m5stack unit c6l ble bridge",
+    "name": "m5stack unit c6l BLE bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for M5Stack Unit C6L."
   },
@@ -1897,7 +1975,7 @@
   },
   {
     "env": "M5Stack_Unit_C6L_repeater_bridge_tcp_ble",
-    "name": "m5stack unit c6l repeater (tcp+ble bridge)",
+    "name": "m5stack unit c6l repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for M5Stack Unit C6L (ESP32-C6)."
   },
@@ -1927,7 +2005,7 @@
   },
   {
     "env": "Mesh_pocket_repeater_bridge_ble",
-    "name": "mesh pocket ble bridge",
+    "name": "mesh pocket BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Pocket."
   },
@@ -1963,7 +2041,7 @@
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_ble",
-    "name": "mesh adventurer sx1262 ble bridge",
+    "name": "mesh adventurer sx1262 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Adventurer SX1262."
   },
@@ -1981,7 +2059,7 @@
   },
   {
     "env": "Meshadventurer_sx1262_repeater_bridge_tcp_ble",
-    "name": "mesh adventurer sx1262 repeater (tcp+ble bridge)",
+    "name": "mesh adventurer sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Mesh Adventurer SX1262 (ESP32)."
   },
@@ -2017,7 +2095,7 @@
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_ble",
-    "name": "mesh adventurer sx1268 ble bridge",
+    "name": "mesh adventurer sx1268 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Mesh Adventurer SX1268."
   },
@@ -2035,7 +2113,7 @@
   },
   {
     "env": "Meshadventurer_sx1268_repeater_bridge_tcp_ble",
-    "name": "mesh adventurer sx1268 repeater (tcp+ble bridge)",
+    "name": "mesh adventurer sx1268 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Mesh Adventurer SX1268 (ESP32)."
   },
@@ -2065,7 +2143,7 @@
   },
   {
     "env": "Meshimi_repeater_bridge_ble",
-    "name": "meshimi ble bridge",
+    "name": "meshimi BLE bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for Meshimi."
   },
@@ -2077,7 +2155,7 @@
   },
   {
     "env": "Meshimi_repeater_bridge_tcp_ble",
-    "name": "meshimi repeater (tcp+ble bridge)",
+    "name": "meshimi repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Meshimi (ESP32-C6)."
   },
@@ -2095,7 +2173,7 @@
   },
   {
     "env": "Meshtiny_repeater_bridge_ble",
-    "name": "meshtiny ble bridge",
+    "name": "meshtiny BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Meshtiny."
   },
@@ -2125,7 +2203,7 @@
   },
   {
     "env": "Minewsemi_me25ls01_repeater_bridge_ble",
-    "name": "minewsemi me25ls01 ble bridge",
+    "name": "minewsemi me25ls01 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Minewsemi Me25ls01."
   },
@@ -2155,7 +2233,7 @@
   },
   {
     "env": "Nano_G2_Ultra_repeater_bridge_ble",
-    "name": "nano g2 ultra ble bridge",
+    "name": "nano g2 ultra BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Nano G2 Ultra."
   },
@@ -2191,7 +2269,7 @@
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_ble",
-    "name": "nibble screen connect ble bridge",
+    "name": "nibble screen connect BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Nibble Screen Connect."
   },
@@ -2215,7 +2293,7 @@
   },
   {
     "env": "nibble_screen_connect_repeater_bridge_tcp_ble",
-    "name": "nibble screen connect repeater (tcp+ble bridge)",
+    "name": "nibble screen connect repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Nibble Screen Connect (ESP32)."
   },
@@ -2275,7 +2353,7 @@
   },
   {
     "env": "ProMicro_repeater_bridge_ble",
-    "name": "promicro ble bridge",
+    "name": "promicro BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ProMicro."
   },
@@ -2305,7 +2383,7 @@
   },
   {
     "env": "R1Neo_repeater_bridge_ble",
-    "name": "r1neo ble bridge",
+    "name": "r1neo BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for R1Neo."
   },
@@ -2371,7 +2449,7 @@
   },
   {
     "env": "RAK_3112_repeater_bridge_ble",
-    "name": "rak3112 ble bridge",
+    "name": "rak3112 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for RAK3112."
   },
@@ -2395,7 +2473,7 @@
   },
   {
     "env": "RAK_3112_repeater_bridge_tcp_ble",
-    "name": "rak3112 repeater (tcp+ble bridge)",
+    "name": "rak3112 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for RAK3112 (ESP32)."
   },
@@ -2437,7 +2515,7 @@
   },
   {
     "env": "RAK_3401_repeater_bridge_ble",
-    "name": "rak 3401 ble bridge",
+    "name": "rak 3401 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK 3401."
   },
@@ -2491,7 +2569,7 @@
   },
   {
     "env": "RAK_4631_repeater_bridge_ble",
-    "name": "rak 4631 ble bridge",
+    "name": "rak 4631 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK 4631."
   },
@@ -2521,7 +2599,7 @@
   },
   {
     "env": "RAK_WisMesh_Tag_repeater_bridge_ble",
-    "name": "rak wismesh tag ble bridge",
+    "name": "rak wismesh tag BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for RAK WisMesh Tag."
   },
@@ -2557,7 +2635,7 @@
   },
   {
     "env": "SenseCap_Solar_repeater_bridge_ble",
-    "name": "sensecap solar ble bridge",
+    "name": "sensecap solar BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for SenseCap Solar."
   },
@@ -2623,7 +2701,7 @@
   },
   {
     "env": "Station_G2_repeater_bridge_ble",
-    "name": "station g2 ble bridge",
+    "name": "station g2 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for Station G2."
   },
@@ -2641,7 +2719,7 @@
   },
   {
     "env": "Station_G2_repeater_bridge_tcp_ble",
-    "name": "station g2 repeater (tcp+ble bridge)",
+    "name": "station g2 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Station G2 (ESP32)."
   },
@@ -2671,7 +2749,7 @@
   },
   {
     "env": "t1000e_repeater_bridge_ble",
-    "name": "t1000-e ble bridge",
+    "name": "t1000-e BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for T1000-E."
   },
@@ -2707,7 +2785,7 @@
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_ble",
-    "name": "lilygo t-beam s3 supreme sx1262 ble bridge",
+    "name": "lilygo t-beam s3 supreme sx1262 BLE bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam S3 Supreme SX1262."
   },
@@ -2725,7 +2803,7 @@
   },
   {
     "env": "T_Beam_S3_Supreme_SX1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam s3 supreme sx1262 repeater (tcp+ble bridge)",
+    "name": "lilygo t-beam s3 supreme sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam S3 Supreme SX1262 (ESP32-S3)."
   },
@@ -2749,7 +2827,7 @@
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_ble",
-    "name": "lilygo t-beam sx1262 ble bridge",
+    "name": "lilygo t-beam sx1262 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam SX1262."
   },
@@ -2767,7 +2845,7 @@
   },
   {
     "env": "Tbeam_SX1262_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam sx1262 repeater (tcp+ble bridge)",
+    "name": "lilygo t-beam sx1262 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam SX1262 (ESP32)."
   },
@@ -2791,7 +2869,7 @@
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_ble",
-    "name": "lilygo t-beam sx1276 ble bridge",
+    "name": "lilygo t-beam sx1276 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Beam SX1276."
   },
@@ -2809,7 +2887,7 @@
   },
   {
     "env": "Tbeam_SX1276_repeater_bridge_tcp_ble",
-    "name": "lilygo t-beam sx1276 repeater (tcp+ble bridge)",
+    "name": "lilygo t-beam sx1276 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for LilyGo T-Beam SX1276 (ESP32)."
   },
@@ -2875,7 +2953,7 @@
   },
   {
     "env": "ThinkNode_M1_repeater_bridge_ble",
-    "name": "thinknode m1 ble bridge",
+    "name": "thinknode m1 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M1."
   },
@@ -2923,7 +3001,7 @@
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_ble",
-    "name": "thinknode m2 ble bridge",
+    "name": "thinknode m2 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M2."
   },
@@ -2941,7 +3019,7 @@
   },
   {
     "env": "ThinkNode_M2_Repeater_bridge_tcp_ble",
-    "name": "thinknode m2 repeater (tcp+ble bridge)",
+    "name": "thinknode m2 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for ThinkNode M2 (ESP32)."
   },
@@ -2977,7 +3055,7 @@
   },
   {
     "env": "ThinkNode_M3_repeater_bridge_ble",
-    "name": "thinknode m3 ble bridge",
+    "name": "thinknode m3 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M3."
   },
@@ -3025,7 +3103,7 @@
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_ble",
-    "name": "thinknode m5 ble bridge",
+    "name": "thinknode m5 BLE bridge",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M5."
   },
@@ -3043,7 +3121,7 @@
   },
   {
     "env": "ThinkNode_M5_Repeater_bridge_tcp_ble",
-    "name": "thinknode m5 repeater (tcp+ble bridge)",
+    "name": "thinknode m5 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for ThinkNode M5 (ESP32)."
   },
@@ -3079,7 +3157,7 @@
   },
   {
     "env": "ThinkNode_M6_repeater_bridge_ble",
-    "name": "thinknode m6 ble bridge",
+    "name": "thinknode m6 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for ThinkNode M6."
   },
@@ -3151,7 +3229,7 @@
   },
   {
     "env": "WHY2025_badge_repeater_bridge_ble",
-    "name": "why2025 badge ble bridge",
+    "name": "why2025 badge BLE bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for WHY2025 Badge."
   },
@@ -3163,7 +3241,7 @@
   },
   {
     "env": "WHY2025_badge_repeater_bridge_tcp_ble",
-    "name": "why2025 badge repeater (tcp+ble bridge)",
+    "name": "why2025 badge repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for WHY2025 Badge (ESP32-C6)."
   },
@@ -3211,7 +3289,7 @@
   },
   {
     "env": "wio_wm1110_repeater_bridge_ble",
-    "name": "wio wm1110 ble bridge",
+    "name": "wio wm1110 BLE bridge",
     "chipFamily": "Download",
     "description": "MeshCoreNG BLE Bridge firmware for Wio WM1110."
   },
@@ -3247,7 +3325,7 @@
   },
   {
     "env": "WioTrackerL1_repeater_bridge_ble",
-    "name": "wio tracker l1 ble bridge",
+    "name": "wio tracker l1 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Wio Tracker L1."
   },
@@ -3271,7 +3349,7 @@
   },
   {
     "env": "WioTrackerL1Eink_repeater_bridge_ble",
-    "name": "wio tracker l1 e-ink ble bridge",
+    "name": "wio tracker l1 e-ink BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for Wio Tracker L1 E-Ink."
   },
@@ -3307,7 +3385,7 @@
   },
   {
     "env": "Xiao_C3_repeater_bridge_ble",
-    "name": "seeed xiao esp32-c3 ble bridge",
+    "name": "seeed xiao esp32-c3 BLE bridge",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-C3."
   },
@@ -3325,7 +3403,7 @@
   },
   {
     "env": "Xiao_C3_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-c3 repeater (tcp+ble bridge)",
+    "name": "seeed xiao esp32-c3 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-C3 (ESP32-C3)."
   },
@@ -3349,7 +3427,7 @@
   },
   {
     "env": "Xiao_C6_repeater_bridge_ble",
-    "name": "seeed xiao esp32-c6 ble bridge",
+    "name": "seeed xiao esp32-c6 BLE bridge",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-C6."
   },
@@ -3367,7 +3445,7 @@
   },
   {
     "env": "Xiao_C6_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-c6 repeater (tcp+ble bridge)",
+    "name": "seeed xiao esp32-c6 repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-C6",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-C6 (ESP32-C6)."
   },
@@ -3391,7 +3469,7 @@
   },
   {
     "env": "Xiao_nrf52_repeater_bridge_ble",
-    "name": "xiao nrf52 ble bridge",
+    "name": "xiao nrf52 BLE bridge",
     "chipFamily": "nRF52",
     "description": "MeshCoreNG BLE Bridge firmware for XIAO Nrf52."
   },
@@ -3463,7 +3541,7 @@
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_ble",
-    "name": "seeed xiao esp32-s3 wio ble bridge",
+    "name": "seeed xiao esp32-s3 wio BLE bridge",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-S3 WIO."
   },
@@ -3481,7 +3559,7 @@
   },
   {
     "env": "Xiao_S3_WIO_repeater_bridge_tcp_ble",
-    "name": "seeed xiao esp32-s3 wio repeater (tcp+ble bridge)",
+    "name": "seeed xiao esp32-s3 wio repeater (TCP+BLE bridge)",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
   },

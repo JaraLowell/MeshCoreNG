@@ -4,7 +4,11 @@
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <HeltecV3Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#if defined(USE_SX1268)
+  #include <helpers/radiolib/CustomSX1268Wrapper.h>
+#else
+  #include <helpers/radiolib/CustomSX1262Wrapper.h>
+#endif
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
