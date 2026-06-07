@@ -613,6 +613,10 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
   }
+  if (packet->isRouteFlood() && packet->wasReceivedFromBridge()) {
+    if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
+    return true;
+  }
   if (is_flood_advert) {
     uint8_t hops = packet->getPathHashCount();
     float forward_prob = pow(_prefs.flood_advert_base, hops > 0 ? hops - 1 : 0);
