@@ -44,9 +44,6 @@ void setup() {
   delay(5000);
 #endif
 
-  // For power saving
-  lastActive = millis(); // mark last active time since boot
-
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
     display.startFrame();
@@ -61,7 +58,7 @@ void setup() {
     halt();
   }
 
-  fast_rng.begin(radio_get_rng_seed());
+  fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -108,6 +105,8 @@ void setup() {
 #if ENABLE_ADVERT_ON_BOOT == 1
   the_mesh.sendSelfAdvertisement(16000, false);
 #endif
+
+  board.onBootComplete();
 }
 
 void loop() {

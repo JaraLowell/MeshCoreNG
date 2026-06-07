@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "TxtDataHelpers.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -104,68 +105,76 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
+    uint8_t flood_max_unscoped = _prefs->flood_max_unscoped;
+    if (file.read((uint8_t *)&flood_max_unscoped, sizeof(flood_max_unscoped)) == sizeof(flood_max_unscoped)) {
+      _prefs->flood_max_unscoped = flood_max_unscoped;                                             // 291
+    }
+    uint8_t flood_max_advert = _prefs->flood_max_advert;
+    if (file.read((uint8_t *)&flood_max_advert, sizeof(flood_max_advert)) == sizeof(flood_max_advert)) {
+      _prefs->flood_max_advert = flood_max_advert;                                                 // 292
+    }
     float default_flood_advert_base = _prefs->flood_advert_base;
     float flood_advert_base = default_flood_advert_base;
     if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
-      _prefs->flood_advert_base = flood_advert_base;                                              // 291
+      _prefs->flood_advert_base = flood_advert_base;                                               // 293
     }
     uint8_t flood_relay_prob = _prefs->flood_relay_prob;
     if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
-      _prefs->flood_relay_prob = flood_relay_prob;                                                // 295
+      _prefs->flood_relay_prob = flood_relay_prob;                                                 // 297
     }
     uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
     if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
-      _prefs->flood_dynamic_enable = flood_dynamic_enable;                                        // 296
+      _prefs->flood_dynamic_enable = flood_dynamic_enable;                                         // 298
     }
     char wifi_ssid[32] = {};
     if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
-      memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 297
+      memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                     // 299
     }
     char wifi_password[64] = {};
     if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
-      memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 329
+      memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                         // 331
     }
     char bridge_server[64] = {};
     if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
-      memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 393
+      memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                         // 395
     }
     uint16_t bridge_port = _prefs->bridge_port;
     if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
-      _prefs->bridge_port = bridge_port;                                                         // 457
+      _prefs->bridge_port = bridge_port;                                                           // 459
     }
     uint8_t malformed_drop = _prefs->malformed_drop;
     if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
-      _prefs->malformed_drop = malformed_drop;                                                    // 459
+      _prefs->malformed_drop = malformed_drop;                                                     // 461
     }
     uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
     if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
-      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                  // 460
+      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                   // 462
     }
     uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
     if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
-      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                              // 461
+      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                               // 463
     }
     AtlasConfig atlas = _prefs->atlas;
     if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
-      _prefs->atlas = atlas;                                                                      // 462
+      _prefs->atlas = atlas;                                                                       // 464
     }
     uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
     if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
-      _prefs->daily_reboot_enabled = daily_reboot_enabled;                                        // 462 + sizeof(AtlasConfig)
+      _prefs->daily_reboot_enabled = daily_reboot_enabled;                                         // 464 + sizeof(AtlasConfig)
     }
     uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
     if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
-      _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                          // 463 + sizeof(AtlasConfig)
+      _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                           // 465 + sizeof(AtlasConfig)
     }
     uint8_t bridge_rf = _prefs->bridge_rf;
     if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
-      _prefs->bridge_rf = bridge_rf;                                                               // 464 + sizeof(AtlasConfig)
+      _prefs->bridge_rf = bridge_rf;                                                               // 466 + sizeof(AtlasConfig)
     }
     char bridge_password[64] = {};
     if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
-      memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 465 + sizeof(AtlasConfig)
+      memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 467 + sizeof(AtlasConfig)
     }
-    // next: 529 + sizeof(AtlasConfig)
+    // next: 531 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -274,22 +283,24 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));          // 291
-    file.write((uint8_t *)&_prefs->flood_relay_prob, sizeof(_prefs->flood_relay_prob));            // 295
-    file.write((uint8_t *)&_prefs->flood_dynamic_enable, sizeof(_prefs->flood_dynamic_enable));    // 296
-    file.write((uint8_t *)&_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));                          // 297
-    file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 329
-    file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 393
-    file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 457
-    file.write((uint8_t *)&_prefs->malformed_drop, sizeof(_prefs->malformed_drop));                // 459
-    file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 460
-    file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 461
-    file.write((uint8_t *)&_prefs->atlas, sizeof(_prefs->atlas));                                  // 462
-    file.write((uint8_t *)&_prefs->daily_reboot_enabled, sizeof(_prefs->daily_reboot_enabled));    // 462 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 463 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 464 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 465 + sizeof(AtlasConfig)
-    // next: 529 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->flood_max_unscoped, sizeof(_prefs->flood_max_unscoped));        // 291
+    file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));            // 292
+    file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));          // 293
+    file.write((uint8_t *)&_prefs->flood_relay_prob, sizeof(_prefs->flood_relay_prob));            // 297
+    file.write((uint8_t *)&_prefs->flood_dynamic_enable, sizeof(_prefs->flood_dynamic_enable));    // 298
+    file.write((uint8_t *)&_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));                          // 299
+    file.write((uint8_t *)&_prefs->wifi_password, sizeof(_prefs->wifi_password));                  // 331
+    file.write((uint8_t *)&_prefs->bridge_server, sizeof(_prefs->bridge_server));                  // 395
+    file.write((uint8_t *)&_prefs->bridge_port, sizeof(_prefs->bridge_port));                      // 459
+    file.write((uint8_t *)&_prefs->malformed_drop, sizeof(_prefs->malformed_drop));                // 461
+    file.write((uint8_t *)&_prefs->flood_node_delay_enable, sizeof(_prefs->flood_node_delay_enable)); // 462
+    file.write((uint8_t *)&_prefs->flood_dup_suppress_enable, sizeof(_prefs->flood_dup_suppress_enable)); // 463
+    file.write((uint8_t *)&_prefs->atlas, sizeof(_prefs->atlas));                                  // 464
+    file.write((uint8_t *)&_prefs->daily_reboot_enabled, sizeof(_prefs->daily_reboot_enabled));    // 464 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 465 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 466 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 467 + sizeof(AtlasConfig)
+    // next: 531 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -403,7 +414,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
-      sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
+      sprintf(reply, "password now: ");
+      StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
     } else if (memcmp(command, "clear dense.stats", 17) == 0) {
       _callbacks->clearDenseStats();
       strcpy(reply, "(OK - dense stats reset)");
@@ -629,13 +641,23 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {
+#if defined(NRF52_PLATFORM)
       _prefs->powersaving_enabled = 1;
       savePrefs();
-      strcpy(reply, "ok"); // TODO: to return Not supported if required
+      strcpy(reply, "on - Immediate effect");
+#elif defined(ESP32) && !defined(WITH_BRIDGE)
+      _prefs->powersaving_enabled = 1;
+      savePrefs();
+      strcpy(reply, "on - After 2 minutes");
+#elif defined(WITH_BRIDGE)
+      strcpy(reply, "Bridge not supported");
+#else
+      strcpy(reply, "Board not supported");
+#endif
     } else if (memcmp(command, "powersaving off", 15) == 0) {
       _prefs->powersaving_enabled = 0;
       savePrefs();
-      strcpy(reply, "ok");
+      strcpy(reply, "off");
     } else if (memcmp(command, "powersaving", 11) == 0) {
       if (_prefs->powersaving_enabled) {
         strcpy(reply, "on");
@@ -756,7 +778,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->malformed_drop = memcmp(&config[10], "on", 2) == 0 || memcmp(&config[10], "drop", 4) == 0;
     savePrefs();
     strcpy(reply, _prefs->malformed_drop ? "OK - malformed chat drop is ON" : "OK - malformed chat drop is OFF");
-#if defined(USE_SX1262) || defined(USE_SX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110)
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     _prefs->rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
     strcpy(reply, "OK");
@@ -791,21 +813,39 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
   } else if (memcmp(config, "rxdelay ", 8) == 0) {
     float db = atof(&config[8]);
-    if (db >= 0) {
+    if (db >= 0 && db <= 20.0f) {
       _prefs->rx_delay_base = db;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-20");
     }
   } else if (memcmp(config, "txdelay ", 8) == 0) {
     float f = atof(&config[8]);
-    if (f >= 0) {
+    if (f >= 0 && f <= 2.0f) {
       _prefs->tx_delay_factor = f;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-2");
+    }
+  } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {
+    uint8_t m = atoi(&config[19]);
+    if (m <= 64) {
+      _prefs->flood_max_unscoped = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
+  } else if (memcmp(config, "flood.max.advert ", 17) == 0) {
+    uint8_t m = atoi(&config[17]);
+    if (m <= 64) {
+      _prefs->flood_max_advert = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
     }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
@@ -911,12 +951,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
-    if (f >= 0) {
+    if (f >= 0 && f <= 2.0f) {
       _prefs->direct_tx_delay_factor = f;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-2");
     }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
@@ -1078,7 +1118,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported by this board");
     };
   } else {
-    sprintf(reply, "unknown config: %s", config);
+    strcpy(reply, "unknown config: ");
+    StrHelper::strncpy(&reply[16], config, 160-17);
   }
 }
 
@@ -1150,7 +1191,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
-#if defined(USE_SX1262) || defined(USE_SX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110)
   } else if (memcmp(config, "radio.rxgain", 12) == 0) {
     sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
@@ -1163,15 +1204,20 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
   } else if (memcmp(config, "txdelay", 7) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
+  } else if (memcmp(config, "flood.max.advert", 16) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
+  } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_unscoped);
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
   } else if (memcmp(config, "owner.info", 10) == 0) {
+    auto start = reply;
     *reply++ = '>';
     *reply++ = ' ';
     const char* sp = _prefs->owner_info;
-    while (*sp) {
+    while (*sp && reply - start < 159) {
       *reply++ = (*sp == '\n') ? '|' : *sp;    // translate newline back to orig '|'
       sp++;
     }
@@ -1390,8 +1436,75 @@ void CommonCLI::handleDutchRegionDbCmd(char* command, char* reply) {
 }
 #endif
 
+static char* skipSpaces(char* s) {
+  while (*s == ' ') s++;
+  return s;
+}
+
+static void rtrimSpaces(char* s) {
+  char* e = s + strlen(s);
+  while (e > s && e[-1] == ' ') *--e = '\0';
+}
+
+static char* takeToken(char** cursor) {
+  char* p = skipSpaces(*cursor);
+  if (*p == '\0') { *cursor = p; return nullptr; }
+  char* tok = p;
+  while (*p && *p != ' ') p++;
+  if (*p) *p++ = '\0';
+  *cursor = p;
+  return tok;
+}
+
+static char* splitNameJump(char* tok) {
+  for (char* q = tok; *q; q++) {
+    if (*q == '|' || *q == ',') {
+      *q = '\0';
+      char* jump = skipSpaces(q + 1);
+      rtrimSpaces(jump);
+      return jump;
+    }
+  }
+  return nullptr;
+}
+
+static bool processRegionDefSegment(RegionMap* map, char* tok, RegionEntry** cursor, char* reply) {
+  char* jump = splitNameJump(tok);
+  char* name = skipSpaces(tok);
+  if (*name == '\0') { snprintf(reply, 160, "Err - empty name"); return false; }
+  if (jump && *jump == '\0') { snprintf(reply, 160, "Err - empty jump"); return false; }
+
+  RegionEntry* r = map->putRegion(name, (*cursor)->id);
+  if (r == NULL) { snprintf(reply, 160, "Err - put failed: %s", name); return false; }
+  r->flags = 0;
+
+  if (jump) {
+    RegionEntry* j = map->findByNamePrefix(jump);
+    if (j == NULL) { snprintf(reply, 160, "Err - unknown jump: %s", jump); return false; }
+    *cursor = j;
+  } else {
+    *cursor = r;
+  }
+  return true;
+}
+
 void CommonCLI::handleRegionCmd(char* command, char* reply) {
   reply[0] = 0;
+
+  // `region def`: must run before parseTextParts mutates the buffer
+  char* cmd = skipSpaces(command);
+  if (strncmp(cmd, "region def", 10) == 0 && (cmd[10] == ' ' || cmd[10] == '\0')) {
+    char* payload = skipSpaces(cmd + 10);
+    rtrimSpaces(payload);
+    if (*payload == '\0') { snprintf(reply, 160, "Err - empty def"); return; }
+
+    RegionEntry* cursor = &_region_map->getWildcard();
+    for (char* tok; (tok = takeToken(&payload)) != nullptr; ) {
+      if (!processRegionDefSegment(_region_map, tok, &cursor, reply)) return;
+    }
+    _region_map->exportTo(reply, 160);
+    return;
+  }
 
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');

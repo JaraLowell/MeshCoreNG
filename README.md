@@ -6,6 +6,9 @@ MeshCoreNG is a Next Gen variant of MeshCore.
 
 In simple terms: MeshCore lets LoRa devices pass messages to each other without the internet. MeshCoreNG builds on that and focuses on making repeaters smarter, so larger and busier networks can keep working better.
 
+MeshCore now supports a range of LoRa devices, allowing for easy flashing without the need to compile firmware manually. Users can flash a pre-built binary using tools like Adafruit ESPTool and interact with the network through a serial console.
+MeshCore provides the ability to create wireless mesh networks, similar to Meshtastic and Reticulum but with a focus on lightweight multi-hop packet routing for embedded projects. Unlike Meshtastic, which is tailored for casual LoRa communication, or Reticulum, which offers advanced networking, MeshCore balances simplicity with scalability, making it ideal for custom embedded solutions, where devices (nodes) can communicate over long distances by relaying messages through intermediate nodes. This is especially useful in off-grid, emergency, or tactical situations where traditional communication infrastructure is unavailable.
+
 Website and web flasher: https://michtronics.github.io/MeshCoreNG/
 
 The goal is not to rebuild MeshCore from scratch. The goal is to add improvements step by step, without breaking existing clients or the existing protocol.
@@ -796,6 +799,17 @@ For developers:
   - [Simple Room Server](./examples/simple_room_server)
   - [Simple Secure Chat](./examples/simple_secure_chat)
   - [Simple Sensor](./examples/simple_sensor)
+For developers:
+
+- Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
+- Clone and open this MeshCoreNG repository in Visual Studio Code.
+- See the example applications you can modify and run:
+  - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
+  - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
+  - [Simple Repeater](./examples/simple_repeater) - Extends network coverage by relaying messages.
+  - [Simple Room Server](./examples/simple_room_server) - A simple BBS server for shared Posts.
+  - [Simple Secure Chat](./examples/simple_secure_chat) - Secure terminal based text communication between devices.
+  - [Simple Sensor](./examples/simple_sensor) - Remote sensor node with telemetry and alerting.
 
 ## MeshCoreNG Web Flasher
 
@@ -818,11 +832,15 @@ Current flasher behavior by firmware asset type:
 
 `Download` in `website/public/flasher/boards.json` means the firmware is listed and downloadable from the flasher page, but the board is not flashed through the same Web Serial flow.
 
+The companion firmware can be connected to via BLE, USB or Wi-Fi depending on the firmware type you flashed.
+
 ESP32 repeater builds flashed from this site have malformed public chat dropping enabled by default. Check or change it after flashing with `get malformed.drop`, `set malformed.drop on`, or `set malformed.drop off`.
 
 The firmware files used by the web flasher come from GitHub Release assets. The release/CI workflow builds the firmware variants and attaches the firmware files to the release. The GitHub Pages workflow mirrors the flashable assets under `/flasher/firmware/`, because browsers cannot `fetch()` GitHub Release asset bytes directly due to CORS.
 
 Release tag build patterns:
+
+The repeater and room server firmware can be set up via USB in the web config tool.
 
 | Tag pattern | Builds |
 |---|---|
@@ -853,9 +871,27 @@ For now, use the upstream MeshCore tools and clients:
 - Config tool: https://config.meshcore.io
 - MeshCore docs: https://docs.meshcore.io
 
+Please submit PR's using 'dev' as the base branch!
+For minor changes just submit your PR and we'll try to review it, but for anything more 'impactful' please open an Issue first and start a discussion. It is better to sound out what it is you want to achieve first, and try to come to a consensus on what the best approach is, especially when it impacts the structure or architecture of this codebase.
+
+Here are some general principles you should try to adhere to:
+* Keep it simple. Please, don't think like a high-level lang programmer. Think embedded, and keep code concise, without any unnecessary layers.
+* No dynamic memory allocation, except during setup/begin functions.
+* Use the same brace and indenting style that's in the core source modules. (A .clang-format is probably going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
+
 ## Credits
 
 MeshCoreNG exists because of the work done by the MeshCore community.
+
+### Running unit tests
+
+To run unit tests, run the following command:
+
+```bash
+pio test --environment native --verbose
+```
+
+## Road-Map / To-Do
 
 - [MeshCore](https://github.com/meshcore-dev/MeshCore) is the original project, protocol, firmware base, and ecosystem.
 - [MeshCore-Evo](https://github.com/mattzzw/MeshCore-Evo) inspired dense-mesh repeater improvements and reduced flood advert traffic.
