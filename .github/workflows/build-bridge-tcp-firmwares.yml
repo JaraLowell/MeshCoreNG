@@ -19,6 +19,7 @@ on:
   push:
     tags:
       - 'bridge-tcp-*'
+      - '!bridge-tcp-ble-*'
 
 jobs:
 
@@ -50,5 +51,5 @@ jobs:
         with:
           name: TCP Bridge Firmware ${{ env.GIT_TAG_VERSION }}
           body: ""
-          draft: true
+          draft: false
           files: out/*

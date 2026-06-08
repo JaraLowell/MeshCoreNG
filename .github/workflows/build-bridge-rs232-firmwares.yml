@@ -50,5 +50,5 @@ jobs:
         with:
           name: RS232 Bridge Firmware ${{ env.GIT_TAG_VERSION }}
           body: ""
-          draft: true
+          draft: false
           files: out/*
