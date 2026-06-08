@@ -46,6 +46,26 @@ jobs:
           - wio_wm1110_repeater
           # SX1276 (ESP32)
           - Tbeam_SX1276_repeater
+          - LilyGo_T3S3_sx1276_repeater
+          # Newly synced variants
+          - Heltec_t1_repeater
+          - Heltec_t1_repeater_bridge_ble
+          - LilyGo_T_Impulse_Plus_repeater
+          - LilyGo_T_Impulse_Plus_repeater_bridge_ble
+          - LilyGo_T_Impulse_Plus_repeater_bridge_rs232
+          - LilyGo_T-Echo_Card_repeater
+          - LilyGo_T-Echo_Card_repeater_bridge_ble
+          - LilyGo_T-Echo_Card_repeater_bridge_rs232
+          - Station_G3_ESP32_repeater
+          - Station_G3_ESP32_repeater_bridge_espnow
+          - Station_G3_ESP32_repeater_bridge_tcp
+          - Station_G3_ESP32_repeater_bridge_ble
+          - Station_G3_ESP32_repeater_bridge_tcp_ble
+          - Xiao_S3_repeater
+          - Xiao_S3_repeater_bridge_espnow
+          - Xiao_S3_repeater_bridge_tcp
+          - Xiao_S3_repeater_bridge_ble
+          - Xiao_S3_repeater_bridge_tcp_ble
 
     steps:
       - name: Clone Repo

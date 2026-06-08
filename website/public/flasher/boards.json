@@ -3580,5 +3580,233 @@
     "name": "seeed xiao esp32-s3 wio terminal chat",
     "chipFamily": "ESP32-S3",
     "description": "MeshCoreNG Terminal Chat firmware for Seeed XIAO ESP32-S3 WIO (ESP32-S3)."
+  },
+  {
+    "env": "Heltec_t1_companion_radio_ble",
+    "name": "heltec t1 companion radio (ble)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "Heltec_t1_companion_radio_usb",
+    "name": "heltec t1 companion radio (usb)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "Heltec_t1_repeater",
+    "name": "heltec t1 repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "Heltec_t1_repeater_bridge_ble",
+    "name": "heltec t1 ble bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG BLE Bridge firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "Heltec_t1_room_server",
+    "name": "heltec t1 room server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "Heltec_t1_kiss_modem",
+    "name": "heltec t1 kiss modem",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG KISS Modem firmware for Heltec T1 (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T_Impulse_Plus_companion_radio_ble",
+    "name": "lilygo t-impulse plus companion radio (ble)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Impulse Plus (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T_Impulse_Plus_repeater",
+    "name": "lilygo t-impulse plus repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for LilyGo T-Impulse Plus (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T_Impulse_Plus_repeater_bridge_ble",
+    "name": "lilygo t-impulse plus ble bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Impulse Plus (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T_Impulse_Plus_repeater_bridge_rs232",
+    "name": "lilygo t-impulse plus rs232 bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Impulse Plus (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T_Impulse_Plus_kiss_modem",
+    "name": "lilygo t-impulse plus kiss modem",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG KISS Modem firmware for LilyGo T-Impulse Plus (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_companion_radio_ble",
+    "name": "lilygo t-echo card companion radio (ble)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_companion_radio_usb",
+    "name": "lilygo t-echo card companion radio (usb)",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_repeater",
+    "name": "lilygo t-echo card repeater",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Repeater firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_repeater_bridge_ble",
+    "name": "lilygo t-echo card ble bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG BLE Bridge firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_repeater_bridge_rs232",
+    "name": "lilygo t-echo card rs232 bridge",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG RS232 Bridge firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "LilyGo_T-Echo_Card_room_server",
+    "name": "lilygo t-echo card room server",
+    "chipFamily": "nRF52",
+    "description": "MeshCoreNG Room Server firmware for LilyGo T-Echo Card (nRF52840)."
+  },
+  {
+    "env": "Station_G3_ESP32_companion_radio_ble",
+    "name": "station g3 esp32 companion radio (ble)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_companion_radio_usb",
+    "name": "station g3 esp32 companion radio (usb)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_companion_radio_wifi",
+    "name": "station g3 esp32 companion radio (wifi)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Companion Radio (WiFi) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_repeater",
+    "name": "station g3 esp32 repeater",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_logging_repeater",
+    "name": "station g3 esp32 logging repeater",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Logging Repeater firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_repeater_bridge_ble",
+    "name": "station g3 esp32 ble bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG BLE Bridge firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_repeater_bridge_espnow",
+    "name": "station g3 esp32 repeater (espnow bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_repeater_bridge_tcp",
+    "name": "station g3 esp32 repeater (tcp bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_repeater_bridge_tcp_ble",
+    "name": "station g3 esp32 repeater (tcp+ble bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_room_server",
+    "name": "station g3 esp32 room server",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Room Server firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Station_G3_ESP32_kiss_modem",
+    "name": "station g3 esp32 kiss modem",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG KISS Modem firmware for Station G3 ESP32 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_companion_radio_ble",
+    "name": "seeed xiao esp32-s3 companion radio (ble)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Companion Radio (BLE) firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_companion_radio_usb",
+    "name": "seeed xiao esp32-s3 companion radio (usb)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Companion Radio (USB) firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_repeater",
+    "name": "seeed xiao esp32-s3 repeater",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_repeater_bridge_ble",
+    "name": "seeed xiao esp32-s3 ble bridge",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG BLE Bridge firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_repeater_bridge_espnow",
+    "name": "seeed xiao esp32-s3 repeater (espnow bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (ESPNow Bridge) firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_repeater_bridge_tcp",
+    "name": "seeed xiao esp32-s3 repeater (tcp bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (TCP Bridge) firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_repeater_bridge_tcp_ble",
+    "name": "seeed xiao esp32-s3 repeater (tcp+ble bridge)",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Repeater (TCP+BLE Bridge) firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_room_server",
+    "name": "seeed xiao esp32-s3 room server",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Room Server firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_sensor",
+    "name": "seeed xiao esp32-s3 sensor",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG Sensor firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
+  },
+  {
+    "env": "Xiao_S3_kiss_modem",
+    "name": "seeed xiao esp32-s3 kiss modem",
+    "chipFamily": "ESP32-S3",
+    "description": "MeshCoreNG KISS Modem firmware for Seeed XIAO ESP32-S3 (ESP32-S3)."
   }
 ]
