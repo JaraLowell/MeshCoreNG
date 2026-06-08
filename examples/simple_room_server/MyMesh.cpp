@@ -665,6 +665,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.fem_rx_gain = board.getFemRxGain();
 
   next_post_idx = 0;
   next_client_idx = 0;
@@ -711,6 +712,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   updateFloodAdvertTimer();
 
   board.setAdcMultiplier(_prefs.adc_multiplier);
+  board.setFemRxGain(_prefs.fem_rx_gain);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();

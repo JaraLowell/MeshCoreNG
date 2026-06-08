@@ -361,6 +361,20 @@ These counters are RAM-only and reset on reboot or with `clear power.stats`.
 
 ---
 
+#### View or change this node's external FEM RX gain/LNA mode
+**Usage:**
+- `get radio.fem.rxgain`
+- `set radio.fem.rxgain <state>`
+
+**Parameters:**
+  - `state`: `on`|`off`
+
+**Default:** Board-specific
+
+**Note:** This controls an external front-end-module RX gain/LNA path when the board supports it, such as the Heltec V4.3 KCT8103L FEM. It is separate from `radio.rxgain`, which controls the LoRa radio chip's internal boosted RX gain mode. Unsupported boards return an error.
+
+---
+
 ### System
 
 #### View or change this node's name

@@ -48,6 +48,9 @@ public:
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
   virtual float getAdcMultiplier() const { return 0.0f; }
+  virtual bool supportsFemRxGain() const { return false; }
+  virtual bool setFemRxGain(bool enabled) { return false; }
+  virtual bool getFemRxGain() const { return false; }
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }

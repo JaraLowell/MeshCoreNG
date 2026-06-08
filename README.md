@@ -700,7 +700,13 @@ set flood.relay.prob 255
 get flood.dynamic.enable
 set flood.dynamic.enable on
 set flood.dynamic.enable off
+
+get radio.fem.rxgain
+set radio.fem.rxgain on
+set radio.fem.rxgain off
 ```
+
+`radio.fem.rxgain` is for boards with a controllable external FEM/LNA RX path, such as Heltec V4.3. It is separate from `radio.rxgain`, which controls the radio chip's internal boosted RX gain.
 
 **Internet bridge (TCP):**
 

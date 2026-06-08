@@ -86,6 +86,7 @@ struct NodePrefs { // persisted to file
   AtlasConfig atlas;
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
+  uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
 };
 
 class CommonCLICallbacks {

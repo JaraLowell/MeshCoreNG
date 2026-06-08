@@ -105,4 +105,7 @@ void LoRaFEMControl::setRxModeEnableWhenMCUSleep(void)
 void LoRaFEMControl::setLNAEnable(bool enabled)
 {
     lna_enabled = enabled;
+    if (fem_type == KCT8103L_PA && lna_can_control) {
+        digitalWrite(P_LORA_KCT8103L_PA_CTX, lna_enabled ? LOW : HIGH);
+    }
 }

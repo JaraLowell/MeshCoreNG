@@ -635,7 +635,13 @@ set flood.relay.prob 255
 get flood.dynamic.enable
 set flood.dynamic.enable on
 set flood.dynamic.enable off
+
+get radio.fem.rxgain
+set radio.fem.rxgain on
+set radio.fem.rxgain off
 ```
+
+`radio.fem.rxgain` is voor boards met een aanstuurbare externe FEM/LNA RX-route, zoals Heltec V4.3. Dit staat los van `radio.rxgain`, dat de interne boosted RX gain van de radiochip regelt.
 
 **Internetbrug (TCP):**
 

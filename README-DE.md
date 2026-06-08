@@ -821,6 +821,16 @@ set malformed.drop off
 
 Das ist auf Repeatern standardmaessig aktiviert. Repeater droppen nur Textpackets, die sie inspizieren und als malformed klassifizieren koennen. Encrypted/private group text, den der Repeater nicht decrypten kann, binary datagrams und unbekannte oder zukuenftige Packet-Typen werden weiterhin nach den normalen Forwarding-Regeln behandelt.
 
+Boards mit steuerbarem externem FEM/LNA-RX-Pfad, zum Beispiel Heltec V4.3, koennen diesen Pfad per CLI schalten:
+
+```text
+get radio.fem.rxgain
+set radio.fem.rxgain on
+set radio.fem.rxgain off
+```
+
+`radio.fem.rxgain` ist getrennt von `radio.rxgain`; `radio.rxgain` steuert den internen Boosted-RX-Gain der Radio-Chips.
+
 Mehr CLI-Erklaerung steht in [docs/cli_commands.md](./docs/cli_commands.md).
 
 ## MeshCoreNG Webflasher

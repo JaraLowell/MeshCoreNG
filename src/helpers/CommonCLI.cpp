@@ -174,7 +174,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
       memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 467 + sizeof(AtlasConfig)
     }
-    // next: 531 + sizeof(AtlasConfig)
+    uint8_t fem_rx_gain = _prefs->fem_rx_gain;
+    if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
+      _prefs->fem_rx_gain = fem_rx_gain;                                                           // 531 + sizeof(AtlasConfig)
+    }
+    // next: 532 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -201,6 +205,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
     _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
+    _prefs->fem_rx_gain = constrain(_prefs->fem_rx_gain, 0, 1);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -300,7 +305,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->daily_reboot_interval_hours, sizeof(_prefs->daily_reboot_interval_hours)); // 465 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 466 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 467 + sizeof(AtlasConfig)
-    // next: 531 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->fem_rx_gain, sizeof(_prefs->fem_rx_gain));                      // 531 + sizeof(AtlasConfig)
+    // next: 532 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -785,6 +791,17 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     _callbacks->setRxBoostedGain(_prefs->rx_boosted_gain);
 #endif
+  } else if (memcmp(config, "radio.fem.rxgain ", 17) == 0) {
+    uint8_t enabled = 0;
+    if (!parseOnOff(&config[17], &enabled)) {
+      strcpy(reply, "Error: expected on or off");
+    } else if (!_board->setFemRxGain(enabled)) {
+      strcpy(reply, "Error: FEM RX gain not supported");
+    } else {
+      _prefs->fem_rx_gain = enabled;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -1195,6 +1212,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "radio.rxgain", 12) == 0) {
     sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
+  } else if (memcmp(config, "radio.fem.rxgain", 16) == 0) {
+    if (_board->supportsFemRxGain()) {
+      sprintf(reply, "> %s", _board->getFemRxGain() ? "on" : "off");
+    } else {
+      strcpy(reply, "Error: FEM RX gain not supported");
+    }
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));

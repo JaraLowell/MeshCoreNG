@@ -738,6 +738,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.fem_rx_gain = board.getFemRxGain();
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
@@ -778,6 +779,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   updateFloodAdvertTimer();
 
    board.setAdcMultiplier(_prefs.adc_multiplier);
+   board.setFemRxGain(_prefs.fem_rx_gain);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();

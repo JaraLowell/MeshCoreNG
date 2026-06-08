@@ -35,5 +35,12 @@ public:
     return true;
   }
   float getAdcMultiplier() const override { return adc_mult; }
+  bool supportsFemRxGain() const override { return loRaFEMControl.isLnaCanControl(); }
+  bool setFemRxGain(bool enabled) override {
+    if (!loRaFEMControl.isLnaCanControl()) return false;
+    loRaFEMControl.setLNAEnable(enabled);
+    return true;
+  }
+  bool getFemRxGain() const override { return loRaFEMControl.getLNAEnable(); }
   const char* getManufacturerName() const override;
 };
