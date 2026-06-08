@@ -217,6 +217,8 @@ set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
+**Upgrade-Hinweis:** Nach dem grossen Merge der originalen MeshCore v1.16.0 Firmware kann das gespeicherte Preferences-Layout von aelteren MeshCoreNG Builds abweichen. Beim ersten Upgrade koennen WiFi- und TCP-Bridge-Einstellungen deshalb leer wirken oder auf Defaults zurueckfallen. Trage dann `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optional `bridge.password` und `bridge.enabled` erneut ein. Normale spaetere OTA-Updates mit einer nicht-merged `.bin` sollten diese Einstellungen danach behalten.
+
 Bridge-Repeater leiten Bridge-originated Flood-Traffic standardmaessig nicht erneut ueber LoRa RF weiter. Fuer kontrollierte Deployments, bei denen Bridge-Traffic bewusst in das lokale RF-Mesh eingespeist werden soll, muss das explizit aktiviert werden:
 
 ```text
