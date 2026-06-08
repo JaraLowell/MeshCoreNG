@@ -235,7 +235,11 @@ function clearSelection() {
 function updateActionState() {
   const type = selectedBoard?.deviceType || '';
   const files = getReleaseFiles(selectedRelease);
-  const canFlash = Boolean(selectedRelease && serialSupported && (type === 'esp32' || type === 'nrf52'));
+  const hasFlashFile = Boolean(
+    selectedRelease?.manifest ||
+    files.some((file) => ['flash', 'flash-wipe', 'flash-update'].includes(file.type))
+  );
+  const canFlash = Boolean(selectedRelease && serialSupported && hasFlashFile && (type === 'esp32' || type === 'nrf52'));
 
   flashBtn.disabled = !canFlash;
   flashBtn.textContent = type === 'nrf52' ? 'Flash nRF52 DFU' : 'Flash MeshCoreNG';

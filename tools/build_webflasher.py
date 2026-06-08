@@ -6,10 +6,11 @@ Searches ALL GitHub releases for firmware assets and matches them to the
 boards listed in website/public/flasher/boards.json. Boards without a matching
 release asset are silently skipped (firmware not yet released).
 
-Writes boards.json to website/.vitepress/dist/flasher/ and mirrors flashable
-firmware assets under /flasher/firmware/. Web Serial needs browser-readable
-bytes, and GitHub Release asset URLs do not provide CORS headers for fetch().
-Run this script AFTER 'vitepress build'.
+Writes boards.json to website/.vitepress/dist/flasher/ and mirrors only the
+latest flashable firmware asset for each board under /flasher/firmware/. Web
+Serial needs browser-readable bytes, and GitHub Release asset URLs do not
+provide CORS headers for fetch(). Older releases stay as direct GitHub download
+links to keep the Pages artifact small. Run this script AFTER 'vitepress build'.
 """
 import argparse
 import json
@@ -138,8 +139,16 @@ def download_asset(asset, destination, token):
         f.write(data)
 
 
-def release_files_for_asset(board, asset):
+def release_files_for_asset(board, asset, mirrored=True):
     firmware_name = asset["name"]
+    firmware_url = asset.get("browser_download_url") or firmware_name
+    if not mirrored:
+        return [{
+            "type": "download",
+            "name": firmware_url,
+            "title": firmware_name,
+        }]
+
     device_type = get_device_type(board)
     if device_type == "esp32":
         return [{
@@ -232,15 +241,17 @@ def build_flasher(boards, all_assets):
         board_dir.mkdir(parents=True, exist_ok=True)
 
         releases = []
-        for asset in assets:
+        for index, asset in enumerate(assets):
             firmware_name = asset["name"]
             version = asset.get("release_tag") or asset.get("updated_at", "release")[:10]
-            print(f"  Downloading {firmware_name} ...", file=sys.stderr)
-            try:
-                download_asset(asset, board_dir / firmware_name, args_token)
-            except Exception as e:
-                print(f"Warning: skipping {firmware_name}: {e}", file=sys.stderr)
-                continue
+            mirror_asset = index == 0 and device_type in ("esp32", "nrf52")
+            if mirror_asset:
+                print(f"  Downloading latest {firmware_name} ...", file=sys.stderr)
+                try:
+                    download_asset(asset, board_dir / firmware_name, args_token)
+                except Exception as e:
+                    print(f"Warning: latest mirror failed for {firmware_name}: {e}", file=sys.stderr)
+                    mirror_asset = False
 
             releases.append({
                 "version": version,
@@ -248,7 +259,7 @@ def build_flasher(boards, all_assets):
                 "published_at": asset.get("release_published_at") or asset.get("updated_at", ""),
                 "prerelease": bool(asset.get("release_prerelease")),
                 "firmware": firmware_name,
-                "files": release_files_for_asset(board, asset),
+                "files": release_files_for_asset(board, asset, mirrored=mirror_asset),
             })
 
         if not releases:
