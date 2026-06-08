@@ -73,6 +73,10 @@ set bridge.password bridgeSecret
 Gebruik in plaats van `192.168.1.123` het IP-adres of de hostname van jouw TCP bridge server.
 Sla `set bridge.password` over als de server zonder `--password` is gestart.
 
+::: tip Upgrade vanaf oudere firmware
+Na de grote merge van de originele MeshCore v1.16.0 firmware kan de opgeslagen preferences-layout afwijken van oudere MeshCoreNG builds. Daardoor kunnen WiFi- en TCP bridge-instellingen na de eerste update leeg/default lijken. Vul in dat geval `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, eventueel `bridge.password` en `bridge.enabled` opnieuw in en sla de instellingen op. Normale volgende OTA-updates met een niet-merged `.bin` zouden deze instellingen daarna behouden.
+:::
+
 Voor een server op internet:
 
 ```text

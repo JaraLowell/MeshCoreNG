@@ -122,6 +122,10 @@ set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
+::: tip Upgrading from older firmware
+After the large merge from the original MeshCore v1.16.0 firmware, the saved preferences layout may differ from older MeshCoreNG builds. On the first upgrade, WiFi and TCP bridge settings can appear empty or reset to defaults. Re-enter `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optionally `bridge.password`, and `bridge.enabled`. Normal later OTA updates with a non-merged `.bin` should preserve those settings.
+:::
+
 Check the bridge type:
 
 ```text
