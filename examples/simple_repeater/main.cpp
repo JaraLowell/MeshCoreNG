@@ -111,22 +111,28 @@ void setup() {
 
 void loop() {
   int len = strlen(command);
+  bool command_ready = false;
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
-    if (c != '\n') {
-      command[len++] = c;
+    if (c == '\r' || c == '\n') {
+      if (len == 0) {
+        continue;
+      }
       command[len] = 0;
-      Serial.print(c);
+      Serial.print('\n');
+      command_ready = true;
+      break;
     }
-    if (c == '\r') break;
+    command[len++] = c;
+    command[len] = 0;
+    Serial.print(c);
   }
   if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
+    command[sizeof(command)-1] = 0;
+    command_ready = true;
   }
 
-  if (len > 0 && command[len - 1] == '\r') {  // received complete line
-    Serial.print('\n');
-    command[len - 1] = 0;  // replace newline with C string null terminator
+  if (command_ready) {  // received complete line
     char reply[768];
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {

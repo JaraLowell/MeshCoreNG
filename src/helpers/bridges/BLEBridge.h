@@ -52,6 +52,7 @@ private:
   static void centralDisconnectCallback(uint16_t conn_handle, uint8_t reason);
   static void peripheralRxCallback(uint16_t conn_handle);
   static void centralRxCallback(BLEClientUart &uart);
+  static bool shouldInitiateConnection(const ble_gap_addr_t &peer_addr);
 
   BLEUart _peripheral_uart;
   BLEClientUart _central_uart;

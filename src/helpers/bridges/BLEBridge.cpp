@@ -140,12 +140,39 @@ bool BLEBridge::connectToAdvertisedDevice() {
   return false;
 }
 
+bool BLEBridge::shouldInitiateConnection(const ble_gap_addr_t &peer_addr) {
+  if (peer_addr.addr_type == BLE_GAP_ADDR_TYPE_ANONYMOUS) {
+    return false;
+  }
+
+  ble_gap_addr_t local_addr;
+  if (sd_ble_gap_addr_get(&local_addr) != NRF_SUCCESS) {
+    return true;
+  }
+
+  for (int i = BLE_GAP_ADDR_LEN - 1; i >= 0; i--) {
+    if (local_addr.addr[i] < peer_addr.addr[i]) {
+      return true;
+    }
+    if (local_addr.addr[i] > peer_addr.addr[i]) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 void BLEBridge::scanCallback(ble_gap_evt_adv_report_t *report) {
   if (!_instance) {
     return;
   }
 
   if (_instance->_central_connected || _instance->_central_conn_handle != BLE_CONN_HANDLE_INVALID) {
+    Bluefruit.Scanner.resume();
+    return;
+  }
+
+  if (!shouldInitiateConnection(report->peer_addr)) {
     Bluefruit.Scanner.resume();
     return;
   }
