@@ -221,6 +221,32 @@ def release_category_matches(asset, board_category):
     return release_category is None or release_category == board_category
 
 
+def ota_manifest_sort_key(item):
+    board, _asset = item
+    target = board["env"]
+    category = get_category(target)
+    category_order = {
+        "bridge_tcp": 0,
+        "bridge_tcp_ble": 1,
+        "bridge_ble": 2,
+        "bridge_espnow": 3,
+        "bridge_rs232": 4,
+        "repeater": 5,
+        "companion_ble": 6,
+        "companion_usb": 7,
+        "companion_wifi": 8,
+        "room_server": 9,
+    }
+    hot_targets = {
+        "Heltec_v3_repeater_bridge_tcp": -1,
+        "heltec_v3_433_repeater_bridge_tcp": -1,
+    }
+    return (
+        hot_targets.get(target, category_order.get(category, 50)),
+        target.lower(),
+    )
+
+
 def build_flasher(boards, all_assets):
     if FIRMWARE_DIR.exists():
         shutil.rmtree(FIRMWARE_DIR)
@@ -281,19 +307,23 @@ def build_flasher(boards, all_assets):
         json.dump(published, f, indent=2)
         f.write("\n")
 
-    ota_lines = [
-        "# target|version|size|url|name",
-    ]
+    ota_assets = []
     for board in published:
         asset = find_ota_asset_for_board(all_assets, board)
         if not asset:
             continue
+        ota_assets.append((board, asset))
+
+    ota_lines = [
+        "# target|version|size|url|name",
+    ]
+    for board, asset in sorted(ota_assets, key=ota_manifest_sort_key):
         ota_lines.append("|".join([
             board["env"],
             asset.get("release_tag") or asset.get("updated_at", "release")[:10],
             str(asset.get("size") or 0),
             asset.get("browser_download_url") or "",
-            asset.get("name") or "",
+            "",
         ]))
 
     with (SITE_FLASHER / "ota-manifest.txt").open("w", encoding="utf-8") as f:
