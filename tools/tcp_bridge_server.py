@@ -24,6 +24,7 @@ Requires Python 3.7+, no external dependencies.
 import asyncio
 import argparse
 import binascii
+from collections import deque
 import html
 import json
 import logging
@@ -47,6 +48,7 @@ LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
+PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 
@@ -144,6 +146,12 @@ def format_sockaddrs(sockets) -> str:
     )
 
 
+def prune_packet_times(packet_times: deque[float], now: float) -> None:
+    cutoff = now - PACKET_COUNTER_WINDOW_SECS
+    while packet_times and packet_times[0] < cutoff:
+        packet_times.popleft()
+
+
 class BridgeClient:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
@@ -154,6 +162,8 @@ class BridgeClient:
         self.addr = f"{self.host}:{self.port}" if addr else "unknown"
         self.packets_rx = 0
         self.packets_tx = 0
+        self.packet_rx_times: deque[float] = deque()
+        self.packet_tx_times: deque[float] = deque()
         self.heartbeats_rx = 0
         self._connect_time = time.time()
         self.last_seen = self._connect_time
@@ -167,6 +177,8 @@ class BridgeClient:
         return self.node_name or self.addr
 
     def status_dict(self, now: float) -> dict:
+        prune_packet_times(self.packet_rx_times, now)
+        prune_packet_times(self.packet_tx_times, now)
         return {
             "name": self.node_name,
             "firmware_version": self.firmware_version,
@@ -180,6 +192,8 @@ class BridgeClient:
             "heartbeat_age_seconds": int(now - self.last_heartbeat) if self.last_heartbeat else None,
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
+            "packets_rx_24h": len(self.packet_rx_times),
+            "packets_tx_24h": len(self.packet_tx_times),
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
         }
@@ -237,6 +251,9 @@ class BridgeClient:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
             self.packets_tx += 1
+            now = time.time()
+            self.packet_tx_times.append(now)
+            prune_packet_times(self.packet_tx_times, now)
             if LOG_PACKETS:
                 log.info("%s: TX %d bytes: %s", self.addr, len(payload), payload_preview(payload))
             return True
@@ -287,13 +304,18 @@ async def status_task():
                 await disconnect(client, reason=f"idle timeout {idle}s")
 
         if connected_clients:
-            summary = ", ".join(
-                f"{client.display_name}@{client.addr} connected={format_duration(now - client._connect_time)} "
-                f"idle={int(now - client.last_seen)}s "
-                f"hb_age={str(int(now - client.last_heartbeat)) + 's' if client.last_heartbeat else 'never'} "
-                f"rx={client.packets_rx} tx={client.packets_tx} hb={client.heartbeats_rx}"
-                for client in sorted(connected_clients, key=lambda c: c.addr)
-            )
+            summaries = []
+            for client in sorted(connected_clients, key=lambda c: c.addr):
+                prune_packet_times(client.packet_rx_times, now)
+                prune_packet_times(client.packet_tx_times, now)
+                summaries.append(
+                    f"{client.display_name}@{client.addr} connected={format_duration(now - client._connect_time)} "
+                    f"idle={int(now - client.last_seen)}s "
+                    f"hb_age={str(int(now - client.last_heartbeat)) + 's' if client.last_heartbeat else 'never'} "
+                    f"rx24h={len(client.packet_rx_times)} tx24h={len(client.packet_tx_times)} "
+                    f"rx={client.packets_rx} tx={client.packets_tx} hb={client.heartbeats_rx}"
+                )
+            summary = ", ".join(summaries)
             log.info("Connected clients (%d): %s", len(connected_clients), summary)
         else:
             log.info("Connected clients: none")
@@ -344,6 +366,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     log.info("%s: node name is %s", client.addr, client.node_name)
                 continue
             client.packets_rx += 1
+            now = time.time()
+            client.packet_rx_times.append(now)
+            prune_packet_times(client.packet_rx_times, now)
             if LOG_PACKETS:
                 log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
             log.debug("%s: RX %d bytes → broadcasting to %d peers",
@@ -378,10 +403,13 @@ def build_status_html() -> str:
             "<tr>"
             f"<td>{html.escape(client['display_name'])}</td>"
             f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
-            f"<td>{html.escape(client['address'])}</td>"
+            f"<td>{html.escape(client['host'])}</td>"
+            f"<td>{client['port']}</td>"
             f"<td>{html.escape(client['connected_for'])}</td>"
             f"<td>{client['idle_seconds']}s</td>"
             f"<td>{heartbeat}</td>"
+            f"<td>{client['packets_rx_24h']}</td>"
+            f"<td>{client['packets_tx_24h']}</td>"
             f"<td>{client['packets_rx']}</td>"
             f"<td>{client['packets_tx']}</td>"
             f"<td>{client['heartbeats_rx']}</td>"
@@ -389,7 +417,7 @@ def build_status_html() -> str:
         )
 
     rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="9" class="empty">No bridge nodes connected</td></tr>'
+        '<tr><td colspan="12" class="empty">No bridge nodes connected</td></tr>'
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -434,10 +462,13 @@ def build_status_html() -> str:
           <tr>
             <th>Node</th>
             <th>Firmware</th>
-            <th>Address</th>
+            <th>IP</th>
+            <th>Port</th>
             <th>Connected</th>
             <th>Idle</th>
             <th>Heartbeat</th>
+            <th>RX 24h</th>
+            <th>TX 24h</th>
             <th>RX</th>
             <th>TX</th>
             <th>HB</th>
