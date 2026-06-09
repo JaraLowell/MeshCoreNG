@@ -183,9 +183,6 @@ class BridgeClient:
             "name": self.node_name,
             "firmware_version": self.firmware_version,
             "display_name": self.display_name,
-            "address": self.addr,
-            "host": self.host,
-            "port": self.port,
             "connected_seconds": int(now - self._connect_time),
             "connected_for": format_duration(now - self._connect_time),
             "idle_seconds": int(now - self.last_seen),
@@ -403,8 +400,6 @@ def build_status_html() -> str:
             "<tr>"
             f"<td>{html.escape(client['display_name'])}</td>"
             f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
-            f"<td>{html.escape(client['host'])}</td>"
-            f"<td>{client['port']}</td>"
             f"<td>{html.escape(client['connected_for'])}</td>"
             f"<td>{client['idle_seconds']}s</td>"
             f"<td>{heartbeat}</td>"
@@ -417,7 +412,7 @@ def build_status_html() -> str:
         )
 
     rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="12" class="empty">No bridge nodes connected</td></tr>'
+        '<tr><td colspan="10" class="empty">No bridge nodes connected</td></tr>'
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -462,8 +457,6 @@ def build_status_html() -> str:
           <tr>
             <th>Node</th>
             <th>Firmware</th>
-            <th>IP</th>
-            <th>Port</th>
             <th>Connected</th>
             <th>Idle</th>
             <th>Heartbeat</th>
