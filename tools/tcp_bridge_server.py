@@ -420,7 +420,7 @@ def build_status_html() -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="10">
-  <title>MeshCore TCP Bridge Status</title>
+  <title>MeshCoreNG TCP Bridge Status</title>
   <style>
     :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
     body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
@@ -449,7 +449,7 @@ def build_status_html() -> str:
 </head>
 <body>
   <main>
-    <h1>MeshCore TCP Bridge Status</h1>
+    <h1>MeshCoreNG TCP Bridge Status</h1>
     <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds.</p>
     <div class="table-wrap">
       <table>
