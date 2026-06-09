@@ -61,6 +61,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 #endif
   if (file) {
     uint8_t pad[8];
+    size_t prefs_size = file.size();
+    bool legacy_meshcoreng_v109_tail = prefs_size == 529 + sizeof(AtlasConfig);
 
     file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
     file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
@@ -105,78 +107,142 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    uint8_t flood_max_unscoped = _prefs->flood_max_unscoped;
-    if (file.read((uint8_t *)&flood_max_unscoped, sizeof(flood_max_unscoped)) == sizeof(flood_max_unscoped)) {
-      _prefs->flood_max_unscoped = flood_max_unscoped;                                             // 291
-    }
-    uint8_t flood_max_advert = _prefs->flood_max_advert;
-    if (file.read((uint8_t *)&flood_max_advert, sizeof(flood_max_advert)) == sizeof(flood_max_advert)) {
-      _prefs->flood_max_advert = flood_max_advert;                                                 // 292
-    }
     float default_flood_advert_base = _prefs->flood_advert_base;
-    float flood_advert_base = default_flood_advert_base;
-    if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
-      _prefs->flood_advert_base = flood_advert_base;                                               // 293
-    }
-    uint8_t flood_relay_prob = _prefs->flood_relay_prob;
-    if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
-      _prefs->flood_relay_prob = flood_relay_prob;                                                 // 297
-    }
-    uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
-    if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
-      _prefs->flood_dynamic_enable = flood_dynamic_enable;                                         // 298
-    }
-    char wifi_ssid[32] = {};
-    if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
-      memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                     // 299
-    }
-    char wifi_password[64] = {};
-    if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
-      memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                         // 331
-    }
-    char bridge_server[64] = {};
-    if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
-      memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                         // 395
-    }
-    uint16_t bridge_port = _prefs->bridge_port;
-    if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
-      _prefs->bridge_port = bridge_port;                                                           // 459
-    }
-    uint8_t malformed_drop = _prefs->malformed_drop;
-    if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
-      _prefs->malformed_drop = malformed_drop;                                                     // 461
-    }
-    uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
-    if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
-      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                   // 462
-    }
-    uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
-    if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
-      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                               // 463
-    }
-    AtlasConfig atlas = _prefs->atlas;
-    if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
-      _prefs->atlas = atlas;                                                                       // 464
-    }
-    uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
-    if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
-      _prefs->daily_reboot_enabled = daily_reboot_enabled;                                         // 464 + sizeof(AtlasConfig)
-    }
-    uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
-    if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
-      _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                           // 465 + sizeof(AtlasConfig)
-    }
-    uint8_t bridge_rf = _prefs->bridge_rf;
-    if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
-      _prefs->bridge_rf = bridge_rf;                                                               // 466 + sizeof(AtlasConfig)
-    }
-    char bridge_password[64] = {};
-    if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
-      memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 467 + sizeof(AtlasConfig)
-    }
-    uint8_t fem_rx_gain = _prefs->fem_rx_gain;
-    if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
-      _prefs->fem_rx_gain = fem_rx_gain;                                                           // 531 + sizeof(AtlasConfig)
+
+    if (legacy_meshcoreng_v109_tail) {
+      float flood_advert_base = default_flood_advert_base;
+      if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
+        _prefs->flood_advert_base = flood_advert_base;                                             // 291 legacy MeshCoreNG <= bridge-tcp-v1.0.9
+      }
+      uint8_t flood_relay_prob = _prefs->flood_relay_prob;
+      if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
+        _prefs->flood_relay_prob = flood_relay_prob;                                               // 295 legacy
+      }
+      uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
+      if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
+        _prefs->flood_dynamic_enable = flood_dynamic_enable;                                       // 296 legacy
+      }
+      char wifi_ssid[32] = {};
+      if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
+        memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 297 legacy
+      }
+      char wifi_password[64] = {};
+      if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
+        memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 329 legacy
+      }
+      char bridge_server[64] = {};
+      if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
+        memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 393 legacy
+      }
+      uint16_t bridge_port = _prefs->bridge_port;
+      if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
+        _prefs->bridge_port = bridge_port;                                                         // 457 legacy
+      }
+      uint8_t malformed_drop = _prefs->malformed_drop;
+      if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
+        _prefs->malformed_drop = malformed_drop;                                                   // 459 legacy
+      }
+      uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+      if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+        _prefs->flood_node_delay_enable = flood_node_delay_enable;                                 // 460 legacy
+      }
+      uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+      if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+        _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                             // 461 legacy
+      }
+      AtlasConfig atlas = _prefs->atlas;
+      if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
+        _prefs->atlas = atlas;                                                                     // 462 legacy
+      }
+      uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
+      if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
+        _prefs->daily_reboot_enabled = daily_reboot_enabled;                                       // 462 + sizeof(AtlasConfig) legacy
+      }
+      uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
+      if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
+        _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                         // 463 + sizeof(AtlasConfig) legacy
+      }
+      uint8_t bridge_rf = _prefs->bridge_rf;
+      if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
+        _prefs->bridge_rf = bridge_rf;                                                             // 464 + sizeof(AtlasConfig) legacy
+      }
+      char bridge_password[64] = {};
+      if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
+        memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                  // 465 + sizeof(AtlasConfig) legacy
+      }
+    } else {
+      uint8_t flood_max_unscoped = _prefs->flood_max_unscoped;
+      if (file.read((uint8_t *)&flood_max_unscoped, sizeof(flood_max_unscoped)) == sizeof(flood_max_unscoped)) {
+        _prefs->flood_max_unscoped = flood_max_unscoped;                                           // 291
+      }
+      uint8_t flood_max_advert = _prefs->flood_max_advert;
+      if (file.read((uint8_t *)&flood_max_advert, sizeof(flood_max_advert)) == sizeof(flood_max_advert)) {
+        _prefs->flood_max_advert = flood_max_advert;                                               // 292
+      }
+      float flood_advert_base = default_flood_advert_base;
+      if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
+        _prefs->flood_advert_base = flood_advert_base;                                             // 293
+      }
+      uint8_t flood_relay_prob = _prefs->flood_relay_prob;
+      if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
+        _prefs->flood_relay_prob = flood_relay_prob;                                               // 297
+      }
+      uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
+      if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
+        _prefs->flood_dynamic_enable = flood_dynamic_enable;                                       // 298
+      }
+      char wifi_ssid[32] = {};
+      if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
+        memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 299
+      }
+      char wifi_password[64] = {};
+      if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
+        memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 331
+      }
+      char bridge_server[64] = {};
+      if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
+        memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 395
+      }
+      uint16_t bridge_port = _prefs->bridge_port;
+      if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
+        _prefs->bridge_port = bridge_port;                                                         // 459
+      }
+      uint8_t malformed_drop = _prefs->malformed_drop;
+      if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
+        _prefs->malformed_drop = malformed_drop;                                                   // 461
+      }
+      uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+      if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+        _prefs->flood_node_delay_enable = flood_node_delay_enable;                                 // 462
+      }
+      uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+      if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+        _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                             // 463
+      }
+      AtlasConfig atlas = _prefs->atlas;
+      if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
+        _prefs->atlas = atlas;                                                                     // 464
+      }
+      uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
+      if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
+        _prefs->daily_reboot_enabled = daily_reboot_enabled;                                       // 464 + sizeof(AtlasConfig)
+      }
+      uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
+      if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
+        _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                         // 465 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_rf = _prefs->bridge_rf;
+      if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
+        _prefs->bridge_rf = bridge_rf;                                                             // 466 + sizeof(AtlasConfig)
+      }
+      char bridge_password[64] = {};
+      if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
+        memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                  // 467 + sizeof(AtlasConfig)
+      }
+      uint8_t fem_rx_gain = _prefs->fem_rx_gain;
+      if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
+        _prefs->fem_rx_gain = fem_rx_gain;                                                         // 531 + sizeof(AtlasConfig)
+      }
     }
     // next: 532 + sizeof(AtlasConfig)
 

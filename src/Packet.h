@@ -29,6 +29,7 @@ namespace mesh {
 #define PAYLOAD_TYPE_MULTIPART   0x0A    // packet is one of a set of packets
 #define PAYLOAD_TYPE_CONTROL     0x0B    // a control/discovery packet
 #define PAYLOAD_TYPE_ATLAS       0x0C    // optional Atlas telemetry packet (disabled by default)
+#define PAYLOAD_TYPE_LOCATION    0x0D    // compact tracker/APRS-like location report
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 

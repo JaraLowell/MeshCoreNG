@@ -44,6 +44,11 @@ CONTROL_PREFIX = b"MCNG"
 CONTROL_TYPE_HEARTBEAT = 0x01
 CONTROL_TYPE_NODE_INFO = 0x02
 CONTROL_TYPE_AUTH = 0x03
+PAYLOAD_TYPE_LOCATION = 0x0D
+PH_ROUTE_MASK = 0x03
+PH_TYPE_SHIFT = 2
+ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
+ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 CLIENT_TIMEOUT_SECS = 180
@@ -53,6 +58,7 @@ REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 
 connected_clients: set["BridgeClient"] = set()
+latest_locations: dict[str, dict] = {}
 
 
 def fletcher16(data: bytes) -> int:
@@ -123,6 +129,80 @@ def parse_auth(payload: bytes) -> str | None:
         return None
 
     return raw_password.decode("utf-8", errors="replace")
+
+
+def parse_location_report(payload: bytes) -> dict | None:
+    if len(payload) < 32:
+        return None
+    if payload[:4] != b"MCL1" or payload[4] != 1:
+        return None
+
+    name_len = payload[31]
+    if name_len > 24 or len(payload) < 32 + name_len:
+        return None
+
+    lat_microdeg = struct.unpack(">i", payload[10:14])[0]
+    lon_microdeg = struct.unpack(">i", payload[14:18])[0]
+    altitude_m = struct.unpack(">h", payload[18:20])[0]
+    speed_cms = struct.unpack(">H", payload[20:22])[0]
+    heading_cdeg = struct.unpack(">H", payload[22:24])[0]
+    battery_mv = struct.unpack(">H", payload[25:27])[0]
+    timestamp = struct.unpack(">I", payload[27:31])[0]
+    name = payload[32:32 + name_len].decode("utf-8", errors="replace").strip()
+
+    return {
+        "version": payload[4],
+        "flags": payload[5],
+        "node_id": binascii.hexlify(payload[6:10]).decode("ascii"),
+        "lat": lat_microdeg / 1000000.0,
+        "lon": lon_microdeg / 1000000.0,
+        "altitude_m": altitude_m,
+        "speed_kmh": round(speed_cms * 0.036, 2),
+        "heading_deg": round(heading_cdeg / 100.0, 2),
+        "satellites": payload[24],
+        "battery_mv": battery_mv,
+        "timestamp": timestamp,
+        "name": name,
+    }
+
+
+def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
+    if len(frame_payload) < 2:
+        return None
+
+    header = frame_payload[0]
+    payload_type = (header >> PH_TYPE_SHIFT) & 0x0F
+    if payload_type != PAYLOAD_TYPE_LOCATION:
+        return None
+
+    route_type = header & PH_ROUTE_MASK
+    pos = 1
+    if route_type in (ROUTE_TYPE_TRANSPORT_FLOOD, ROUTE_TYPE_TRANSPORT_DIRECT):
+        if len(frame_payload) < pos + 4:
+            return None
+        pos += 4
+
+    if len(frame_payload) <= pos:
+        return None
+    path_len = frame_payload[pos]
+    pos += 1
+    path_hash_size = (path_len >> 6) + 1
+    path_hash_count = path_len & 63
+    path_bytes = path_hash_size * path_hash_count
+    if len(frame_payload) < pos + path_bytes:
+        return None
+    pos += path_bytes
+
+    return parse_location_report(frame_payload[pos:])
+
+
+def record_location(report: dict, client: "BridgeClient") -> None:
+    now = time.time()
+    report = dict(report)
+    report["received_at"] = int(now)
+    report["age_seconds"] = 0
+    report["source"] = client.display_name
+    latest_locations[report["node_id"]] = report
 
 
 def format_duration(seconds: float) -> str:
@@ -366,6 +446,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
+            location_report = parse_mesh_location_payload(payload)
+            if location_report is not None:
+                record_location(location_report, client)
             if LOG_PACKETS:
                 log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
             log.debug("%s: RX %d bytes → broadcasting to %d peers",
@@ -387,6 +470,21 @@ def status_snapshot() -> dict:
         "generated_at": int(now),
         "connected_count": len(clients),
         "clients": clients,
+    }
+
+
+def locations_snapshot() -> dict:
+    now = int(time.time())
+    locations = []
+    for report in latest_locations.values():
+        item = dict(report)
+        item["age_seconds"] = max(0, now - item["received_at"])
+        locations.append(item)
+    locations.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
+    return {
+        "generated_at": now,
+        "location_count": len(locations),
+        "locations": locations,
     }
 
 
@@ -450,7 +548,7 @@ def build_status_html() -> str:
 <body>
   <main>
     <h1>MeshCoreNG TCP Bridge Status</h1>
-    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds.</p>
+    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="/map">Tracker map</a></p>
     <div class="table-wrap">
       <table>
         <thead>
@@ -478,6 +576,94 @@ def build_status_html() -> str:
 """
 
 
+def build_location_map_html() -> str:
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeshCoreNG Tracker Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .topbar {
+      position: absolute; z-index: 1000; top: 12px; left: 12px; right: 12px;
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      background: rgba(255, 255, 255, 0.92); border: 1px solid #d8dee4;
+      border-radius: 8px; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    .topbar h1 { margin: 0; font-size: 1rem; }
+    .topbar a { color: #0969da; text-decoration: none; }
+    .muted { color: #57606a; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>MeshCoreNG Tracker Map</h1>
+    <span class="muted" id="summary">Loading...</span>
+    <a href="/">Bridge status</a>
+  </div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([52.2, 5.3], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const markers = new Map();
+
+    function fmtAge(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+      return `${Math.floor(seconds / 3600)}h`;
+    }
+
+    async function refresh() {
+      const res = await fetch('/locations.json', { cache: 'no-store' });
+      const data = await res.json();
+      document.getElementById('summary').textContent = `${data.location_count} tracker node(s)`;
+      const seen = new Set();
+      for (const loc of data.locations) {
+        seen.add(loc.node_id);
+        const label = loc.name || loc.node_id;
+        const popup = `<strong>${label}</strong><br>` +
+          `Node: ${loc.node_id}<br>` +
+          `Age: ${fmtAge(loc.age_seconds)}<br>` +
+          `Sats: ${loc.satellites}<br>` +
+          `Battery: ${loc.battery_mv} mV<br>` +
+          `Alt: ${loc.altitude_m} m`;
+        let marker = markers.get(loc.node_id);
+        if (!marker) {
+          marker = L.marker([loc.lat, loc.lon]).addTo(map);
+          markers.set(loc.node_id, marker);
+        } else {
+          marker.setLatLng([loc.lat, loc.lon]);
+        }
+        marker.bindPopup(popup);
+      }
+      for (const [nodeId, marker] of markers) {
+        if (!seen.has(nodeId)) {
+          marker.remove();
+          markers.delete(nodeId);
+        }
+      }
+      if (data.locations.length && !refresh.didFit) {
+        const bounds = data.locations.map(loc => [loc.lat, loc.lon]);
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+        refresh.didFit = true;
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>
+"""
+
+
 async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
         request_line = await reader.readline()
@@ -487,6 +673,12 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
         elif parts[1] == "/status.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(status_snapshot(), indent=2).encode("utf-8")
+        elif parts[1] == "/locations.json":
+            status, content_type = "200 OK", "application/json"
+            body = json.dumps(locations_snapshot(), indent=2).encode("utf-8")
+        elif parts[1] == "/map":
+            status, content_type = "200 OK", "text/html; charset=utf-8"
+            body = build_location_map_html().encode("utf-8")
         elif parts[1] in ("/", "/status"):
             status, content_type = "200 OK", "text/html; charset=utf-8"
             body = build_status_html().encode("utf-8")

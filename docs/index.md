@@ -9,6 +9,7 @@ Below are a few quick start guides.
 - [Atlas Telemetry Foundation](./atlas.md)
 - [Companion Protocol](./companion_protocol.md)
 - [Dutch Region Database](./dutch_region_db.md)
+- [Location Tracker](./location_tracker.md)
 - [Number Allocations](./number_allocations.md)
 - [Packet Format](./packet_format.md)
 - [Payloads](./payloads.md)
