@@ -34,7 +34,7 @@
  */
 class TCPBridgeCommandHandler {
 public:
-  virtual void handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) = 0;
+  virtual void handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) = 0;
 };
 
 class TCPBridge : public BridgeBase {

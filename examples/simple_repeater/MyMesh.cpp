@@ -1974,9 +1974,17 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 }
 
 #if defined(WITH_TCP_BRIDGE)
-void MyMesh::handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) {
+void MyMesh::handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) {
   char local_command[96];
   char local_reply[768];
+
+  if (strcmp(password, _prefs.password) != 0) {
+    if (reply_size > 0) {
+      strncpy(reply, "Error: invalid node admin password", reply_size);
+      reply[reply_size - 1] = 0;
+    }
+    return;
+  }
 
   size_t command_len = 0;
   while (command_len < sizeof(local_command) - 1 && command[command_len] != 0) {

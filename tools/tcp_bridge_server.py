@@ -473,11 +473,12 @@ class BridgeClient:
         except Exception:
             return False
 
-    async def send_command(self, command: str) -> str:
+    async def send_command(self, command: str, password: str) -> str:
         global next_command_id
 
         command = command.strip()
         raw_command = command.encode("utf-8")[:96]
+        raw_password = password.encode("utf-8")[:32]
         if not raw_command:
             raise ValueError("empty command")
 
@@ -490,7 +491,9 @@ class BridgeClient:
             CONTROL_PREFIX
             + bytes([CONTROL_TYPE_COMMAND])
             + struct.pack(">I", request_id)
+            + bytes([len(raw_password)])
             + bytes([len(raw_command)])
+            + raw_password
             + raw_command
         )
 
@@ -716,9 +719,9 @@ def build_status_html(command_result: str = "") -> str:
         )
     options_html = "\n".join(options)
     admin_note = (
-        "Remote management enabled"
+        "Remote management protected by server admin password; node password still required"
         if ADMIN_PASSWORD
-        else "Remote management disabled; start with --admin-password to enable"
+        else "Remote management enabled; enter the selected node's admin password"
     )
     result_html = ""
     if command_result:
@@ -762,7 +765,7 @@ def build_status_html(command_result: str = "") -> str:
     .summary {{ margin: 0 0 24px; color: #58606a; }}
     section {{ margin-top: 28px; }}
     h2 {{ margin: 0 0 12px; font-size: 1.15rem; }}
-    form {{ display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 2fr) auto; gap: 10px; align-items: end; }}
+    form {{ display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) minmax(220px, 2fr) auto; gap: 10px; align-items: end; }}
     label {{ display: grid; gap: 6px; color: #47515d; font-size: .85rem; }}
     select, input, button {{ font: inherit; padding: 9px 10px; border: 1px solid #d8dee4; border-radius: 6px; background: #fff; color: #1b1f24; }}
     button {{ cursor: pointer; background: #0969da; color: #fff; border-color: #0969da; }}
@@ -801,14 +804,17 @@ def build_status_html(command_result: str = "") -> str:
       <p class="summary">{html.escape(admin_note)}</p>
       <form method="post" action="/command">
         <label>Node
-          <select name="target" {"disabled" if not ADMIN_PASSWORD or not options_html else ""}>
+          <select name="target" {"disabled" if not options_html else ""}>
             {options_html}
           </select>
         </label>
-        <label>Command
-          <input name="command" placeholder="get bridge.status" maxlength="96" {"disabled" if not ADMIN_PASSWORD else ""}>
+        <label>Node password
+          <input name="node_password" type="password" autocomplete="current-password" maxlength="32" {"disabled" if not options_html else ""}>
         </label>
-        <button type="submit" {"disabled" if not ADMIN_PASSWORD or not options_html else ""}>Send</button>
+        <label>Command
+          <input name="command" placeholder="get bridge.status" maxlength="96" {"disabled" if not options_html else ""}>
+        </label>
+        <button type="submit" {"disabled" if not options_html else ""}>Send</button>
       </form>
       {result_html}
     </section>
@@ -953,7 +959,7 @@ def build_location_map_html() -> str:
 
 def is_admin_authorized(headers: dict[str, str]) -> bool:
     if not ADMIN_PASSWORD:
-        return False
+        return True
     auth = headers.get("authorization", "")
     if not auth.lower().startswith("basic "):
         return False
@@ -1008,15 +1014,18 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                 raw_body = await reader.readexactly(content_length) if content_length > 0 else b""
                 form = parse_qs(raw_body.decode("utf-8", errors="replace"), keep_blank_values=True)
                 target = (form.get("target") or [""])[0]
+                node_password = (form.get("node_password") or [""])[0]
                 command = (form.get("command") or [""])[0].strip()
                 client = find_client(target)
                 if client is None:
                     result = "Error: selected bridge node is no longer connected"
                 elif not command:
                     result = "Error: empty command"
+                elif not node_password:
+                    result = "Error: node admin password required"
                 else:
                     try:
-                        reply = await client.send_command(command)
+                        reply = await client.send_command(command, node_password)
                         result = f"{client.display_name}> {command}\n{reply}"
                     except Exception as exc:
                         result = f"Error: {exc}"
@@ -1115,7 +1124,7 @@ if __name__ == "__main__":
     parser.add_argument("--password", default="",
                         help="Optional TCP bridge password required from clients")
     parser.add_argument("--admin-password", default="",
-                        help="Enable HTTP remote management with this admin password")
+                        help="Optional Basic auth password protecting the HTTP status/management page")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
     args = parser.parse_args()

@@ -279,27 +279,34 @@ void TCPBridge::handleControlPayload(const uint8_t *payload, uint16_t len) {
 }
 
 void TCPBridge::handleCommandPayload(const uint8_t *payload, uint16_t len) {
-  if (!_command_handler || len < 10) return;
+  if (!_command_handler || len < 11) return;
 
   uint32_t request_id = ((uint32_t)payload[5] << 24) |
                         ((uint32_t)payload[6] << 16) |
                         ((uint32_t)payload[7] << 8) |
                         payload[8];
-  uint8_t command_len = payload[9];
-  if (command_len == 0 || len < (uint16_t)(10 + command_len)) {
+  uint8_t password_len = payload[9];
+  uint8_t command_len = payload[10];
+  if (command_len == 0 || len < (uint16_t)(11 + password_len + command_len)) {
     sendCommandReply(request_id, "Err - invalid remote command");
     return;
   }
 
+  char password[32];
+  size_t password_copy_len = password_len;
+  if (password_copy_len >= sizeof(password)) password_copy_len = sizeof(password) - 1;
+  memcpy(password, payload + 11, password_copy_len);
+  password[password_copy_len] = 0;
+
   char command[96];
   size_t copy_len = command_len;
   if (copy_len >= sizeof(command)) copy_len = sizeof(command) - 1;
-  memcpy(command, payload + 10, copy_len);
+  memcpy(command, payload + 11 + password_len, copy_len);
   command[copy_len] = 0;
 
   char reply[192];
   reply[0] = 0;
-  _command_handler->handleTcpBridgeCommand(command, reply, sizeof(reply));
+  _command_handler->handleTcpBridgeCommand(password, command, reply, sizeof(reply));
   if (reply[0] == 0) {
     strncpy(reply, "OK", sizeof(reply));
     reply[sizeof(reply) - 1] = 0;

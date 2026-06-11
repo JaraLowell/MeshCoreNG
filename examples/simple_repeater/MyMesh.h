@@ -353,7 +353,7 @@ public:
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
 #if defined(WITH_TCP_BRIDGE)
-  void handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) override;
+  void handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) override;
 #endif
   void loop();
   void formatDailyRebootReply(char* reply) const;

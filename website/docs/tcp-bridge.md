@@ -33,6 +33,16 @@ http://localhost:8080/
 
 Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
 
+The status page also has a remote management form for connected TCP bridge repeaters. Select a node, enter that node's own MeshCore admin password, and send a normal CLI command such as `get bridge.status`. Repeaters with different admin passwords can be managed from the same page because the password is entered per command and checked by the selected repeater.
+
+To add a separate password on the HTTP page itself, start the server with:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 --admin-password webAdminSecret
+```
+
+This protects access to the web management page. It does not replace the per-node admin password.
+
 For monitoring during testing, start it with status and heartbeat timeouts:
 
 ```bash
