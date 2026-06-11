@@ -9,6 +9,7 @@ broadcast to all other connected repeaters.
 Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
+    open http://localhost:8080/manage for remote management
 
 Repeater firmware configuration (via CLI):
     set wifi.ssid    <your-wifi>
@@ -685,7 +686,7 @@ def sensors_snapshot() -> dict:
     }
 
 
-def build_status_html(command_result: str = "") -> str:
+def build_status_html() -> str:
     snapshot = status_snapshot()
     sensor_snapshot = sensors_snapshot()
     rows = []
@@ -710,22 +711,6 @@ def build_status_html(command_result: str = "") -> str:
     rows_html = "\n".join(rows) if rows else (
         '<tr><td colspan="10" class="empty">No bridge nodes connected</td></tr>'
     )
-
-    options = []
-    for client in snapshot["clients"]:
-        label = f"{client['display_name']} ({client['addr']})"
-        options.append(
-            f"<option value=\"{html.escape(client['id'])}\">{html.escape(label)}</option>"
-        )
-    options_html = "\n".join(options)
-    admin_note = (
-        "Remote management protected by server admin password; node password still required"
-        if ADMIN_PASSWORD
-        else "Remote management enabled; enter the selected node's admin password"
-    )
-    result_html = ""
-    if command_result:
-        result_html = f"<pre class=\"command-result\">{html.escape(command_result)}</pre>"
 
     sensor_rows = []
     for sensor in sensor_snapshot["sensors"]:
@@ -765,12 +750,6 @@ def build_status_html(command_result: str = "") -> str:
     .summary {{ margin: 0 0 24px; color: #58606a; }}
     section {{ margin-top: 28px; }}
     h2 {{ margin: 0 0 12px; font-size: 1.15rem; }}
-    form {{ display: grid; grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) minmax(220px, 2fr) auto; gap: 10px; align-items: end; }}
-    label {{ display: grid; gap: 6px; color: #47515d; font-size: .85rem; }}
-    select, input, button {{ font: inherit; padding: 9px 10px; border: 1px solid #d8dee4; border-radius: 6px; background: #fff; color: #1b1f24; }}
-    button {{ cursor: pointer; background: #0969da; color: #fff; border-color: #0969da; }}
-    button:disabled {{ cursor: not-allowed; background: #8c959f; border-color: #8c959f; }}
-    .command-result {{ padding: 12px; background: #f6f8fa; border: 1px solid #d8dee4; border-radius: 6px; white-space: pre-wrap; }}
     table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d8dee4; border-radius: 8px; overflow: hidden; }}
     th, td {{ padding: 12px 14px; text-align: left; border-bottom: 1px solid #d8dee4; white-space: nowrap; }}
     th {{ background: #eef2f6; font-size: 0.8rem; text-transform: uppercase; color: #47515d; }}
@@ -788,9 +767,6 @@ def build_status_html(command_result: str = "") -> str:
       table {{ background: #171b20; border-color: #30363d; }}
       th, td {{ border-color: #30363d; }}
       th {{ background: #20262d; color: #c8d0d8; }}
-      select, input {{ background: #171b20; color: #f0f3f6; border-color: #30363d; }}
-      label {{ color: #c8d0d8; }}
-      .command-result {{ background: #171b20; border-color: #30363d; }}
       .empty {{ color: #9aa4af; }}
     }}
   </style>
@@ -798,26 +774,7 @@ def build_status_html(command_result: str = "") -> str:
 <body>
   <main>
     <h1>MeshCoreNG TCP Bridge Status</h1>
-    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="/map">Tracker map</a></p>
-    <section>
-      <h2>Remote management</h2>
-      <p class="summary">{html.escape(admin_note)}</p>
-      <form method="post" action="/command">
-        <label>Node
-          <select name="target" {"disabled" if not options_html else ""}>
-            {options_html}
-          </select>
-        </label>
-        <label>Node password
-          <input name="node_password" type="password" autocomplete="current-password" maxlength="32" {"disabled" if not options_html else ""}>
-        </label>
-        <label>Command
-          <input name="command" placeholder="get bridge.status" maxlength="96" {"disabled" if not options_html else ""}>
-        </label>
-        <button type="submit" {"disabled" if not options_html else ""}>Send</button>
-      </form>
-      {result_html}
-    </section>
+    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="/manage">Remote management</a> · <a href="/map">Tracker map</a></p>
     <section>
       <h2>Bridge nodes</h2>
       <div class="table-wrap">
@@ -863,6 +820,89 @@ def build_status_html(command_result: str = "") -> str:
         </table>
       </div>
     </section>
+  </main>
+</body>
+</html>
+"""
+
+
+def build_manage_html(command_result: str = "") -> str:
+    snapshot = status_snapshot()
+    options = []
+    for client in snapshot["clients"]:
+        label = client["display_name"]
+        if client["firmware_version"]:
+            label += f" ({client['firmware_version']})"
+        label += f" - {client['addr']}"
+        options.append(
+            f'<option value="{html.escape(client["id"], quote=True)}">{html.escape(label)}</option>'
+        )
+
+    options_html = "\n".join(options) if options else (
+        '<option value="">No bridge nodes connected</option>'
+    )
+    disabled = " disabled" if not options else ""
+    admin_note = (
+        "Remote management protected by server admin password; node password still required"
+        if ADMIN_PASSWORD else
+        "Remote management enabled; enter the selected node's admin password"
+    )
+    result_html = (
+        f'<pre class="command-result">{html.escape(command_result)}</pre>'
+        if command_result else
+        '<pre class="command-result empty">No command sent yet</pre>'
+    )
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeshCoreNG Remote Management</title>
+  <style>
+    :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
+    main {{ max-width: 760px; margin: 0 auto; padding: 32px 20px; }}
+    h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
+    .summary {{ margin: 0 0 24px; color: #58606a; }}
+    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; }}
+    label {{ display: block; font-weight: 650; margin: 14px 0 6px; }}
+    select, input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c7ced6; border-radius: 6px; font: inherit; background: #fff; color: inherit; }}
+    button {{ margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 6px; background: #0969da; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }}
+    button:disabled {{ background: #8c959f; cursor: not-allowed; }}
+    .command-result {{ margin: 18px 0 0; padding: 14px; min-height: 72px; overflow-x: auto; border-radius: 6px; background: #20262d; color: #f0f3f6; white-space: pre-wrap; }}
+    .empty {{ color: #9aa4af; }}
+    a {{ color: #0969da; }}
+    @media (max-width: 760px) {{
+      main {{ padding: 20px 12px; }}
+    }}
+    @media (prefers-color-scheme: dark) {{
+      body {{ background: #111418; color: #f0f3f6; }}
+      .summary {{ color: #9aa4af; }}
+      .panel {{ background: #171b20; border-color: #30363d; }}
+      select, input {{ background: #111418; border-color: #3b434d; }}
+      a {{ color: #7cb7ff; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MeshCoreNG Remote Management</h1>
+    <p class="summary">{html.escape(admin_note)}. <a href="/">Bridge status</a></p>
+    <div class="panel">
+      <form method="post" action="/command">
+        <label for="target">Bridge node</label>
+        <select id="target" name="target"{disabled}>
+          {options_html}
+        </select>
+        <label for="node_password">Node admin password</label>
+        <input id="node_password" name="node_password" type="password" autocomplete="current-password" maxlength="32"{disabled}>
+        <label for="command">Command</label>
+        <input id="command" name="command" placeholder="get bridge.status" maxlength="96"{disabled}>
+        <button type="submit"{disabled}>Send command</button>
+      </form>
+      {result_html}
+    </div>
   </main>
 </body>
 </html>
@@ -1030,7 +1070,7 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                     except Exception as exc:
                         result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_status_html(result).encode("utf-8")
+                body = build_manage_html(result).encode("utf-8")
         elif method != "GET":
             status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
         elif path == "/status.json":
@@ -1045,6 +1085,12 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
         elif path == "/map":
             status, content_type = "200 OK", "text/html; charset=utf-8"
             body = build_location_map_html().encode("utf-8")
+        elif path == "/manage":
+            if not is_admin_authorized(headers):
+                status, content_type, body, extra_headers = admin_auth_response()
+            else:
+                status, content_type = "200 OK", "text/html; charset=utf-8"
+                body = build_manage_html().encode("utf-8")
         elif path in ("/", "/status"):
             status, content_type = "200 OK", "text/html; charset=utf-8"
             body = build_status_html().encode("utf-8")
@@ -1124,7 +1170,7 @@ if __name__ == "__main__":
     parser.add_argument("--password", default="",
                         help="Optional TCP bridge password required from clients")
     parser.add_argument("--admin-password", default="",
-                        help="Optional Basic auth password protecting the HTTP status/management page")
+                        help="Optional Basic auth password protecting the HTTP remote management page")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
     args = parser.parse_args()

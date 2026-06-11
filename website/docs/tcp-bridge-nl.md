@@ -33,7 +33,13 @@ python3 tools/tcp_bridge_server.py --port 4200 --status-interval 10 --client-tim
 
 De TCP bridge firmware stuurt elke 30 seconden een heartbeat naar de server. De server gebruikt normale pakketten en heartbeats om de `idle` timer van de client bij te werken. Als een node stroom verliest en er geen heartbeat meer binnenkomt voor `--client-timeout`, verbreekt de server die oude verbinding.
 
-De statuspagina heeft ook een remote beheerformulier voor verbonden TCP bridge repeaters. Kies een node, vul het eigen MeshCore admin-wachtwoord van die node in, en stuur een normaal CLI-commando zoals `get bridge.status`. Repeaters met verschillende admin-wachtwoorden kunnen zo vanaf dezelfde pagina beheerd worden, omdat het wachtwoord per commando wordt ingevoerd en door de gekozen repeater wordt gecontroleerd.
+Remote beheer staat op een aparte pagina:
+
+```text
+http://localhost:8080/manage
+```
+
+Kies een node, vul het eigen MeshCore admin-wachtwoord van die node in, en stuur een normaal CLI-commando zoals `get bridge.status`. Repeaters met verschillende admin-wachtwoorden kunnen zo vanaf dezelfde pagina beheerd worden, omdat het wachtwoord per commando wordt ingevoerd en door de gekozen repeater wordt gecontroleerd.
 
 Wil je de HTTP-pagina zelf ook met een apart wachtwoord beschermen, start de server dan met:
 
@@ -41,7 +47,7 @@ Wil je de HTTP-pagina zelf ook met een apart wachtwoord beschermen, start de ser
 python3 tools/tcp_bridge_server.py --port 4200 --admin-password webAdminSecret
 ```
 
-Dit beschermt toegang tot de webbeheerpagina. Het vervangt niet het admin-wachtwoord per node.
+Dit beschermt toegang tot de remote beheerpagina. Het vervangt niet het admin-wachtwoord per node.
 
 Gebruik bij lokaal testen het LAN-IP van deze machine als `bridge.server`. Gebruik bij een gecontroleerde remote deployment het bereikbare IP-adres of de domeinnaam van de server.
 
