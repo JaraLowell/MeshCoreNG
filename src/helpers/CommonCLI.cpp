@@ -243,8 +243,56 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
         _prefs->fem_rx_gain = fem_rx_gain;                                                         // 531 + sizeof(AtlasConfig)
       }
+      uint8_t low_bat_boot_guard_enabled = _prefs->low_bat_boot_guard_enabled;
+      if (file.read((uint8_t *)&low_bat_boot_guard_enabled, sizeof(low_bat_boot_guard_enabled)) == sizeof(low_bat_boot_guard_enabled)) {
+        _prefs->low_bat_boot_guard_enabled = low_bat_boot_guard_enabled;                           // 532 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_guard_mv = _prefs->low_bat_boot_guard_mv;
+      if (file.read((uint8_t *)&low_bat_boot_guard_mv, sizeof(low_bat_boot_guard_mv)) == sizeof(low_bat_boot_guard_mv)) {
+        _prefs->low_bat_boot_guard_mv = low_bat_boot_guard_mv;                                     // 533 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_valid_min_mv = _prefs->low_bat_boot_valid_min_mv;
+      if (file.read((uint8_t *)&low_bat_boot_valid_min_mv, sizeof(low_bat_boot_valid_min_mv)) == sizeof(low_bat_boot_valid_min_mv)) {
+        _prefs->low_bat_boot_valid_min_mv = low_bat_boot_valid_min_mv;                             // 535 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_retry_secs = _prefs->low_bat_boot_retry_secs;
+      if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
+        _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 537 + sizeof(AtlasConfig)
+      }
+      char ntp_server[64] = {};
+      if (file.read((uint8_t *)ntp_server, sizeof(ntp_server)) == sizeof(ntp_server)) {
+        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                 // 539 + sizeof(AtlasConfig)
+      }
+      uint8_t ntp_enabled = _prefs->ntp_enabled;
+      if (file.read((uint8_t *)&ntp_enabled, sizeof(ntp_enabled)) == sizeof(ntp_enabled)) {
+        _prefs->ntp_enabled = ntp_enabled;                                                         // 603 + sizeof(AtlasConfig)
+      }
+      uint32_t ntp_interval_secs = _prefs->ntp_interval_secs;
+      if (file.read((uint8_t *)&ntp_interval_secs, sizeof(ntp_interval_secs)) == sizeof(ntp_interval_secs)) {
+        _prefs->ntp_interval_secs = ntp_interval_secs;                                             // 604 + sizeof(AtlasConfig)
+      }
+      uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
+      if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
+        _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                      // 608 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_guard_mv = _prefs->low_bat_runtime_guard_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_guard_mv, sizeof(low_bat_runtime_guard_mv)) == sizeof(low_bat_runtime_guard_mv)) {
+        _prefs->low_bat_runtime_guard_mv = low_bat_runtime_guard_mv;                                // 609 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_warn_mv = _prefs->low_bat_runtime_warn_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_warn_mv, sizeof(low_bat_runtime_warn_mv)) == sizeof(low_bat_runtime_warn_mv)) {
+        _prefs->low_bat_runtime_warn_mv = low_bat_runtime_warn_mv;                                  // 611 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_valid_min_mv = _prefs->low_bat_runtime_valid_min_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_valid_min_mv, sizeof(low_bat_runtime_valid_min_mv)) == sizeof(low_bat_runtime_valid_min_mv)) {
+        _prefs->low_bat_runtime_valid_min_mv = low_bat_runtime_valid_min_mv;                        // 613 + sizeof(AtlasConfig)
+      }
+      uint32_t low_bat_runtime_retry_secs = _prefs->low_bat_runtime_retry_secs;
+      if (file.read((uint8_t *)&low_bat_runtime_retry_secs, sizeof(low_bat_runtime_retry_secs)) == sizeof(low_bat_runtime_retry_secs)) {
+        _prefs->low_bat_runtime_retry_secs = low_bat_runtime_retry_secs;                            // 615 + sizeof(AtlasConfig)
+      }
     }
-    // next: 532 + sizeof(AtlasConfig)
+    // next: 619 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -264,7 +312,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 2);
-    _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 1);
+    _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 2);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -272,6 +320,20 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
     _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
     _prefs->fem_rx_gain = constrain(_prefs->fem_rx_gain, 0, 1);
+    _prefs->low_bat_boot_guard_enabled = constrain(_prefs->low_bat_boot_guard_enabled, 0, 1);
+    _prefs->low_bat_boot_guard_mv = constrain(_prefs->low_bat_boot_guard_mv, 0, 6000);
+    _prefs->low_bat_boot_valid_min_mv = constrain(_prefs->low_bat_boot_valid_min_mv, 0, 6000);
+    _prefs->low_bat_boot_retry_secs = constrain(_prefs->low_bat_boot_retry_secs, 5, 3600);
+    if (_prefs->ntp_server[0] == 0) {
+      StrHelper::strncpy(_prefs->ntp_server, "pool.ntp.org", sizeof(_prefs->ntp_server));
+    }
+    _prefs->ntp_enabled = constrain(_prefs->ntp_enabled, 0, 1);
+    _prefs->ntp_interval_secs = constrain(_prefs->ntp_interval_secs, 60UL, 86400UL);
+    _prefs->low_bat_runtime_guard_enabled = constrain(_prefs->low_bat_runtime_guard_enabled, 0, 1);
+    _prefs->low_bat_runtime_guard_mv = constrain(_prefs->low_bat_runtime_guard_mv, 0, 6000);
+    _prefs->low_bat_runtime_warn_mv = constrain(_prefs->low_bat_runtime_warn_mv, 0, 6000);
+    _prefs->low_bat_runtime_valid_min_mv = constrain(_prefs->low_bat_runtime_valid_min_mv, 0, 6000);
+    _prefs->low_bat_runtime_retry_secs = constrain(_prefs->low_bat_runtime_retry_secs, 5UL, 86400UL);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -372,7 +434,19 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_rf, sizeof(_prefs->bridge_rf));                          // 466 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 467 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->fem_rx_gain, sizeof(_prefs->fem_rx_gain));                      // 531 + sizeof(AtlasConfig)
-    // next: 532 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_enabled, sizeof(_prefs->low_bat_boot_guard_enabled)); // 532 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 533 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 535 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 537 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 539 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 603 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 604 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 608 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 609 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 611 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_valid_min_mv, sizeof(_prefs->low_bat_runtime_valid_min_mv)); // 613 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_retry_secs, sizeof(_prefs->low_bat_runtime_retry_secs)); // 615 + sizeof(AtlasConfig)
+    // next: 619 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -427,6 +501,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: clock cannot go backwards");
       }
+    } else if (memcmp(command, "ntp.sync", 8) == 0 && (command[8] == 0 || command[8] == ' ')) {
+      _callbacks->startNtpSync(reply);
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         if (reply[0] == 0) strcpy(reply, "Error");
@@ -868,6 +944,94 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "boot.lowbat.guard ", 18) == 0) {
+    uint8_t enabled = 0;
+    if (parseOnOff(&config[18], &enabled)) {
+      _prefs->low_bat_boot_guard_enabled = enabled;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "boot.lowbat.mv ", 15) == 0) {
+    const char* value = &config[15];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && (mv == 0 || (mv >= 2500 && mv <= 6000))) {
+      _prefs->low_bat_boot_guard_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: threshold must be 0 or 2500-6000 mV");
+    }
+  } else if (memcmp(config, "boot.lowbat.valid_min ", 22) == 0) {
+    const char* value = &config[22];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_boot_valid_min_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: valid_min must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "boot.lowbat.retry ", 18) == 0) {
+    const char* value = &config[18];
+    uint16_t secs = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && secs >= 5 && secs <= 3600) {
+      _prefs->low_bat_boot_retry_secs = secs;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: retry must be 5-3600 seconds");
+    }
+  } else if (memcmp(config, "runtime.lowbat.guard ", 21) == 0) {
+    uint8_t enabled = 0;
+    if (parseOnOff(&config[21], &enabled)) {
+      _prefs->low_bat_runtime_guard_enabled = enabled;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "runtime.lowbat.mv ", 18) == 0) {
+    const char* value = &config[18];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && (mv == 0 || (mv >= 2500 && mv <= 6000))) {
+      _prefs->low_bat_runtime_guard_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: threshold must be 0 or 2500-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.warn ", 20) == 0) {
+    const char* value = &config[20];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_runtime_warn_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: warning threshold must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.valid_min ", 25) == 0) {
+    const char* value = &config[25];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_runtime_valid_min_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: valid_min must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.retry ", 21) == 0) {
+    const char* value = &config[21];
+    uint32_t secs = _atoi(value);
+    if (*value >= '0' && *value <= '9' && secs >= 5 && secs <= 86400) {
+      _prefs->low_bat_runtime_retry_secs = secs;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: retry must be 5-86400 seconds");
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -1122,9 +1286,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: source must be tx, rx, or both");
     }
   } else if (memcmp(config, "bridge.rf ", 10) == 0) {
-    _prefs->bridge_rf = memcmp(&config[10], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    if (memcmp(&config[10], "off", 3) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_OFF;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[10], "on", 2) == 0 || memcmp(&config[10], "flood", 5) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_FLOOD;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[10], "local", 5) == 0 || memcmp(&config[10], "ttl1", 4) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_LOCAL;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: mode must be off, on, flood, local, or ttl1");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -1185,6 +1361,31 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
+    }
+  } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
+    uint8_t enabled = 0;
+    if (parseOnOff(&config[12], &enabled)) {
+      _prefs->ntp_enabled = enabled;
+      _callbacks->onNtpPrefsChanged();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "ntp.server ", 11) == 0) {
+    StrHelper::strncpy(_prefs->ntp_server, &config[11], sizeof(_prefs->ntp_server));
+    _callbacks->onNtpPrefsChanged();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "ntp.interval ", 13) == 0) {
+    uint32_t interval = _atoi(&config[13]);
+    if (interval >= 60 && interval <= 86400) {
+      _prefs->ntp_interval_secs = interval;
+      _callbacks->onNtpPrefsChanged();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: interval must be 60-86400 seconds");
     }
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
@@ -1284,6 +1485,24 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: FEM RX gain not supported");
     }
+  } else if (memcmp(config, "boot.lowbat.guard", 17) == 0) {
+    sprintf(reply, "> %s", _prefs->low_bat_boot_guard_enabled ? "on" : "off");
+  } else if (memcmp(config, "boot.lowbat.mv", 14) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_guard_mv);
+  } else if (memcmp(config, "boot.lowbat.valid_min", 21) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_valid_min_mv);
+  } else if (memcmp(config, "boot.lowbat.retry", 17) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_retry_secs);
+  } else if (memcmp(config, "runtime.lowbat.guard", 20) == 0) {
+    sprintf(reply, "> %s", _prefs->low_bat_runtime_guard_enabled ? "on" : "off");
+  } else if (memcmp(config, "runtime.lowbat.mv", 17) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_guard_mv);
+  } else if (memcmp(config, "runtime.lowbat.warn", 19) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_warn_mv);
+  } else if (memcmp(config, "runtime.lowbat.valid_min", 24) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_valid_min_mv);
+  } else if (memcmp(config, "runtime.lowbat.retry", 20) == 0) {
+    sprintf(reply, "> %lu", (unsigned long)_prefs->low_bat_runtime_retry_secs);
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));
@@ -1358,7 +1577,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "bridge.source", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_pkt_src == 2 ? "both" : (_prefs->bridge_pkt_src ? "logRx" : "logTx"));
   } else if (memcmp(config, "bridge.rf", 9) == 0) {
-    sprintf(reply, "> %s", _prefs->bridge_rf ? "on" : "off");
+    sprintf(reply, "> %s", _prefs->bridge_rf == BRIDGE_RF_LOCAL ? "local" : (_prefs->bridge_rf ? "on" : "off"));
 #if defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.status", 13) == 0) {
     _callbacks->formatBleBridgeStatusReply(reply);
@@ -1389,6 +1608,14 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
+  } else if (memcmp(config, "ntp.enabled", 11) == 0) {
+    sprintf(reply, "> %s", _prefs->ntp_enabled ? "on" : "off");
+  } else if (memcmp(config, "ntp.server", 10) == 0) {
+    sprintf(reply, "> %s", _prefs->ntp_server);
+  } else if (memcmp(config, "ntp.interval", 12) == 0) {
+    sprintf(reply, "> %lu", (unsigned long)_prefs->ntp_interval_secs);
+  } else if (memcmp(config, "ntp.status", 10) == 0) {
+    _callbacks->formatNtpStatusReply(reply);
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM

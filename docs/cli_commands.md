@@ -9,9 +9,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - [Statistics](#statistics)
 - [Logging](#logging)
 - [Information](#info)
-- [Configuration](#configuration)
+  - [Configuration](#configuration)
   - [Radio](#radio)
   - [System](#system)
+  - [Low Battery Boot Guard](#low-battery-boot-guard)
+  - [Runtime Low Battery Guard](#runtime-low-battery-guard)
   - [Routing](#routing)
   - [ACL](#acl)
   - [Region Management](#region-management-v110)
@@ -55,6 +57,15 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
 - `epoch_seconds`: Unix epoch time
+
+---
+
+### Sync the clock from NTP over WiFi
+**Usage:**
+- `ntp.sync`
+- `get ntp.status`
+
+**Note:** ESP32 TCP bridge builds only. The repeater uses the saved `wifi.ssid` and `wifi.password`, sends a UDP NTP request, and writes the received Unix time through the normal RTC clock layer.
 
 ---
 
@@ -495,6 +506,136 @@ These counters are RAM-only and reset on reboot or with `clear power.stats`.
 **Default:** `0.0` (value defined by board)
 
 **Note:** Returns "Error: unsupported by this board" if hardware doesn't support it
+
+---
+
+### Low Battery Boot Guard
+
+The low-battery boot guard prevents supported battery-powered boards from continuing into full firmware startup while the measured battery voltage is still too low. This helps avoid repeated brownout/reset loops after a deeply discharged battery is connected to a charger.
+
+These commands are available on Repeater, GPS tracker / Sensor, and Room Server builds that use the normal MeshCore CLI. KISS modem, companion radio, and secure chat builds use the build-time defaults.
+
+#### Enable or disable the guard
+**Usage:**
+- `get boot.lowbat.guard`
+- `set boot.lowbat.guard <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
+#### View or change the low-battery boot threshold
+**Usage:**
+- `get boot.lowbat.mv`
+- `set boot.lowbat.mv <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0` or `2500-6000`
+
+**Default:** `3300`
+
+**Note:** `0` disables the threshold, but `set boot.lowbat.guard off` is clearer.
+
+---
+
+#### View or change the minimum valid battery reading
+**Usage:**
+- `get boot.lowbat.valid_min`
+- `set boot.lowbat.valid_min <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `2500`
+
+**Note:** Readings below this value are treated as invalid or unsupported and do not block boot.
+
+---
+
+#### View or change the retry interval
+**Usage:**
+- `get boot.lowbat.retry`
+- `set boot.lowbat.retry <seconds>`
+
+**Parameters:**
+- `seconds`: `5-3600`
+
+**Default:** `60`
+
+**Note:** Changes are stored in node preferences and apply on the next boot after preferences are loaded.
+
+---
+
+### Runtime Low Battery Guard
+
+The runtime low-battery guard protects battery-powered Repeater, GPS tracker / Sensor, and Room Server builds after normal startup. When enabled, the firmware periodically checks battery voltage from the main loop. If the reading is valid, the board is not externally powered, and voltage is below the runtime threshold, the node sleeps before continuing work.
+
+This is separate from the boot guard. The boot guard prevents brownout boot loops; the runtime guard prevents a running node from draining the battery too far.
+
+#### Enable or disable the runtime guard
+**Usage:**
+- `get runtime.lowbat.guard`
+- `set runtime.lowbat.guard <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
+#### View or change the runtime sleep threshold
+**Usage:**
+- `get runtime.lowbat.mv`
+- `set runtime.lowbat.mv <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0` or `2500-6000`
+
+**Default:** `3300`
+
+**Note:** `0` disables the threshold, but `set runtime.lowbat.guard off` is clearer.
+
+---
+
+#### View or change the runtime warning threshold
+**Usage:**
+- `get runtime.lowbat.warn`
+- `set runtime.lowbat.warn <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `3500`
+
+**Note:** The warning threshold is stored for status/telemetry use. The current guard action is controlled by `runtime.lowbat.mv`.
+
+---
+
+#### View or change the minimum valid runtime battery reading
+**Usage:**
+- `get runtime.lowbat.valid_min`
+- `set runtime.lowbat.valid_min <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `2500`
+
+---
+
+#### View or change the runtime low-battery sleep interval
+**Usage:**
+- `get runtime.lowbat.retry`
+- `set runtime.lowbat.retry <seconds>`
+
+**Parameters:**
+- `seconds`: `5-86400`
+
+**Default:** `1800`
 
 ---
 
@@ -1441,15 +1582,20 @@ set bridge.enabled on
 
 ---
 
-#### View or change RF forwarding for bridge flood packets
+#### View or change RF forwarding for bridge packets
 **Usage:**
 - `get bridge.rf`
 - `set bridge.rf <state>`
 
 **Parameters:**
-- `state`: `on`|`off`
+- `state`:
+  - `off`: do not put bridge-originated packets on RF
+  - `on` or `flood`: allow bridge-originated flood packets through the normal repeater forwarding path
+  - `local` or `ttl1`: inject bridge-originated packets once on local RF only
 
-When enabled, flood packets received from the bridge may be forwarded on LoRa RF by the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+In `on`/`flood` mode, flood packets received from the bridge may be forwarded on LoRa RF by the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+
+In `local`/`ttl1` mode, packets received from the bridge are transmitted once by this node on local RF. Flood packets are marked with a full path before transmit so other repeaters should process but not re-flood them. Direct packets are transmitted as zero-hop local packets so nearby matching clients can receive them without creating a routed multi-hop bridge loop.
 
 **Default:** `off`
 
@@ -1557,6 +1703,27 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 - `password`: WiFi network password, up to 63 characters
 
 **Note:** `get wifi.password` always returns `***` for security.
+
+---
+
+#### Configure NTP time sync (TCP bridge only)
+**Usage:**
+- `get ntp.enabled`
+- `set ntp.enabled <on|off>`
+- `get ntp.server`
+- `set ntp.server <host>`
+- `get ntp.interval`
+- `set ntp.interval <seconds>`
+- `get ntp.status`
+- `ntp.sync`
+
+**Parameters:**
+- `host`: NTP server hostname or IP address, up to 63 characters
+- `seconds`: Periodic sync interval, 60-86400 seconds
+
+**Default:** `ntp.enabled off`, `ntp.server pool.ntp.org`, `ntp.interval 3600`
+
+**Note:** Requires `WITH_TCP_BRIDGE` firmware build flag and saved WiFi credentials. `ntp.sync` starts a non-blocking sync; use `get ntp.status` to see the result.
 
 ---
 

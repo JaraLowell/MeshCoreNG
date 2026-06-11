@@ -154,6 +154,7 @@ void TCPBridge::readIncoming() {
             if (isControlPayload(_rx_buffer + 4, len)) {
               BRIDGE_DEBUG_PRINTLN("TCP bridge: RX control len=%d crc=0x%04x\n",
                                    len, received_checksum);
+              handleControlPayload(_rx_buffer + 4, len);
               _rx_buffer_pos = 0;
               continue;
             }
@@ -267,6 +268,64 @@ void TCPBridge::sendHeartbeat() {
   if (sendPayloadFrame(payload, sizeof(payload))) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: heartbeat\n");
   }
+}
+
+void TCPBridge::handleControlPayload(const uint8_t *payload, uint16_t len) {
+  if (len < 5) return;
+
+  if (payload[4] == CONTROL_TYPE_COMMAND) {
+    handleCommandPayload(payload, len);
+  }
+}
+
+void TCPBridge::handleCommandPayload(const uint8_t *payload, uint16_t len) {
+  if (!_command_handler || len < 10) return;
+
+  uint32_t request_id = ((uint32_t)payload[5] << 24) |
+                        ((uint32_t)payload[6] << 16) |
+                        ((uint32_t)payload[7] << 8) |
+                        payload[8];
+  uint8_t command_len = payload[9];
+  if (command_len == 0 || len < (uint16_t)(10 + command_len)) {
+    sendCommandReply(request_id, "Err - invalid remote command");
+    return;
+  }
+
+  char command[96];
+  size_t copy_len = command_len;
+  if (copy_len >= sizeof(command)) copy_len = sizeof(command) - 1;
+  memcpy(command, payload + 10, copy_len);
+  command[copy_len] = 0;
+
+  char reply[192];
+  reply[0] = 0;
+  _command_handler->handleTcpBridgeCommand(command, reply, sizeof(reply));
+  if (reply[0] == 0) {
+    strncpy(reply, "OK", sizeof(reply));
+    reply[sizeof(reply) - 1] = 0;
+  }
+  sendCommandReply(request_id, reply);
+}
+
+void TCPBridge::sendCommandReply(uint32_t request_id, const char *reply) {
+  uint8_t payload[MAX_TRANS_UNIT + 1];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_COMMAND_REPLY;
+  payload[5] = (request_id >> 24) & 0xFF;
+  payload[6] = (request_id >> 16) & 0xFF;
+  payload[7] = (request_id >> 8) & 0xFF;
+  payload[8] = request_id & 0xFF;
+
+  size_t reply_len = strlen(reply);
+  if (reply_len > (MAX_TRANS_UNIT + 1) - 10) {
+    reply_len = (MAX_TRANS_UNIT + 1) - 10;
+  }
+  payload[9] = (uint8_t)reply_len;
+  memcpy(payload + 10, reply, reply_len);
+  sendPayloadFrame(payload, 10 + reply_len);
 }
 
 bool TCPBridge::isControlPayload(const uint8_t *payload, uint16_t len) const {

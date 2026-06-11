@@ -13,7 +13,7 @@ MeshCoreNG adds:
 - **Web flasher** — browser flashing and firmware downloads backed by GitHub Release assets.
 - **Regional tooling** — Dutch region lookup data and region profile support for deployments that need scoped forwarding.
 - **Better channel detection** — hardware CAD scan before transmitting.
-- **Power saving** — configurable sleep with transparent controls.
+- **Power saving and battery guards** — configurable sleep plus low-battery boot/runtime protection.
 - **Malformed chat filtering** — sanitize companion chat display and drop malformed public chat at repeaters by default without breaking binary payloads.
 - **Atlas foundation** — disabled-by-default telemetry structures for future topology, observer and network-health tools.
 

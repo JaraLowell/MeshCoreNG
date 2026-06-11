@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/LowBatteryBootGuard.h>
 
 #include "MyMesh.h"
 
@@ -17,6 +18,7 @@ void halt() {
 }
 
 static char command[MAX_POST_TEXT_LEN+1];
+static unsigned long next_runtime_lowbat_check = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -119,4 +121,13 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  if (next_runtime_lowbat_check == 0 || the_mesh.millisHasNowPassed(next_runtime_lowbat_check)) {
+    next_runtime_lowbat_check = millis() + LOW_BAT_RUNTIME_CHECK_SECS * 1000UL;
+    if (guardRuntimeLowBattery(board, prefs->low_bat_runtime_guard_enabled, prefs->low_bat_runtime_guard_mv,
+                               prefs->low_bat_runtime_valid_min_mv, prefs->low_bat_runtime_retry_secs)) {
+      return;
+    }
+  }
 }

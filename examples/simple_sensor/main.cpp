@@ -1,5 +1,6 @@
 #include "SensorMesh.h"
 
+#include <helpers/LowBatteryBootGuard.h>
 #include <helpers/LocationReport.h>
 #include <helpers/TxtDataHelpers.h>
 
@@ -99,6 +100,7 @@ void halt() {
 }
 
 static char command[160];
+static unsigned long next_runtime_lowbat_check = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -155,7 +157,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), &sensors, &board, FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
   // send out initial zero hop Advertisement to the mesh
@@ -200,4 +202,13 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  if (next_runtime_lowbat_check == 0 || the_mesh.millisHasNowPassed(next_runtime_lowbat_check)) {
+    next_runtime_lowbat_check = millis() + LOW_BAT_RUNTIME_CHECK_SECS * 1000UL;
+    if (guardRuntimeLowBattery(board, prefs->low_bat_runtime_guard_enabled, prefs->low_bat_runtime_guard_mv,
+                               prefs->low_bat_runtime_valid_min_mv, prefs->low_bat_runtime_retry_secs)) {
+      return;
+    }
+  }
 }

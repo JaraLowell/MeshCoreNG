@@ -1,6 +1,7 @@
 #pragma once
 
 #include "helpers/bridges/BridgeBase.h"
+#include <stddef.h>
 
 #ifdef WITH_TCP_BRIDGE
 
@@ -31,6 +32,11 @@
  *
  * Firmware build flag: -D WITH_TCP_BRIDGE
  */
+class TCPBridgeCommandHandler {
+public:
+  virtual void handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) = 0;
+};
+
 class TCPBridge : public BridgeBase {
 public:
   TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
@@ -41,6 +47,7 @@ public:
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
   void getStatusStr(char *reply) const;
+  void setCommandHandler(TCPBridgeCommandHandler *handler) { _command_handler = handler; }
 
 private:
   static constexpr uint16_t TCP_OVERHEAD =
@@ -54,6 +61,8 @@ private:
   static constexpr uint8_t  CONTROL_TYPE_HEARTBEAT   = 0x01;
   static constexpr uint8_t  CONTROL_TYPE_NODE_INFO   = 0x02;
   static constexpr uint8_t  CONTROL_TYPE_AUTH        = 0x03;
+  static constexpr uint8_t  CONTROL_TYPE_COMMAND     = 0x10;
+  static constexpr uint8_t  CONTROL_TYPE_COMMAND_REPLY = 0x11;
 
   enum class State : uint8_t {
     IDLE,           // waiting for reconnect timer
@@ -70,11 +79,15 @@ private:
 
   uint8_t  _rx_buffer[MAX_TCP_PACKET_SIZE];
   uint16_t _rx_buffer_pos = 0;
+  TCPBridgeCommandHandler *_command_handler = nullptr;
 
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   void sendAuth();
   void sendNodeInfo();
   void sendHeartbeat();
+  void handleControlPayload(const uint8_t *payload, uint16_t len);
+  void handleCommandPayload(const uint8_t *payload, uint16_t len);
+  void sendCommandReply(uint32_t request_id, const char *reply);
   bool isControlPayload(const uint8_t *payload, uint16_t len) const;
   void readIncoming();
 };

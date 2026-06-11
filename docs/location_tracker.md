@@ -44,6 +44,17 @@ GPS must be enabled on the node:
 gps on
 ```
 
+## Display behavior
+
+GPS tracker builds with a display keep the display on instead of using the normal sensor auto-off behavior.
+
+The tracker home screen shows the node name, GPS state, satellite count, battery voltage, and either:
+
+- latitude, longitude, and altitude when a GPS fix is available
+- waiting-for-fix status, LoRa frequency/SF, and tracker TX interval while no GPS fix is available
+
+The tracker still only sends `PAYLOAD_TYPE_LOCATION` packets after the GPS provider has a valid fix. Without a GPS fix, the node may still send normal MeshCore packets such as adverts or replies, but it does not send a map position.
+
 ## Gateway
 
 Run the TCP bridge server as usual. Tracker output is available at:

@@ -2,6 +2,7 @@
 #include <target.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/LowBatteryBootGuard.h>
 #include "KissModem.h"
 
 #if defined(NRF52_PLATFORM)
@@ -75,6 +76,7 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
 
 void setup() {
   board.begin();
+  guardLowBatteryBoot(board);
 
   if (!radio_init()) {
     halt();

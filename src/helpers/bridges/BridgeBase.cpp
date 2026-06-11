@@ -1,6 +1,34 @@
 #include "BridgeBase.h"
 
 #include <Arduino.h>
+#include <string.h>
+
+namespace {
+
+uint8_t bridgeLocalInjectPriority(const mesh::Packet *packet) {
+  if (packet->isRouteFlood()) {
+    return packet->getPayloadType() == PAYLOAD_TYPE_ADVERT ? 3 : 1;
+  }
+  return 0;
+}
+
+void prepareBridgeLocalInject(mesh::Packet *packet) {
+  if (packet->isRouteFlood()) {
+    uint8_t hash_size = packet->getPathHashSize();
+    if (hash_size == 0 || hash_size > 3) hash_size = 1;
+    uint8_t max_count = MAX_PATH_SIZE / hash_size;
+    uint8_t current_count = packet->getPathHashCount();
+    while (current_count < max_count) {
+      memset(&packet->path[current_count * hash_size], 0, hash_size);
+      current_count++;
+    }
+    packet->setPathHashCount(max_count);
+  } else if (packet->isRouteDirect()) {
+    packet->setPathHashCount(0);
+  }
+}
+
+}  // namespace
 
 bool BridgeBase::isRunning() const {
   return _initialized;
@@ -41,8 +69,14 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
 
   if (!_seen_packets.hasSeen(packet)) {
     packet->markReceivedFromBridge();
-    // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
-    _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
+    // local mode injects bridge traffic once on RF and prevents normal multi-hop forwarding.
+    if (_prefs->bridge_rf == BRIDGE_RF_LOCAL) {
+      prepareBridgeLocalInject(packet);
+      _mgr->queueOutbound(packet, bridgeLocalInjectPriority(packet), millis() + _prefs->bridge_delay);
+    } else {
+      // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
+      _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
+    }
   } else {
     _mgr->free(packet);
   }

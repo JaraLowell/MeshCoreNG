@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <helpers/LowBatteryBootGuard.h>
 
 #define REPLY_DELAY_MILLIS          1500
 #define PUSH_NOTIFY_DELAY_MILLIS    2000
@@ -666,6 +667,15 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
   _prefs.fem_rx_gain = board.getFemRxGain();
+  _prefs.low_bat_boot_guard_enabled = 1;
+  _prefs.low_bat_boot_guard_mv = LOW_BAT_BOOT_GUARD_MV;
+  _prefs.low_bat_boot_valid_min_mv = LOW_BAT_BOOT_VALID_MIN_MV;
+  _prefs.low_bat_boot_retry_secs = LOW_BAT_BOOT_RETRY_SECS;
+  _prefs.low_bat_runtime_guard_enabled = 1;
+  _prefs.low_bat_runtime_guard_mv = LOW_BAT_RUNTIME_GUARD_MV;
+  _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
+  _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
+  _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
 
   next_post_idx = 0;
   next_client_idx = 0;
@@ -681,6 +691,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  guardLowBatteryBoot(board, _prefs.low_bat_boot_guard_enabled, _prefs.low_bat_boot_guard_mv, _prefs.low_bat_boot_valid_min_mv, _prefs.low_bat_boot_retry_secs);
 
   acl.load(_fs, self_id);
   region_map.load(_fs);

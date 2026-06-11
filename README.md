@@ -42,6 +42,22 @@ MeshCoreNG aims to improve this:
 - A telemetry foundation for future maps, dashboards and observers.
 - No breakage for existing MeshCore clients.
 
+## Device Reliability Updates
+
+MeshCoreNG also includes a generic low-battery boot guard for battery-powered boards. Directly after `board.begin()`, firmware reads the board battery voltage. If the reading is valid but too low, the node sleeps and retries instead of starting radio, display, GPS, sensors or bridge code. This helps boards recover after a deeply discharged battery is connected to a charger.
+
+Default behavior:
+
+- below `2500mV`: treat as invalid or unsupported battery reading
+- `2500mV` to `3299mV`: sleep and retry
+- `3300mV` or higher: continue normal boot
+
+Repeater, GPS tracker / sensor, and room server builds can tune this from the CLI with `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min`, and `set boot.lowbat.retry`. The defaults can also be tuned per build with `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` and `LOW_BAT_BOOT_RETRY_SECS`.
+
+Repeater, GPS tracker / sensor, and room server builds also include a runtime low-battery guard. While the node is running, it periodically checks battery voltage. If the node is not externally powered and the battery falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further. Tune it with `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min`, and `set runtime.lowbat.retry`. See [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. See [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## What Have We Done So Far?
 
 We have added the first real dense-mesh foundation to the repeater firmware.
@@ -302,6 +318,12 @@ Bridge repeaters do not forward bridge-originated flood traffic onto LoRa RF by 
 
 ```text
 set bridge.rf on
+```
+
+For one-hop local RF injection of bridge-originated packets, use:
+
+```text
+set bridge.rf local
 ```
 
 Bridge RF forwarding still uses the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.

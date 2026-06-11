@@ -26,6 +26,9 @@
 #ifdef WITH_TCP_BRIDGE
 #include "helpers/bridges/TCPBridge.h"
 #define WITH_BRIDGE
+#if defined(ESP32)
+#include <WiFiUdp.h>
+#endif
 #endif
 
 #ifdef WITH_BLE_BRIDGE
@@ -136,7 +139,11 @@ struct NeighbourInfo {
 #define SUPPORT_DAILY_REBOOT 0
 #endif
 
-class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
+class MyMesh : public mesh::Mesh, public CommonCLICallbacks
+#if defined(WITH_TCP_BRIDGE)
+  , public TCPBridgeCommandHandler
+#endif
+{
   FILESYSTEM* _fs;
   uint32_t last_millis;
   uint64_t uptime_millis;
@@ -167,6 +174,17 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint64_t next_daily_reboot_uptime_ms;
   bool daily_reboot_pending;
   unsigned long dirty_contacts_expiry;
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  WiFiUDP ntp_udp;
+  uint8_t ntp_state;
+  uint8_t ntp_last_result;
+  bool ntp_started_wifi;
+  bool ntp_udp_open;
+  unsigned long ntp_deadline_ms;
+  unsigned long next_ntp_sync_ms;
+  uint32_t ntp_last_sync_epoch;
+  uint32_t ntp_last_attempt_epoch;
+#endif
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -214,6 +232,13 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool shouldDropMalformedGroupText(mesh::Packet* pkt);
   void scheduleDailyReboot();
   void checkDailyReboot();
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  void scheduleNtpSync(uint32_t delay_secs);
+  bool startNtpSyncInternal(char* reply, bool manual);
+  void loopNtpSync();
+  bool sendNtpRequest();
+  void finishNtpSync(uint8_t result, uint32_t epoch);
+#endif
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -327,14 +352,21 @@ public:
   void clearPowerStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+#if defined(WITH_TCP_BRIDGE)
+  void handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) override;
+#endif
   void loop();
   void formatDailyRebootReply(char* reply) const;
+  void onNtpPrefsChanged() override;
+  bool startNtpSync(char* reply) override;
+  void formatNtpStatusReply(char* reply) override;
 
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     if (enable == (tcp_bridge.isRunning() && ble_bridge.isRunning())) return;
     if (enable) {
+      tcp_bridge.setCommandHandler(this);
       tcp_bridge.begin();
       ble_bridge.begin();
     } else {
@@ -345,6 +377,9 @@ public:
     if (enable == bridge.isRunning()) return;
     if (enable)
     {
+#if defined(WITH_TCP_BRIDGE)
+      bridge.setCommandHandler(this);
+#endif
       bridge.begin();
     }
     else 
@@ -359,11 +394,15 @@ public:
     if (!tcp_bridge.isRunning() && !ble_bridge.isRunning()) return;
     tcp_bridge.end();
     ble_bridge.end();
+    tcp_bridge.setCommandHandler(this);
     tcp_bridge.begin();
     ble_bridge.begin();
 #else
     if (!bridge.isRunning()) return;
     bridge.end();
+#if defined(WITH_TCP_BRIDGE)
+    bridge.setCommandHandler(this);
+#endif
     bridge.begin();
 #endif
   }

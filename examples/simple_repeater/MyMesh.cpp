@@ -1,5 +1,9 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <helpers/LowBatteryBootGuard.h>
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+#include <WiFi.h>
+#endif
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -63,6 +67,27 @@
 #define DAILY_REBOOT_MIN_HOURS       1
 #define DAILY_REBOOT_MAX_HOURS       168
 #define DAILY_REBOOT_GRACE_MILLIS    3000UL
+#define NTP_DEFAULT_INTERVAL_SECS    3600UL
+#define NTP_MIN_VALID_EPOCH          1715770351UL
+#define NTP_WIFI_TIMEOUT_MS          15000UL
+#define NTP_REPLY_TIMEOUT_MS         5000UL
+#define NTP_RETRY_DELAY_SECS         300UL
+#define NTP_LOCAL_PORT               2390
+#define NTP_PACKET_SIZE              48
+#define NTP_UNIX_OFFSET              2208988800UL
+
+#define NTP_STATE_IDLE               0
+#define NTP_STATE_WIFI_WAIT          1
+#define NTP_STATE_REPLY_WAIT         2
+
+#define NTP_RESULT_NONE              0
+#define NTP_RESULT_OK                1
+#define NTP_RESULT_NO_WIFI           2
+#define NTP_RESULT_WIFI_TIMEOUT      3
+#define NTP_RESULT_SEND_FAILED       4
+#define NTP_RESULT_REPLY_TIMEOUT     5
+#define NTP_RESULT_BAD_REPLY         6
+#define NTP_RESULT_BUSY              7
 
 #if defined(ESP32)
 static portMUX_TYPE dense_stats_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -597,7 +622,7 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
-  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && !_prefs.bridge_rf) {
+  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && _prefs.bridge_rf == BRIDGE_RF_OFF) {
     return false;
   }
   if (_prefs.disable_fwd) {
@@ -1275,6 +1300,16 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   daily_reboot_pending = false;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  ntp_state = NTP_STATE_IDLE;
+  ntp_last_result = NTP_RESULT_NONE;
+  ntp_started_wifi = false;
+  ntp_udp_open = false;
+  ntp_deadline_ms = 0;
+  next_ntp_sync_ms = 0;
+  ntp_last_sync_epoch = 0;
+  ntp_last_attempt_epoch = 0;
+#endif
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
@@ -1339,6 +1374,18 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
   _prefs.fem_rx_gain = board.getFemRxGain();
+  _prefs.low_bat_boot_guard_enabled = 1;
+  _prefs.low_bat_boot_guard_mv = LOW_BAT_BOOT_GUARD_MV;
+  _prefs.low_bat_boot_valid_min_mv = LOW_BAT_BOOT_VALID_MIN_MV;
+  _prefs.low_bat_boot_retry_secs = LOW_BAT_BOOT_RETRY_SECS;
+  _prefs.low_bat_runtime_guard_enabled = 1;
+  _prefs.low_bat_runtime_guard_mv = LOW_BAT_RUNTIME_GUARD_MV;
+  _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
+  _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
+  _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
+  StrHelper::strncpy(_prefs.ntp_server, "pool.ntp.org", sizeof(_prefs.ntp_server));
+  _prefs.ntp_enabled = 0;
+  _prefs.ntp_interval_secs = NTP_DEFAULT_INTERVAL_SECS;
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -1359,6 +1406,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  guardLowBatteryBoot(board, _prefs.low_bat_boot_guard_enabled, _prefs.low_bat_boot_guard_mv, _prefs.low_bat_boot_valid_min_mv, _prefs.low_bat_boot_retry_secs);
   scheduleDailyReboot();
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
@@ -1390,9 +1438,13 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.setCommandHandler(this);
     tcp_bridge.begin();
     ble_bridge.begin();
 #else
+#if defined(WITH_TCP_BRIDGE)
+    bridge.setCommandHandler(this);
+#endif
     bridge.begin();
 #endif
   }
@@ -1414,6 +1466,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif
+
+  onNtpPrefsChanged();
 }
 
 void MyMesh::scheduleDailyReboot() {
@@ -1919,6 +1973,27 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
   }
 }
 
+#if defined(WITH_TCP_BRIDGE)
+void MyMesh::handleTcpBridgeCommand(const char *command, char *reply, size_t reply_size) {
+  char local_command[96];
+  char local_reply[768];
+
+  size_t command_len = 0;
+  while (command_len < sizeof(local_command) - 1 && command[command_len] != 0) {
+    command_len++;
+  }
+  memcpy(local_command, command, command_len);
+  local_command[command_len] = 0;
+
+  local_reply[0] = 0;
+  handleCommand(0, local_command, local_reply);
+
+  if (reply_size == 0) return;
+  strncpy(reply, local_reply, reply_size);
+  reply[reply_size - 1] = 0;
+}
+#endif
+
 void MyMesh::formatDailyRebootReply(char* reply) const {
 #if SUPPORT_DAILY_REBOOT
   uint32_t next_secs = 0;
@@ -1949,6 +2024,186 @@ void MyMesh::checkDailyReboot() {
 #endif
 }
 
+void MyMesh::onNtpPrefsChanged() {
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  if (!_prefs.ntp_enabled) {
+    next_ntp_sync_ms = 0;
+    return;
+  }
+  scheduleNtpSync(ntp_last_sync_epoch == 0 ? 30 : _prefs.ntp_interval_secs);
+#endif
+}
+
+bool MyMesh::startNtpSync(char* reply) {
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  return startNtpSyncInternal(reply, true);
+#else
+  strcpy(reply, "Error: NTP not supported by this build");
+  return false;
+#endif
+}
+
+void MyMesh::formatNtpStatusReply(char* reply) {
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  const char* state = ntp_state == NTP_STATE_WIFI_WAIT ? "wifi" :
+                      ntp_state == NTP_STATE_REPLY_WAIT ? "wait" : "idle";
+  const char* result = "none";
+  if (ntp_last_result == NTP_RESULT_OK) result = "ok";
+  else if (ntp_last_result == NTP_RESULT_NO_WIFI) result = "no_wifi";
+  else if (ntp_last_result == NTP_RESULT_WIFI_TIMEOUT) result = "wifi_timeout";
+  else if (ntp_last_result == NTP_RESULT_SEND_FAILED) result = "send_failed";
+  else if (ntp_last_result == NTP_RESULT_REPLY_TIMEOUT) result = "reply_timeout";
+  else if (ntp_last_result == NTP_RESULT_BAD_REPLY) result = "bad_reply";
+  else if (ntp_last_result == NTP_RESULT_BUSY) result = "busy";
+
+  uint32_t next_secs = 0;
+  if (next_ntp_sync_ms != 0 && !millisHasNowPassed(next_ntp_sync_ms)) {
+    next_secs = (uint32_t)((next_ntp_sync_ms - millis()) / 1000UL);
+  }
+  snprintf(reply, 160, "> en=%s state=%s result=%s last=%lu next=%lu server=%s",
+           _prefs.ntp_enabled ? "on" : "off",
+           state,
+           result,
+           (unsigned long)ntp_last_sync_epoch,
+           (unsigned long)next_secs,
+           _prefs.ntp_server);
+#else
+  strcpy(reply, "Error: NTP not supported by this build");
+#endif
+}
+
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+void MyMesh::scheduleNtpSync(uint32_t delay_secs) {
+  if (!_prefs.ntp_enabled) {
+    next_ntp_sync_ms = 0;
+    return;
+  }
+  next_ntp_sync_ms = futureMillis(delay_secs * 1000UL);
+}
+
+bool MyMesh::startNtpSyncInternal(char* reply, bool manual) {
+  if (ntp_state != NTP_STATE_IDLE) {
+    ntp_last_result = NTP_RESULT_BUSY;
+    if (reply) strcpy(reply, "OK - NTP sync already running");
+    return true;
+  }
+  if (_prefs.ntp_server[0] == 0) {
+    ntp_last_result = NTP_RESULT_BAD_REPLY;
+    if (reply) strcpy(reply, "Error: set ntp.server first");
+    return false;
+  }
+  if (WiFi.status() != WL_CONNECTED && _prefs.wifi_ssid[0] == 0) {
+    ntp_last_result = NTP_RESULT_NO_WIFI;
+    if (reply) strcpy(reply, "Error: set wifi.ssid first");
+    return false;
+  }
+
+  ntp_last_attempt_epoch = getRTCClock()->getCurrentTime();
+  ntp_started_wifi = false;
+  next_ntp_sync_ms = 0;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!sendNtpRequest()) {
+      finishNtpSync(NTP_RESULT_SEND_FAILED, 0);
+      if (reply) strcpy(reply, "Error: NTP request failed");
+      return false;
+    }
+    if (reply) strcpy(reply, manual ? "OK - NTP sync started" : "");
+    return true;
+  }
+
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.begin(_prefs.wifi_ssid, _prefs.wifi_password);
+  ntp_started_wifi = true;
+  ntp_state = NTP_STATE_WIFI_WAIT;
+  ntp_deadline_ms = futureMillis(NTP_WIFI_TIMEOUT_MS);
+  if (reply) strcpy(reply, manual ? "OK - NTP WiFi connect started" : "");
+  return true;
+}
+
+bool MyMesh::sendNtpRequest() {
+  if (!ntp_udp_open) {
+    ntp_udp_open = ntp_udp.begin(NTP_LOCAL_PORT);
+  }
+  if (!ntp_udp_open) return false;
+
+  uint8_t packet[NTP_PACKET_SIZE];
+  memset(packet, 0, sizeof(packet));
+  packet[0] = 0x1B;  // LI=0, Version=3, Mode=3 (client)
+
+  if (!ntp_udp.beginPacket(_prefs.ntp_server, 123)) return false;
+  if (ntp_udp.write(packet, sizeof(packet)) != sizeof(packet)) {
+    ntp_udp.endPacket();
+    return false;
+  }
+  if (!ntp_udp.endPacket()) return false;
+
+  ntp_state = NTP_STATE_REPLY_WAIT;
+  ntp_deadline_ms = futureMillis(NTP_REPLY_TIMEOUT_MS);
+  return true;
+}
+
+void MyMesh::finishNtpSync(uint8_t result, uint32_t epoch) {
+  ntp_last_result = result;
+  ntp_state = NTP_STATE_IDLE;
+  ntp_deadline_ms = 0;
+
+  if (ntp_udp_open) {
+    ntp_udp.stop();
+    ntp_udp_open = false;
+  }
+
+  if (result == NTP_RESULT_OK) {
+    getRTCClock()->setCurrentTime(epoch);
+    ntp_last_sync_epoch = epoch;
+    scheduleNtpSync(_prefs.ntp_interval_secs);
+  } else {
+    scheduleNtpSync(NTP_RETRY_DELAY_SECS);
+  }
+
+  if (ntp_started_wifi && !_prefs.bridge_enabled) {
+    WiFi.disconnect(false);
+  }
+  ntp_started_wifi = false;
+}
+
+void MyMesh::loopNtpSync() {
+  if (_prefs.ntp_enabled && ntp_state == NTP_STATE_IDLE &&
+      next_ntp_sync_ms != 0 && millisHasNowPassed(next_ntp_sync_ms)) {
+    startNtpSyncInternal(NULL, false);
+  }
+
+  if (ntp_state == NTP_STATE_WIFI_WAIT) {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!sendNtpRequest()) {
+        finishNtpSync(NTP_RESULT_SEND_FAILED, 0);
+      }
+    } else if (millisHasNowPassed(ntp_deadline_ms)) {
+      finishNtpSync(NTP_RESULT_WIFI_TIMEOUT, 0);
+    }
+    return;
+  }
+
+  if (ntp_state != NTP_STATE_REPLY_WAIT) return;
+
+  int packet_size = ntp_udp.parsePacket();
+  if (packet_size >= NTP_PACKET_SIZE) {
+    uint8_t packet[NTP_PACKET_SIZE];
+    ntp_udp.read(packet, sizeof(packet));
+    uint32_t ntp_secs = ((uint32_t)packet[40] << 24) |
+                        ((uint32_t)packet[41] << 16) |
+                        ((uint32_t)packet[42] << 8) |
+                        (uint32_t)packet[43];
+    uint32_t epoch = ntp_secs > NTP_UNIX_OFFSET ? ntp_secs - NTP_UNIX_OFFSET : 0;
+    finishNtpSync(epoch >= NTP_MIN_VALID_EPOCH ? NTP_RESULT_OK : NTP_RESULT_BAD_REPLY, epoch);
+  } else if (millisHasNowPassed(ntp_deadline_ms)) {
+    finishNtpSync(NTP_RESULT_REPLY_TIMEOUT, 0);
+  }
+}
+#endif
+
 void MyMesh::loop() {
 #ifdef WITH_BRIDGE
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
@@ -1957,6 +2212,10 @@ void MyMesh::loop() {
 #else
   bridge.loop();
 #endif
+#endif
+
+#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
+  loopNtpSync();
 #endif
 
   mesh::Mesh::loop();

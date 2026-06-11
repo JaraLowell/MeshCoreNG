@@ -35,6 +35,22 @@ MeshCoreNG will das besser machen:
 - Eine Telemetrie-Basis fuer zukuenftige Karten, Dashboards und Observer.
 - Kein Bruch mit bestehenden MeshCore-Clients.
 
+## Zuverlaessigkeit von Nodes
+
+MeshCoreNG enthaelt jetzt auch einen generischen Low-Battery Boot Guard fuer Boards mit Batteriemessung. Direkt nach `board.begin()` liest die Firmware die Batteriespannung des Boards. Wenn der Wert gueltig, aber zu niedrig ist, schlaeft der Node und versucht es spaeter erneut, statt sofort Radio, Display, GPS, Sensoren oder Bridge-Code zu starten. Das hilft besonders bei Boards, die nach einer tief entladenen Batterie am Ladegeraet in einer Boot-Schleife haengen bleiben.
+
+Standardverhalten:
+
+- unter `2500mV`: als ungueltige oder nicht unterstuetzte Batteriemessung behandeln
+- `2500mV` bis `3299mV`: schlafen und erneut versuchen
+- `3300mV` oder hoeher: normal weiter booten
+
+Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds koennen das per CLI mit `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min` und `set boot.lowbat.retry` einstellen. Diese Werte koennen auch pro Build mit `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` und `LOW_BAT_BOOT_RETRY_SECS` angepasst werden.
+
+Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds haben ausserdem einen Runtime Low-Battery Guard. Waehrend der Node laeuft, prueft die Firmware periodisch die Batteriespannung. Wenn der Node nicht extern versorgt wird und die Batterie unter die Runtime-Schwelle faellt, geht er schlafen, bevor WiFi, Bridge, GPS, Display oder Radio die Batterie weiter entladen. Einstellen kann man das mit `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` und `set runtime.lowbat.retry`. Siehe [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS-Tracker-Varianten mit Display lassen das Display jetzt eingeschaltet und zeigen Tracker-Informationen wie GPS-Fix-Status, Satelliten, Position oder Waiting-Status, TX-Intervall und Batteriespannung. Siehe [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## Was haben wir jetzt gemacht?
 
 Wir haben die erste echte Dense-Mesh-Basis zur Repeater-Firmware hinzugefuegt.

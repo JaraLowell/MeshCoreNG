@@ -26,6 +26,10 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define BRIDGE_RF_OFF         0
+#define BRIDGE_RF_FLOOD       1
+#define BRIDGE_RF_LOCAL       2
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -55,7 +59,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_enabled; // boolean
   uint16_t bridge_delay;  // milliseconds (default 500 ms)
   uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx, 2 = both (default logTx)
-  uint8_t bridge_rf;      // allow received bridge flood packets to be forwarded on RF
+  uint8_t bridge_rf;      // BRIDGE_RF_* mode for packets received from a bridge
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for wireless bridge packet isolation (ESP-NOW/BLE)
@@ -87,6 +91,19 @@ struct NodePrefs { // persisted to file
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
   uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
+  uint8_t low_bat_boot_guard_enabled;
+  uint16_t low_bat_boot_guard_mv;
+  uint16_t low_bat_boot_valid_min_mv;
+  uint16_t low_bat_boot_retry_secs;
+  // WiFi NTP time sync settings (ESP32 WITH_TCP_BRIDGE)
+  char ntp_server[64];
+  uint8_t ntp_enabled;
+  uint32_t ntp_interval_secs;
+  uint8_t low_bat_runtime_guard_enabled;
+  uint16_t low_bat_runtime_guard_mv;
+  uint16_t low_bat_runtime_warn_mv;
+  uint16_t low_bat_runtime_valid_min_mv;
+  uint32_t low_bat_runtime_retry_secs;
 };
 
 class CommonCLICallbacks {
@@ -164,6 +181,19 @@ public:
   virtual void restartBridge() {
     // no op by default
   };
+
+  virtual void onNtpPrefsChanged() {
+    // no op by default
+  };
+
+  virtual bool startNtpSync(char *reply) {
+    strcpy(reply, "Error: NTP not supported by this build");
+    return false;
+  }
+
+  virtual void formatNtpStatusReply(char *reply) {
+    strcpy(reply, "Error: NTP not supported by this build");
+  }
 
   virtual void setRxBoostedGain(bool enable) {
     // no op by default

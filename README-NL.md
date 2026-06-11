@@ -37,6 +37,22 @@ MeshCoreNG wil dit beter maken:
 - Een telemetry-basis voor toekomstige kaarten, dashboards en observers.
 - Geen breuk met bestaande MeshCore clients.
 
+## Betrouwbaarheid van nodes
+
+MeshCoreNG bevat nu ook een algemene low-battery boot guard voor boards met een batterijmeter. Direct na `board.begin()` leest de firmware de batterijspanning van het board. Als die meting geldig maar te laag is, gaat de node slapen en probeert hij later opnieuw, in plaats van meteen radio, display, GPS, sensors of bridge-code te starten. Dit helpt vooral bij boards die na een diep ontladen batterij aan een lader blijven rebooten.
+
+Standaardgedrag:
+
+- lager dan `2500mV`: behandelen als ongeldige of niet-ondersteunde batterijmeting
+- `2500mV` tot `3299mV`: slapen en opnieuw proberen
+- `3300mV` of hoger: normaal doorstarten
+
+Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI instellen met `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min` en `set boot.lowbat.retry`. Deze waarden zijn ook per build aan te passen met `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` en `LOW_BAT_BOOT_RETRY_SECS`.
+
+Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## Wat hebben we nu gedaan?
 
 We hebben de eerste echte dense-mesh basis toegevoegd aan de repeater firmware.
@@ -215,6 +231,12 @@ Bridge-repeaters sturen bridge-originated flood traffic standaard niet opnieuw v
 
 ```text
 set bridge.rf on
+```
+
+Voor eenmalige lokale RF-injectie van bridge-originated packets gebruik je:
+
+```text
+set bridge.rf local
 ```
 
 Bridge RF-forwarding loopt nog steeds via het normale repeater-forwardingpad. Regioregels, duplicate checks, loop detection, hop-limieten, relay probability, retransmit delay en de normale RF TX queue blijven gelden.

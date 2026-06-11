@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/LowBatteryBootGuard.h>
 
 #include "MyMesh.h"
 
@@ -18,6 +19,7 @@ void halt() {
 }
 
 static char command[160];
+static unsigned long next_runtime_lowbat_check = 0;
 static unsigned long next_atlas_observer_export = 0;
 
 #define ATLAS_OBSERVER_EXPORT_INTERVAL_MS 5000UL
@@ -168,7 +170,16 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-  if (the_mesh.getNodePrefs()->atlas.export_enabled && command[0] == 0 &&
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  if (next_runtime_lowbat_check == 0 || the_mesh.millisHasNowPassed(next_runtime_lowbat_check)) {
+    next_runtime_lowbat_check = millis() + LOW_BAT_RUNTIME_CHECK_SECS * 1000UL;
+    if (guardRuntimeLowBattery(board, prefs->low_bat_runtime_guard_enabled, prefs->low_bat_runtime_guard_mv,
+                               prefs->low_bat_runtime_valid_min_mv, prefs->low_bat_runtime_retry_secs)) {
+      return;
+    }
+  }
+
+  if (prefs->atlas.export_enabled && command[0] == 0 &&
       (next_atlas_observer_export == 0 || (long)(millis() - next_atlas_observer_export) >= 0)) {
     char event[512];
     the_mesh.formatAtlasObserverReply(event);
@@ -178,7 +189,7 @@ void loop() {
     next_atlas_observer_export = millis() + ATLAS_OBSERVER_EXPORT_INTERVAL_MS;
   }
 
-  if (the_mesh.getNodePrefs()->powersaving_enabled) {
+  if (prefs->powersaving_enabled) {
     uint8_t skipReason = 0;
     if (the_mesh.isBridgeActive()) {
       skipReason = 1;

@@ -7,6 +7,7 @@ Below are a few quick start guides.
 - [Frequently Asked Questions](./faq.md)
 - [CLI Commands](./cli_commands.md)
 - [Atlas Telemetry Foundation](./atlas.md)
+- [Low Battery Guards](./battery_boot_guard.md)
 - [Companion Protocol](./companion_protocol.md)
 - [Dutch Region Database](./dutch_region_db.md)
 - [Location Tracker](./location_tracker.md)

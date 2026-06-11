@@ -9,6 +9,12 @@
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
 
+#if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1 && !defined(DISPLAY_CLASS_IS_NULL)
+#define TRACKER_DISPLAY_ALWAYS_ON 1
+#else
+#define TRACKER_DISPLAY_ALWAYS_ON 0
+#endif
+
 // 'meshcore', 128x13px
 static const uint8_t meshcore_logo [] PROGMEM = {
     0x3c, 0x01, 0xe3, 0xff, 0xc7, 0xff, 0x8f, 0x03, 0x87, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 
@@ -26,10 +32,12 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
+void UITask::begin(NodePrefs* node_prefs, SensorManager* sensors, mesh::MainBoard* board, const char* build_date, const char* firmware_version) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
+  _sensors = sensors;
+  _board = board;
   _display->turnOn();
 
   // strip off dash and commit hash by changing dash to null terminator
@@ -68,11 +76,60 @@ void UITask::renderCurrScreen() {
     _display->print(_version_info);
 
     // node type
-    const char* node_type = "< Sensor >";
+    const char* node_type =
+#if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+      "< GPS Tracker >";
+#else
+      "< Sensor >";
+#endif
     uint16_t typeWidth = _display->getTextWidth(node_type);
     _display->setCursor((_display->width() - typeWidth) / 2, 48);
     _display->print(node_type);
   } else {  // home screen
+#if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+    LocationProvider* location = _sensors ? _sensors->getLocationProvider() : NULL;
+    bool gps_enabled = location && location->isEnabled();
+    bool fix = gps_enabled && location->isValid();
+    long sats = gps_enabled ? location->satellitesCount() : 0;
+
+    _display->setCursor(0, 0);
+    _display->setTextSize(1);
+    _display->setColor(DisplayDriver::GREEN);
+    _display->drawTextEllipsized(0, 0, _display->width(), _node_prefs->node_name);
+
+    _display->setCursor(0, 12);
+    _display->setColor(fix ? DisplayDriver::GREEN : DisplayDriver::YELLOW);
+    sprintf(tmp, "GPS: %s  SAT:%02ld", fix ? "FIX" : (gps_enabled ? "WAIT" : "OFF"), sats);
+    _display->print(tmp);
+
+    _display->setColor(DisplayDriver::LIGHT);
+    if (fix) {
+      _display->setCursor(0, 24);
+      sprintf(tmp, "LAT:% .6f", location->getLatitude() / 1000000.0);
+      _display->print(tmp);
+
+      _display->setCursor(0, 36);
+      sprintf(tmp, "LON:% .6f", location->getLongitude() / 1000000.0);
+      _display->print(tmp);
+    } else {
+      _display->setCursor(0, 24);
+      _display->print("Waiting for GPS fix");
+
+      _display->setCursor(0, 36);
+      sprintf(tmp, "FREQ:%06.3f SF%d", _node_prefs->freq, _node_prefs->sf);
+      _display->print(tmp);
+    }
+
+    _display->setCursor(0, 50);
+    _display->setColor(DisplayDriver::YELLOW);
+    uint16_t batt_mv = _board ? _board->getBattMilliVolts() : 0;
+    if (fix) {
+      sprintf(tmp, "ALT:%ldm BAT:%umV", location->getAltitude() / 1000, batt_mv);
+    } else {
+      sprintf(tmp, "TX:%ds BAT:%umV", LOCATION_TRACKER_INTERVAL_SECS, batt_mv);
+    }
+    _display->print(tmp);
+#else
     // node name
     _display->setCursor(0, 0);
     _display->setTextSize(1);
@@ -89,6 +146,7 @@ void UITask::renderCurrScreen() {
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
+#endif
   }
 }
 
@@ -120,7 +178,16 @@ void UITask::loop() {
       _next_refresh = millis() + 1000;   // refresh every second
     }
     if (millis() > _auto_off) {
+#if TRACKER_DISPLAY_ALWAYS_ON
+      _auto_off = millis() + AUTO_OFF_MILLIS;
+#else
       _display->turnOff();
+#endif
     }
+  } else {
+#if TRACKER_DISPLAY_ALWAYS_ON
+    _display->turnOn();
+    _next_refresh = 0;
+#endif
   }
 }
