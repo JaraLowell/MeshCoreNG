@@ -42,13 +42,17 @@ logging.basicConfig(
 log = logging.getLogger("tcp_bridge")
 
 BRIDGE_MAGIC = 0xC03E
-MAX_PAYLOAD = 256   # MAX_TRANS_UNIT + 1
+MAX_PAYLOAD = 512   # Allows legacy raw packets and TCP bridge v2 envelopes.
 CONTROL_PREFIX = b"MCNG"
 CONTROL_TYPE_HEARTBEAT = 0x01
 CONTROL_TYPE_NODE_INFO = 0x02
 CONTROL_TYPE_AUTH = 0x03
+CONTROL_TYPE_CAPS = 0x04
 CONTROL_TYPE_COMMAND = 0x10
 CONTROL_TYPE_COMMAND_REPLY = 0x11
+CONTROL_TYPE_BRIDGE_PACKET = 0x20
+BRIDGE_PACKET_VERSION = 1
+BRIDGE_V2_OVERHEAD = 14
 PAYLOAD_TYPE_ADVERT = 0x04
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
@@ -150,6 +154,20 @@ def parse_auth(payload: bytes) -> str | None:
     return raw_password.decode("utf-8", errors="replace")
 
 
+def parse_caps(payload: bytes) -> dict | None:
+    if len(payload) < 7:
+        return None
+    if not payload.startswith(CONTROL_PREFIX):
+        return None
+    if payload[4] != CONTROL_TYPE_CAPS:
+        return None
+    return {
+        "version": payload[5],
+        "flags": payload[6],
+        "bridge_v2": bool(payload[6] & 0x01),
+    }
+
+
 def parse_command_reply(payload: bytes) -> tuple[int, str] | None:
     if len(payload) < 10:
         return None
@@ -165,6 +183,49 @@ def parse_command_reply(payload: bytes) -> tuple[int, str] | None:
         return None
 
     return request_id, raw_reply.decode("utf-8", errors="replace")
+
+
+def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
+    if len(payload) < BRIDGE_V2_OVERHEAD:
+        return None
+    if not payload.startswith(CONTROL_PREFIX):
+        return None
+    if payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
+        return None
+    if payload[5] != BRIDGE_PACKET_VERSION:
+        return None
+
+    packet_len = struct.unpack(">H", payload[12:14])[0]
+    if packet_len == 0 or len(payload) < BRIDGE_V2_OVERHEAD + packet_len:
+        return None
+
+    return {
+        "version": payload[5],
+        "ttl": payload[6],
+        "origin_id": struct.unpack(">I", payload[7:11])[0],
+        "flags": payload[11],
+        "packet_len": packet_len,
+        "mesh_payload": payload[BRIDGE_V2_OVERHEAD:BRIDGE_V2_OVERHEAD + packet_len],
+    }
+
+
+def mesh_payload_for_parsing(payload: bytes) -> bytes:
+    envelope = parse_bridge_packet_envelope(payload)
+    if envelope is not None:
+        return envelope["mesh_payload"]
+    return payload
+
+
+def decrement_bridge_ttl(payload: bytes) -> bytes | None:
+    envelope = parse_bridge_packet_envelope(payload)
+    if envelope is None:
+        return payload
+    ttl = envelope["ttl"]
+    if ttl <= 1:
+        return None
+    forwarded = bytearray(payload)
+    forwarded[6] = ttl - 1
+    return bytes(forwarded)
 
 
 def parse_location_report(payload: bytes) -> dict | None:
@@ -381,6 +442,7 @@ class BridgeClient:
         self.last_heartbeat = 0.0
         self.node_name = ""
         self.firmware_version = ""
+        self.supports_bridge_v2 = False
         self.authenticated = not BRIDGE_PASSWORD
 
     @property
@@ -410,6 +472,7 @@ class BridgeClient:
             "packets_tx_24h": len(self.packet_tx_times),
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
+            "supports_bridge_v2": self.supports_bridge_v2,
         }
 
     async def read_packet(self) -> bytes | None:
@@ -517,11 +580,20 @@ class BridgeClient:
 
 async def broadcast(payload: bytes, sender: "BridgeClient"):
     """Forward payload to every connected client except the sender."""
+    forwarded_payload = decrement_bridge_ttl(payload)
+    if forwarded_payload is None:
+        log.debug("%s: dropping bridge packet with expired TTL", sender.addr)
+        return
+
     dead = set()
+    envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
         if client is sender:
             continue
-        ok = await client.send_payload(payload)
+        client_payload = forwarded_payload
+        if envelope is not None and not client.supports_bridge_v2:
+            client_payload = envelope["mesh_payload"]
+        ok = await client.send_payload(client_payload)
         if not ok:
             dead.add(client)
 
@@ -598,6 +670,12 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 log.warning("%s: missing bridge auth", client.addr)
                 await disconnect(client, reason="missing auth")
                 return
+            caps = parse_caps(payload)
+            if caps is not None:
+                client.supports_bridge_v2 = caps["bridge_v2"]
+                log.info("%s: bridge capabilities v%d flags=0x%02x bridge_v2=%s",
+                         client.addr, caps["version"], caps["flags"], client.supports_bridge_v2)
+                continue
             heartbeat_uptime = parse_heartbeat(payload)
             if heartbeat_uptime is not None:
                 client.heartbeats_rx += 1
@@ -626,14 +704,27 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
-            location_report = parse_mesh_location_payload(payload)
+            mesh_payload = mesh_payload_for_parsing(payload)
+            location_report = parse_mesh_location_payload(mesh_payload)
             if location_report is not None:
                 record_location(location_report, client)
-            sensor_report = parse_sensor_advert_payload(payload)
+            sensor_report = parse_sensor_advert_payload(mesh_payload)
             if sensor_report is not None:
                 record_sensor_advert(sensor_report, client)
             if LOG_PACKETS:
-                log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
+                envelope = parse_bridge_packet_envelope(payload)
+                if envelope is not None:
+                    log.info(
+                        "%s: RX bridge-v2 ttl=%d origin=0x%08x flags=0x%02x mesh=%d bytes: %s",
+                        client.addr,
+                        envelope["ttl"],
+                        envelope["origin_id"],
+                        envelope["flags"],
+                        envelope["packet_len"],
+                        payload_preview(envelope["mesh_payload"]),
+                    )
+                else:
+                    log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
             log.debug("%s: RX %d bytes → broadcasting to %d peers",
                       client.addr, len(payload), len(connected_clients) - 1)
             await broadcast(payload, sender=client)
@@ -697,6 +788,7 @@ def build_status_html() -> str:
             "<tr>"
             f"<td>{html.escape(client['display_name'])}</td>"
             f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
+            f"<td>{'yes' if client['supports_bridge_v2'] else 'no'}</td>"
             f"<td>{html.escape(client['connected_for'])}</td>"
             f"<td>{client['idle_seconds']}s</td>"
             f"<td>{heartbeat}</td>"
@@ -709,7 +801,7 @@ def build_status_html() -> str:
         )
 
     rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="10" class="empty">No bridge nodes connected</td></tr>'
+        '<tr><td colspan="11" class="empty">No bridge nodes connected</td></tr>'
     )
 
     sensor_rows = []
@@ -783,6 +875,7 @@ def build_status_html() -> str:
             <tr>
               <th>Node</th>
               <th>Firmware</th>
+              <th>Bridge v2</th>
               <th>Connected</th>
               <th>Idle</th>
               <th>Heartbeat</th>

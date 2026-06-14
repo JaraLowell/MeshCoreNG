@@ -1601,6 +1601,68 @@ In `local`/`ttl1` mode, packets received from the bridge are transmitted once by
 
 ---
 
+#### View or change which packets are exported to the bridge
+**Usage:**
+- `get bridge.export`
+- `set bridge.export <mode>`
+
+**Parameters:**
+- `mode`:
+  - `all`: export all packets selected by `bridge.source`
+  - `flood`: export only flood packets selected by `bridge.source`
+  - `channels`: export only channel/group flood packets selected by `bridge.source`
+  - `messages`: export DM/chat-related packets and channel/group packets selected by `bridge.source`
+
+`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision without adding a TCP bridge hop to the MeshCore packet path.
+
+**Default:** `all`
+
+---
+
+#### Limit exported bridge packets by RF hop count
+**Usage:**
+- `get bridge.export.maxhops`
+- `set bridge.export.maxhops <hops>`
+
+**Parameters:**
+- `hops`: Maximum RF path hash count to export, from `0` to `63`. `0` means unlimited.
+
+This is useful for RF island bridges where channel packets heard from several RF hops away should still cross the TCP bridge, but very old floods should stay local.
+
+**Default:** `0`
+
+---
+
+#### View or change TCP bridge envelope TTL
+**Usage:**
+- `get bridge.tcp.ttl`
+- `set bridge.tcp.ttl <ttl>`
+
+**Parameters:**
+- `ttl`: TCP bridge envelope TTL, from `1` to `8`.
+
+The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. The MeshCore route/path is not modified.
+
+**Default:** `2`
+
+---
+
+#### Apply a bridge profile
+**Usage:**
+- `set bridge.profile <profile>`
+
+**Parameters:**
+  - `profile`:
+  - `default`: conservative defaults (`bridge.source logTx`, `bridge.rf off`, export all, unlimited hops, TCP TTL 2)
+  - `island`: RF-island bridge preset (`bridge.source both`, `bridge.rf local`, export message packets up to 4 RF hops, TCP TTL 2)
+  - `repeater`: transport-repeater preset (`bridge.source both`, `bridge.rf on`, export all packets, unlimited export hops, TCP TTL 2)
+
+The `island` profile is intended for controlled RF islands, for example one bridge node on SF7 and another on SF8. It exports eligible RF RX packets to TCP even when the local repeater policy decides not to retransmit them on RF, and injects packets from TCP once on the receiving RF island.
+
+The `repeater` profile is intended for controlled deployments where the TCP bridge should behave as much like a repeater/backhaul as possible. It exports every packet selected by RF RX/TX and lets bridge-originated flood packets pass through the normal RF repeater forwarding path on the receiving side.
+
+---
+
 #### Use a Python room server through the TCP bridge
 
 MeshCoreNG includes `tools/python_room_server.py`, a bridge client that can act as a minimal room server from a PC, Raspberry Pi, or VPS.

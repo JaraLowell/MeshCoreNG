@@ -30,6 +30,11 @@
 #define BRIDGE_RF_FLOOD       1
 #define BRIDGE_RF_LOCAL       2
 
+#define BRIDGE_EXPORT_ALL       0
+#define BRIDGE_EXPORT_FLOOD     1
+#define BRIDGE_EXPORT_CHANNELS  2
+#define BRIDGE_EXPORT_MESSAGES  3
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -104,6 +109,9 @@ struct NodePrefs { // persisted to file
   uint16_t low_bat_runtime_warn_mv;
   uint16_t low_bat_runtime_valid_min_mv;
   uint32_t low_bat_runtime_retry_secs;
+  uint8_t bridge_export_filter;   // BRIDGE_EXPORT_* packet filter before bridge export
+  uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
+  uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
 };
 
 class CommonCLICallbacks {

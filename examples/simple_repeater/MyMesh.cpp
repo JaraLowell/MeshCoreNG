@@ -1362,6 +1362,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bridge_delay   = 500;  // milliseconds
   _prefs.bridge_pkt_src = 0;    // logTx
   _prefs.bridge_rf      = 0;    // do not forward bridge floods to RF by default
+  _prefs.bridge_export_filter = BRIDGE_EXPORT_ALL;
+  _prefs.bridge_export_max_hops = 0; // unlimited
+  _prefs.bridge_tcp_ttl = 2;
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 

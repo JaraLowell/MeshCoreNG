@@ -291,8 +291,20 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&low_bat_runtime_retry_secs, sizeof(low_bat_runtime_retry_secs)) == sizeof(low_bat_runtime_retry_secs)) {
         _prefs->low_bat_runtime_retry_secs = low_bat_runtime_retry_secs;                            // 615 + sizeof(AtlasConfig)
       }
+      uint8_t bridge_export_filter = _prefs->bridge_export_filter;
+      if (file.read((uint8_t *)&bridge_export_filter, sizeof(bridge_export_filter)) == sizeof(bridge_export_filter)) {
+        _prefs->bridge_export_filter = bridge_export_filter;                                        // 619 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_export_max_hops = _prefs->bridge_export_max_hops;
+      if (file.read((uint8_t *)&bridge_export_max_hops, sizeof(bridge_export_max_hops)) == sizeof(bridge_export_max_hops)) {
+        _prefs->bridge_export_max_hops = bridge_export_max_hops;                                    // 620 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_tcp_ttl = _prefs->bridge_tcp_ttl;
+      if (file.read((uint8_t *)&bridge_tcp_ttl, sizeof(bridge_tcp_ttl)) == sizeof(bridge_tcp_ttl)) {
+        _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                    // 621 + sizeof(AtlasConfig)
+      }
     }
-    // next: 619 + sizeof(AtlasConfig)
+    // next: 622 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -313,6 +325,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 2);
     _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 2);
+    _prefs->bridge_export_filter = constrain(_prefs->bridge_export_filter, 0, 3);
+    _prefs->bridge_export_max_hops = constrain(_prefs->bridge_export_max_hops, 0, 63);
+    _prefs->bridge_tcp_ttl = constrain(_prefs->bridge_tcp_ttl, 1, 8);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -446,7 +461,10 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 611 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_valid_min_mv, sizeof(_prefs->low_bat_runtime_valid_min_mv)); // 613 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_retry_secs, sizeof(_prefs->low_bat_runtime_retry_secs)); // 615 + sizeof(AtlasConfig)
-    // next: 619 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 619 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 620 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 621 + sizeof(AtlasConfig)
+    // next: 622 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1301,6 +1319,72 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: mode must be off, on, flood, local, or ttl1");
     }
+  } else if (memcmp(config, "bridge.export.maxhops ", 22) == 0) {
+    int max_hops = _atoi(&config[22]);
+    if (max_hops >= 0 && max_hops <= 63) {
+      _prefs->bridge_export_max_hops = (uint8_t)max_hops;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: maxhops must be between 0-63");
+    }
+  } else if (memcmp(config, "bridge.export ", 14) == 0) {
+    if (memcmp(&config[14], "all", 3) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "flood", 5) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_FLOOD;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "channel", 7) == 0 || memcmp(&config[14], "channels", 8) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_CHANNELS;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "messages", 8) == 0 || memcmp(&config[14], "msg", 3) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: export must be all, flood, channels, or messages");
+    }
+  } else if (memcmp(config, "bridge.tcp.ttl ", 15) == 0) {
+    int ttl = _atoi(&config[15]);
+    if (ttl >= 1 && ttl <= 8) {
+      _prefs->bridge_tcp_ttl = (uint8_t)ttl;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: ttl must be between 1-8");
+    }
+  } else if (memcmp(config, "bridge.profile ", 15) == 0) {
+    if (memcmp(&config[15], "island", 6) == 0) {
+      _prefs->bridge_pkt_src = 2; // RF RX and RF TX export
+      _prefs->bridge_rf = BRIDGE_RF_LOCAL;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
+      _prefs->bridge_export_max_hops = 4;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge island profile applied");
+    } else if (memcmp(&config[15], "repeater", 8) == 0) {
+      _prefs->bridge_pkt_src = 2; // RF RX and RF TX export
+      _prefs->bridge_rf = BRIDGE_RF_FLOOD;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      _prefs->bridge_export_max_hops = 0;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge repeater profile applied");
+    } else if (memcmp(&config[15], "default", 7) == 0) {
+      _prefs->bridge_pkt_src = 0;
+      _prefs->bridge_rf = BRIDGE_RF_OFF;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      _prefs->bridge_export_max_hops = 0;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge default profile applied");
+    } else {
+      strcpy(reply, "Error: profile must be island, repeater, or default");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -1578,6 +1662,20 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->bridge_pkt_src == 2 ? "both" : (_prefs->bridge_pkt_src ? "logRx" : "logTx"));
   } else if (memcmp(config, "bridge.rf", 9) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_rf == BRIDGE_RF_LOCAL ? "local" : (_prefs->bridge_rf ? "on" : "off"));
+  } else if (memcmp(config, "bridge.export.maxhops", 21) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->bridge_export_max_hops);
+  } else if (memcmp(config, "bridge.export", 13) == 0) {
+    const char *mode = "all";
+    if (_prefs->bridge_export_filter == BRIDGE_EXPORT_FLOOD) {
+      mode = "flood";
+    } else if (_prefs->bridge_export_filter == BRIDGE_EXPORT_CHANNELS) {
+      mode = "channels";
+    } else if (_prefs->bridge_export_filter == BRIDGE_EXPORT_MESSAGES) {
+      mode = "messages";
+    }
+    sprintf(reply, "> %s", mode);
+  } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
 #if defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.status", 13) == 0) {
     _callbacks->formatBleBridgeStatusReply(reply);
