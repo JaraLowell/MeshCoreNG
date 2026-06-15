@@ -10,6 +10,7 @@ Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
     open http://localhost:8080/manage for remote management
+    use --status-base-path /meshbridgestatus when reverse-proxying below a URL prefix
 
 Repeater firmware configuration (via CLI):
     set wifi.ssid    <your-wifi>
@@ -32,7 +33,7 @@ import json
 import logging
 import struct
 import time
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 
 logging.basicConfig(
     level=logging.INFO,
@@ -75,6 +76,7 @@ PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
+STATUS_BASE_PATH = ""
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
 
@@ -925,7 +927,41 @@ def packets_snapshot() -> dict:
     }
 
 
-def build_status_html() -> str:
+def normalize_base_path(path: str) -> str:
+    path = (path or "").strip()
+    if not path or path == "/":
+        return ""
+    return "/" + path.strip("/")
+
+
+def request_base_path(headers: dict[str, str]) -> str:
+    forwarded_prefix = headers.get("x-forwarded-prefix", "")
+    if forwarded_prefix:
+        return normalize_base_path(forwarded_prefix)
+    return STATUS_BASE_PATH
+
+
+def prefixed_url(base_path: str, route: str) -> str:
+    base_path = normalize_base_path(base_path)
+    if route == "/":
+        return base_path or "/"
+    if not route.startswith("/"):
+        route = "/" + route
+    return f"{base_path}{route}"
+
+
+def strip_base_path(path: str, base_path: str) -> str:
+    route = urlsplit(path or "/").path or "/"
+    base_path = normalize_base_path(base_path)
+    if base_path:
+        if route == base_path:
+            return "/"
+        if route.startswith(base_path + "/"):
+            return route[len(base_path):] or "/"
+    return route
+
+
+def build_status_html(base_path: str = "") -> str:
     snapshot = status_snapshot()
     sensor_snapshot = sensors_snapshot()
     packet_snapshot = packets_snapshot()
@@ -1001,6 +1037,8 @@ def build_status_html() -> str:
     packet_rows_html = "\n".join(packet_rows) if packet_rows else (
         '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>'
     )
+    manage_url = prefixed_url(base_path, "/manage")
+    map_url = prefixed_url(base_path, "/map")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1041,7 +1079,7 @@ def build_status_html() -> str:
 <body>
   <main>
     <h1>MeshCoreNG TCP Bridge Status</h1>
-    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="/manage">Remote management</a> · <a href="/map">Tracker map</a></p>
+    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="{manage_url}">Remote management</a> · <a href="{map_url}">Tracker map</a></p>
     <section>
       <h2>Bridge nodes</h2>
       <div class="table-wrap">
@@ -1118,7 +1156,7 @@ def build_status_html() -> str:
 """
 
 
-def build_manage_html(command_result: str = "") -> str:
+def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     snapshot = status_snapshot()
     options = []
     for client in snapshot["clients"]:
@@ -1145,6 +1183,8 @@ def build_manage_html(command_result: str = "") -> str:
         '<pre class="command-result empty">No command sent yet</pre>'
     )
 
+    status_url = prefixed_url(base_path, "/")
+    command_url = prefixed_url(base_path, "/command")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1180,9 +1220,9 @@ def build_manage_html(command_result: str = "") -> str:
 <body>
   <main>
     <h1>MeshCoreNG Remote Management</h1>
-    <p class="summary">{html.escape(admin_note)}. <a href="/">Bridge status</a></p>
+    <p class="summary">{html.escape(admin_note)}. <a href="{status_url}">Bridge status</a></p>
     <div class="panel">
-      <form method="post" action="/command">
+      <form method="post" action="{command_url}">
         <label for="target">Bridge node</label>
         <select id="target" name="target"{disabled}>
           {options_html}
@@ -1201,8 +1241,10 @@ def build_manage_html(command_result: str = "") -> str:
 """
 
 
-def build_location_map_html() -> str:
-    return """<!doctype html>
+def build_location_map_html(base_path: str = "") -> str:
+    status_url = prefixed_url(base_path, "/")
+    locations_url = prefixed_url(base_path, "/locations.json")
+    page = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -1227,7 +1269,7 @@ def build_location_map_html() -> str:
   <div class="topbar">
     <h1>MeshCoreNG Tracker Map</h1>
     <span class="muted" id="summary">Loading...</span>
-    <a href="/">Bridge status</a>
+    <a href="__STATUS_URL__">Bridge status</a>
   </div>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1246,7 +1288,7 @@ def build_location_map_html() -> str:
     }
 
     async function refresh() {
-      const res = await fetch('/locations.json', { cache: 'no-store' });
+      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
       const data = await res.json();
       document.getElementById('summary').textContent = `${data.location_count} tracker node(s)`;
       const seen = new Set();
@@ -1287,6 +1329,7 @@ def build_location_map_html() -> str:
 </body>
 </html>
 """
+    return page.replace("__STATUS_URL__", status_url).replace("__LOCATIONS_URL__", locations_url)
 
 
 def is_admin_authorized(headers: dict[str, str]) -> bool:
@@ -1334,11 +1377,13 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
 
         method = parts[0] if len(parts) >= 1 else ""
         path = parts[1] if len(parts) >= 2 else ""
+        base_path = request_base_path(headers)
+        route = strip_base_path(path, base_path)
         extra_headers: list[tuple[str, str]] = []
 
         if len(parts) < 2:
             status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif method == "POST" and path == "/command":
+        elif method == "POST" and route == "/command":
             if not is_admin_authorized(headers):
                 status, content_type, body, extra_headers = admin_auth_response()
             else:
@@ -1362,33 +1407,33 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                     except Exception as exc:
                         result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(result).encode("utf-8")
+                body = build_manage_html(result, base_path).encode("utf-8")
         elif method != "GET":
             status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif path == "/status.json":
+        elif route == "/status.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(status_snapshot(), indent=2).encode("utf-8")
-        elif path == "/locations.json":
+        elif route == "/locations.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(locations_snapshot(), indent=2).encode("utf-8")
-        elif path == "/sensors.json":
+        elif route == "/sensors.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(sensors_snapshot(), indent=2).encode("utf-8")
-        elif path == "/packets.json":
+        elif route == "/packets.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(packets_snapshot(), indent=2).encode("utf-8")
-        elif path == "/map":
+        elif route == "/map":
             status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_location_map_html().encode("utf-8")
-        elif path == "/manage":
+            body = build_location_map_html(base_path).encode("utf-8")
+        elif route == "/manage":
             if not is_admin_authorized(headers):
                 status, content_type, body, extra_headers = admin_auth_response()
             else:
                 status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html().encode("utf-8")
-        elif path in ("/", "/status"):
+                body = build_manage_html(base_path=base_path).encode("utf-8")
+        elif route in ("/", "/status"):
             status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_status_html().encode("utf-8")
+            body = build_status_html(base_path).encode("utf-8")
         else:
             status, content_type, body = "404 Not Found", "text/plain", b"Not found\n"
 
@@ -1460,6 +1505,8 @@ if __name__ == "__main__":
                         help="Bind address for the HTTP status page (default: 0.0.0.0)")
     parser.add_argument("--status-port", type=int, default=8080,
                         help="HTTP status page port (default: 8080, 0 disables)")
+    parser.add_argument("--status-base-path", default="",
+                        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
@@ -1479,6 +1526,7 @@ if __name__ == "__main__":
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
+    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
