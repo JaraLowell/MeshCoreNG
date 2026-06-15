@@ -369,14 +369,25 @@ def format_packet_description(description: dict) -> str:
     return " ".join(parts)
 
 
-def record_packet_log(direction: str, client: "BridgeClient", payload: bytes) -> dict:
+def record_packet_log(
+    direction: str,
+    client: "BridgeClient",
+    payload: bytes,
+    source: str = "",
+    target: str = "",
+) -> dict:
     description = describe_packet(payload)
     mesh_payload = mesh_payload_for_parsing(payload)
+    source = source or ("server" if direction == "TX" else client.display_name)
+    target = target or (client.display_name if direction == "TX" else "server")
     entry = {
         "time": int(time.time()),
         "direction": direction,
         "client": client.display_name,
         "addr": client.addr,
+        "source": source,
+        "target": target,
+        "flow": f"{source} -> {target}",
         "size": len(payload),
         "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
         **description,
@@ -808,7 +819,7 @@ class BridgeClient:
             + struct.pack(">H", csum)
         )
 
-    async def send_payload(self, payload: bytes) -> bool:
+    async def send_payload(self, payload: bytes, source: str = "") -> bool:
         try:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
@@ -816,11 +827,12 @@ class BridgeClient:
             now = time.time()
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
-            packet_log = record_packet_log("TX", self, payload)
+            packet_log = record_packet_log("TX", self, payload, source=source, target=self.display_name)
             if LOG_PACKETS:
                 log.info(
-                    "%s: TX %d bytes %s: %s",
-                    self.addr,
+                    "%s -> %s: TX %d bytes %s: %s",
+                    packet_log["source"],
+                    packet_log["target"],
                     len(payload),
                     format_packet_description(packet_log),
                     packet_log["preview"],
@@ -885,7 +897,7 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:
             client_payload = envelope["mesh_payload"]
-        ok = await client.send_payload(client_payload)
+        ok = await client.send_payload(client_payload, source=sender.display_name)
         if not ok:
             dead.add(client)
 
@@ -1008,16 +1020,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 envelope = parse_bridge_packet_envelope(payload)
                 if envelope is not None:
                     log.info(
-                        "%s: RX bridge-v2 mesh=%d bytes %s: %s",
-                        client.addr,
+                        "%s -> server: RX bridge-v2 mesh=%d bytes %s: %s",
+                        packet_log["source"],
                         envelope["packet_len"],
                         format_packet_description(packet_log),
                         packet_log["preview"],
                     )
                 else:
                     log.info(
-                        "%s: RX %d bytes %s: %s",
-                        client.addr,
+                        "%s -> server: RX %d bytes %s: %s",
+                        packet_log["source"],
                         len(payload),
                         format_packet_description(packet_log),
                         packet_log["preview"],
@@ -1381,7 +1393,8 @@ def build_status_html(base_path: str = "") -> str:
               <tr>
                 <th>Age</th>
                 <th>Dir</th>
-                <th>Bridge</th>
+                <th>From</th>
+                <th>To</th>
                 <th>Type</th>
                 <th>Route</th>
                 <th>Hops</th>
@@ -1394,7 +1407,7 @@ def build_status_html(base_path: str = "") -> str:
               </tr>
             </thead>
             <tbody id="packetRows">
-              <tr><td colspan="12" class="empty">Loading packet telemetry</td></tr>
+              <tr><td colspan="13" class="empty">Loading packet telemetry</td></tr>
             </tbody>
           </table>
         </div>
@@ -1519,7 +1532,7 @@ def build_status_html(base_path: str = "") -> str:
       const rows = document.getElementById("packetRows");
       const packets = packetData.packets.slice(0, 50);
       if (!packets.length) {{
-        rows.innerHTML = '<tr><td colspan="12" class="empty">No packets seen yet</td></tr>';
+        rows.innerHTML = '<tr><td colspan="13" class="empty">No packets seen yet</td></tr>';
         document.getElementById("packetFeed").innerHTML = '<div class="empty">Awaiting mesh traffic</div>';
         setStatus("packetStatus", "no traffic", "warn");
         setStatus("feedStatus", "quiet", "warn");
@@ -1533,7 +1546,8 @@ def build_status_html(base_path: str = "") -> str:
           <tr class="${{index < 3 ? "hot" : ""}}">
             <td>${{age(packet.age_seconds)}} ago</td>
             <td><span class="badge ${{dirClass}}">${{escapeHtml(packet.direction)}}</span></td>
-            <td>${{escapeHtml(packet.client)}}</td>
+            <td>${{escapeHtml(packet.source || packet.client || "")}}</td>
+            <td>${{escapeHtml(packet.target || "")}}</td>
             <td>${{escapeHtml(packet.type || "unknown")}}</td>
             <td>${{escapeHtml(packet.route || "")}}</td>
             <td>${{text(packet.hops, "")}}</td>
@@ -1562,7 +1576,7 @@ def build_status_html(base_path: str = "") -> str:
           line.innerHTML = `
             <span class="meta">${{age(packet.age_seconds)}} ago</span>
             <span class="${{dirClass}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
           `;
           feed.prepend(line);
         }}
@@ -1572,7 +1586,7 @@ def build_status_html(base_path: str = "") -> str:
           <div class="feed-line">
             <span class="meta">${{age(packet.age_seconds)}} ago</span>
             <span class="${{packet.direction === "RX" ? "dir-rx" : "dir-tx"}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
           </div>
         `).join("");
       }}
