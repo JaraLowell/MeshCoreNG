@@ -962,195 +962,506 @@ def strip_base_path(path: str, base_path: str) -> str:
 
 
 def build_status_html(base_path: str = "") -> str:
-    snapshot = status_snapshot()
-    sensor_snapshot = sensors_snapshot()
-    packet_snapshot = packets_snapshot()
-    rows = []
-    for client in snapshot["clients"]:
-        hb_age = client["heartbeat_age_seconds"]
-        heartbeat = f"{hb_age}s ago" if hb_age is not None else "never"
-        rows.append(
-            "<tr>"
-            f"<td>{html.escape(client['display_name'])}</td>"
-            f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
-            f"<td>{'yes' if client['supports_bridge_v2'] else 'no'}</td>"
-            f"<td>{html.escape(client['connected_for'])}</td>"
-            f"<td>{client['idle_seconds']}s</td>"
-            f"<td>{heartbeat}</td>"
-            f"<td>{client['packets_rx_24h']}</td>"
-            f"<td>{client['packets_tx_24h']}</td>"
-            f"<td>{client['packets_rx']}</td>"
-            f"<td>{client['packets_tx']}</td>"
-            f"<td>{client['heartbeats_rx']}</td>"
-            "</tr>"
-        )
-
-    rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="11" class="empty">No bridge nodes connected</td></tr>'
-    )
-
-    sensor_rows = []
-    for sensor in sensor_snapshot["sensors"]:
-        name = sensor["name"] or "unknown"
-        location = ""
-        if sensor["lat"] is not None and sensor["lon"] is not None:
-            location = f"{sensor['lat']:.6f}, {sensor['lon']:.6f}"
-        else:
-            location = "not shared"
-        sensor_rows.append(
-            "<tr>"
-            f"<td>{html.escape(name)}</td>"
-            f"<td><code>{html.escape(sensor['node_id'])}</code></td>"
-            f"<td>{sensor['age_seconds']}s ago</td>"
-            f"<td>{sensor['seen_count']}</td>"
-            f"<td>{sensor['hops']}</td>"
-            f"<td>{html.escape(sensor['source'])}</td>"
-            f"<td>{html.escape(location)}</td>"
-            "</tr>"
-        )
-
-    sensor_rows_html = "\n".join(sensor_rows) if sensor_rows else (
-        '<tr><td colspan="7" class="empty">No sensor node adverts seen yet</td></tr>'
-    )
-
-    packet_rows = []
-    for packet in packet_snapshot["packets"][:40]:
-        bridge = "yes" if packet["bridge_v2"] else "no"
-        ttl = packet["ttl"] if packet["ttl"] is not None else ""
-        hops = packet["hops"] if packet["hops"] is not None else ""
-        route = packet["route"] or ""
-        packet_rows.append(
-            "<tr>"
-            f"<td>{packet['age_seconds']}s ago</td>"
-            f"<td>{html.escape(packet['direction'])}</td>"
-            f"<td>{html.escape(packet['client'])}</td>"
-            f"<td>{html.escape(packet['type'])}</td>"
-            f"<td>{html.escape(route)}</td>"
-            f"<td>{hops}</td>"
-            f"<td>{packet['size']}</td>"
-            f"<td>{bridge}</td>"
-            f"<td>{ttl}</td>"
-            f"<td class=\"preview\"><code>{html.escape(packet['preview'])}</code></td>"
-            "</tr>"
-        )
-
-    packet_rows_html = "\n".join(packet_rows) if packet_rows else (
-        '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>'
-    )
     manage_url = prefixed_url(base_path, "/manage")
     map_url = prefixed_url(base_path, "/map")
+    status_json_url = prefixed_url(base_path, "/status.json")
+    packets_json_url = prefixed_url(base_path, "/packets.json")
+    sensors_json_url = prefixed_url(base_path, "/sensors.json")
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="10">
   <title>MeshCoreNG TCP Bridge Status</title>
   <style>
-    :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-    body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
-    main {{ max-width: 1080px; margin: 0 auto; padding: 32px 20px; }}
-    h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
-    .summary {{ margin: 0 0 24px; color: #58606a; }}
-    section {{ margin-top: 28px; }}
-    h2 {{ margin: 0 0 12px; font-size: 1.15rem; }}
-    table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d8dee4; border-radius: 8px; overflow: hidden; }}
-    th, td {{ padding: 12px 14px; text-align: left; border-bottom: 1px solid #d8dee4; white-space: nowrap; }}
-    th {{ background: #eef2f6; font-size: 0.8rem; text-transform: uppercase; color: #47515d; }}
-    code {{ font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }}
-    .preview {{ max-width: 420px; white-space: normal; overflow-wrap: anywhere; }}
-    tr:last-child td {{ border-bottom: 0; }}
-    .empty {{ text-align: center; color: #69737f; padding: 32px; }}
-    @media (max-width: 760px) {{
-      main {{ padding: 20px 12px; }}
-      .table-wrap {{ overflow-x: auto; }}
-      th, td {{ padding: 10px 12px; }}
+    :root {{
+      color-scheme: dark;
+      --bg: #050806;
+      --panel: rgba(8, 18, 12, .88);
+      --panel-2: rgba(13, 28, 19, .82);
+      --line: rgba(97, 255, 154, .28);
+      --line-strong: rgba(97, 255, 154, .55);
+      --green: #68ff9d;
+      --green-soft: #a1ffc4;
+      --amber: #ffd166;
+      --red: #ff5f6d;
+      --muted: #8fb99e;
+      --text: #dfffe9;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .45);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     }}
-    @media (prefers-color-scheme: dark) {{
-      body {{ background: #111418; color: #f0f3f6; }}
-      .summary {{ color: #9aa4af; }}
-      table {{ background: #171b20; border-color: #30363d; }}
-      th, td {{ border-color: #30363d; }}
-      th {{ background: #20262d; color: #c8d0d8; }}
-      .empty {{ color: #9aa4af; }}
+    * {{ box-sizing: border-box; }}
+    html {{ min-height: 100%; background: var(--bg); }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(104, 255, 157, .12), transparent 28%),
+        linear-gradient(180deg, rgba(2, 10, 6, .7), rgba(2, 5, 3, .98)),
+        var(--bg);
+      overflow-x: hidden;
+    }}
+    body::before {{
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(104, 255, 157, .04) 50%, rgba(0, 0, 0, .13) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, .025), rgba(0, 255, 95, .018), rgba(0, 120, 255, .025));
+      background-size: 100% 4px, 7px 100%;
+      mix-blend-mode: screen;
+      opacity: .42;
+      z-index: 3;
+    }}
+    main {{
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }}
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding: 18px 0 22px;
+      border-bottom: 1px solid var(--line);
+    }}
+    h1 {{
+      margin: 0;
+      color: var(--green);
+      font-size: clamp(1.5rem, 3vw, 2.8rem);
+      letter-spacing: 0;
+      text-transform: uppercase;
+      text-shadow: 0 0 16px rgba(104, 255, 157, .45);
+    }}
+    .subtitle {{ margin: 8px 0 0; color: var(--muted); max-width: 820px; line-height: 1.45; }}
+    nav {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }}
+    a {{
+      color: var(--green-soft);
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: rgba(104, 255, 157, .07);
+      padding: 9px 12px;
+      border-radius: 4px;
+    }}
+    a:hover {{ border-color: var(--green); box-shadow: 0 0 18px rgba(104, 255, 157, .22); }}
+    .status-strip {{
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }}
+    .metric, .panel {{
+      background: linear-gradient(180deg, var(--panel), rgba(3, 10, 6, .92));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow), inset 0 0 24px rgba(104, 255, 157, .035);
+      border-radius: 6px;
+    }}
+    .metric {{ padding: 14px; min-height: 96px; }}
+    .label {{ color: var(--muted); font-size: .76rem; text-transform: uppercase; }}
+    .value {{ margin-top: 8px; color: var(--green); font-size: clamp(1.4rem, 2.4vw, 2.2rem); font-weight: 800; }}
+    .value.small {{ font-size: 1rem; overflow-wrap: anywhere; }}
+    .grid {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+      gap: 16px;
+      align-items: start;
+    }}
+    .panel {{ overflow: hidden; }}
+    .panel-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(104, 255, 157, .06);
+    }}
+    h2 {{ margin: 0; font-size: .95rem; color: var(--green-soft); text-transform: uppercase; }}
+    .pulse {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .78rem;
+      white-space: nowrap;
+    }}
+    .pulse::before {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 14px var(--green);
+    }}
+    .pulse.warn::before {{ background: var(--amber); box-shadow: 0 0 14px var(--amber); }}
+    .pulse.error::before {{ background: var(--red); box-shadow: 0 0 14px var(--red); }}
+    .table-wrap {{ overflow-x: auto; }}
+    table {{ width: 100%; border-collapse: collapse; min-width: 840px; }}
+    th, td {{
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(97, 255, 154, .14);
+      white-space: nowrap;
+      vertical-align: top;
+      font-size: .84rem;
+    }}
+    th {{ color: var(--muted); background: rgba(0, 0, 0, .24); text-transform: uppercase; font-size: .68rem; }}
+    td {{ color: #dfffe9; }}
+    tr.hot td {{ color: var(--green-soft); background: rgba(104, 255, 157, .055); }}
+    .badge {{
+      display: inline-block;
+      min-width: 42px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      color: var(--green-soft);
+      background: rgba(104, 255, 157, .08);
+    }}
+    .badge.rx {{ color: #86c5ff; border-color: rgba(134, 197, 255, .45); }}
+    .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
+    .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
+    .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
+    .feed {{
+      padding: 12px 14px;
+      height: 430px;
+      overflow: auto;
+      background: rgba(0, 0, 0, .24);
+    }}
+    .feed-line {{
+      display: grid;
+      grid-template-columns: 72px 44px minmax(88px, 1fr);
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(97, 255, 154, .14);
+      font-size: .82rem;
+    }}
+    .feed-line .meta {{ color: var(--muted); }}
+    .feed-line .dir-rx {{ color: #86c5ff; }}
+    .feed-line .dir-tx {{ color: var(--amber); }}
+    .feed-line .packet {{ overflow-wrap: anywhere; }}
+    .stack {{ display: grid; gap: 16px; }}
+    .node-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }}
+    .node-card {{
+      border: 1px solid rgba(97, 255, 154, .22);
+      background: var(--panel-2);
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 148px;
+    }}
+    .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
+    .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }}
+    .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
+    .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
+    @media (max-width: 980px) {{
+      main {{ padding: 16px 12px; }}
+      .topbar {{ display: block; }}
+      nav {{ justify-content: flex-start; margin-top: 14px; }}
+      .status-strip {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .grid {{ grid-template-columns: 1fr; }}
+      .feed {{ height: 340px; }}
+    }}
+    @media (max-width: 560px) {{
+      .status-strip {{ grid-template-columns: 1fr; }}
+      .node-stats {{ grid-template-columns: 1fr; }}
+      table {{ min-width: 760px; }}
     }}
   </style>
 </head>
 <body>
   <main>
-    <h1>MeshCoreNG TCP Bridge Status</h1>
-    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="{manage_url}">Remote management</a> · <a href="{map_url}">Tracker map</a></p>
-    <section>
-      <h2>Bridge nodes</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Node</th>
-              <th>Firmware</th>
-              <th>Bridge v2</th>
-              <th>Connected</th>
-              <th>Idle</th>
-              <th>Heartbeat</th>
-              <th>RX 24h</th>
-              <th>TX 24h</th>
-              <th>RX</th>
-              <th>TX</th>
-              <th>HB</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows_html}
-          </tbody>
-        </table>
+    <header class="topbar">
+      <div>
+        <h1>TCP Bridge Tactical Console</h1>
+        <p class="subtitle">MeshCoreNG live bridge telemetry, packet flow and nearby sensor adverts. Polling the bridge server every 2 seconds.</p>
       </div>
+      <nav>
+        <a href="{manage_url}">Remote management</a>
+        <a href="{map_url}">Tracker map</a>
+      </nav>
+    </header>
+
+    <section class="status-strip" aria-label="Live counters">
+      <div class="metric"><div class="label">Bridge nodes online</div><div id="metricConnected" class="value">--</div></div>
+      <div class="metric"><div class="label">Packets in buffer</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
+      <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
+      <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
     </section>
-    <section>
-      <h2>Recent packets</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Dir</th>
-              <th>Bridge node</th>
-              <th>Type</th>
-              <th>Route</th>
-              <th>Hops</th>
-              <th>Bytes</th>
-              <th>Bridge v2</th>
-              <th>TTL</th>
-              <th>Preview</th>
-            </tr>
-          </thead>
-          <tbody>
-            {packet_rows_html}
-          </tbody>
-        </table>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Bridge nodes</h2>
+        <span id="nodeStatus" class="pulse warn">connecting</span>
       </div>
+      <div id="nodeCards" class="node-grid"></div>
     </section>
-    <section>
-      <h2>Sensor nodes nearby</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Node ID</th>
-              <th>Last seen</th>
-              <th>Seen</th>
-              <th>Hops</th>
-              <th>Via bridge</th>
-              <th>Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sensor_rows_html}
-          </tbody>
-        </table>
+
+    <div class="grid" style="margin-top:16px">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Packet log</h2>
+          <span id="packetStatus" class="pulse warn">waiting</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Age</th>
+                <th>Dir</th>
+                <th>Bridge</th>
+                <th>Type</th>
+                <th>Route</th>
+                <th>Hops</th>
+                <th>Bytes</th>
+                <th>V2</th>
+                <th>TTL</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody id="packetRows">
+              <tr><td colspan="10" class="empty">Loading packet telemetry</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Live terminal feed</h2>
+            <span id="feedStatus" class="pulse warn">arming</span>
+          </div>
+          <div id="packetFeed" class="feed"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Sensor nodes nearby</h2>
+            <span id="sensorStatus" class="pulse warn">scanning</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Node ID</th>
+                  <th>Last seen</th>
+                  <th>Seen</th>
+                  <th>Hops</th>
+                  <th>Via bridge</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+              <tbody id="sensorRows">
+                <tr><td colspan="7" class="empty">Scanning for sensor adverts</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-    </section>
+    </div>
   </main>
+  <script>
+    const urls = {{
+      status: "{status_json_url}",
+      packets: "{packets_json_url}",
+      sensors: "{sensors_json_url}"
+    }};
+    const state = {{
+      seenPacketKeys: new Set(),
+      firstPacketLoad: true
+    }};
+
+    const text = (value, fallback = "") => value === null || value === undefined || value === "" ? fallback : String(value);
+    const age = (seconds) => seconds === null || seconds === undefined ? "never" : `${{seconds}}s`;
+    const yesNo = (value) => value ? "yes" : "no";
+
+    function escapeHtml(value) {{
+      return text(value).replace(/[&<>"']/g, (char) => ({{
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }}[char]));
+    }}
+
+    function setStatus(id, label, mode = "ok") {{
+      const el = document.getElementById(id);
+      el.textContent = label;
+      el.className = mode === "error" ? "pulse error" : mode === "warn" ? "pulse warn" : "pulse";
+    }}
+
+    async function getJson(url) {{
+      const response = await fetch(url, {{ cache: "no-store" }});
+      if (!response.ok) throw new Error(`${{response.status}} ${{response.statusText}}`);
+      return response.json();
+    }}
+
+    function renderMetrics(status, packets, sensors) {{
+      const rx24 = status.clients.reduce((sum, client) => sum + (client.packets_rx_24h || 0), 0);
+      const tx24 = status.clients.reduce((sum, client) => sum + (client.packets_tx_24h || 0), 0);
+      document.getElementById("metricConnected").textContent = status.connected_count;
+      document.getElementById("metricPackets").textContent = packets.packet_count;
+      document.getElementById("metricSensors").textContent = sensors.sensor_count;
+      document.getElementById("metricTraffic").textContent = `${{rx24}} / ${{tx24}}`;
+      document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
+    }}
+
+    function renderNodes(status) {{
+      const target = document.getElementById("nodeCards");
+      if (!status.clients.length) {{
+        target.innerHTML = '<div class="empty">No bridge nodes connected</div>';
+        setStatus("nodeStatus", "offline", "warn");
+        return;
+      }}
+      setStatus("nodeStatus", `${{status.clients.length}} active`, "ok");
+      target.innerHTML = status.clients.map((client) => {{
+        const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
+        return `
+          <article class="node-card">
+            <div class="node-title">
+              <span>${{escapeHtml(client.display_name)}}</span>
+              <span class="badge">${{client.supports_bridge_v2 ? "v2" : "v1"}}</span>
+            </div>
+            <div class="node-meta">${{escapeHtml(client.addr)}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
+            <div class="node-stats">
+              <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
+              <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
+            </div>
+            <div class="node-meta">connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}</div>
+          </article>
+        `;
+      }}).join("");
+    }}
+
+    function packetKey(packet) {{
+      return [packet.time, packet.direction, packet.client, packet.size, packet.preview].join("|");
+    }}
+
+    function renderPackets(packetData) {{
+      const rows = document.getElementById("packetRows");
+      const packets = packetData.packets.slice(0, 50);
+      if (!packets.length) {{
+        rows.innerHTML = '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>';
+        document.getElementById("packetFeed").innerHTML = '<div class="empty">Awaiting mesh traffic</div>';
+        setStatus("packetStatus", "no traffic", "warn");
+        setStatus("feedStatus", "quiet", "warn");
+        return;
+      }}
+      setStatus("packetStatus", `${{packets.length}} buffered`, "ok");
+      setStatus("feedStatus", "live", "ok");
+      rows.innerHTML = packets.map((packet, index) => {{
+        const dirClass = packet.direction === "RX" ? "rx" : "tx";
+        return `
+          <tr class="${{index < 3 ? "hot" : ""}}">
+            <td>${{age(packet.age_seconds)}} ago</td>
+            <td><span class="badge ${{dirClass}}">${{escapeHtml(packet.direction)}}</span></td>
+            <td>${{escapeHtml(packet.client)}}</td>
+            <td>${{escapeHtml(packet.type || "unknown")}}</td>
+            <td>${{escapeHtml(packet.route || "")}}</td>
+            <td>${{text(packet.hops, "")}}</td>
+            <td>${{packet.size}}</td>
+            <td>${{yesNo(packet.bridge_v2)}}</td>
+            <td>${{text(packet.ttl, "")}}</td>
+            <td class="preview">${{escapeHtml(packet.preview)}}</td>
+          </tr>
+        `;
+      }}).join("");
+
+      const feed = document.getElementById("packetFeed");
+      if (state.firstPacketLoad) {{
+        state.seenPacketKeys = new Set(packets.map(packetKey));
+        state.firstPacketLoad = false;
+      }} else {{
+        for (const packet of packets.slice().reverse()) {{
+          const key = packetKey(packet);
+          if (state.seenPacketKeys.has(key)) continue;
+          state.seenPacketKeys.add(key);
+          const line = document.createElement("div");
+          const dirClass = packet.direction === "RX" ? "dir-rx" : "dir-tx";
+          line.className = "feed-line";
+          line.innerHTML = `
+            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="${{dirClass}}">${{escapeHtml(packet.direction)}}</span>
+            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B :: ${{escapeHtml(packet.preview)}}</span>
+          `;
+          feed.prepend(line);
+        }}
+      }}
+      if (!feed.children.length) {{
+        feed.innerHTML = packets.slice(0, 24).map((packet) => `
+          <div class="feed-line">
+            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="${{packet.direction === "RX" ? "dir-rx" : "dir-tx"}}">${{escapeHtml(packet.direction)}}</span>
+            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B :: ${{escapeHtml(packet.preview)}}</span>
+          </div>
+        `).join("");
+      }}
+      while (feed.children.length > 80) feed.removeChild(feed.lastChild);
+    }}
+
+    function renderSensors(sensorData) {{
+      const rows = document.getElementById("sensorRows");
+      if (!sensorData.sensors.length) {{
+        rows.innerHTML = '<tr><td colspan="7" class="empty">No sensor node adverts seen yet</td></tr>';
+        setStatus("sensorStatus", "no adverts", "warn");
+        return;
+      }}
+      setStatus("sensorStatus", `${{sensorData.sensors.length}} detected`, "ok");
+      rows.innerHTML = sensorData.sensors.map((sensor) => {{
+        const location = sensor.lat !== null && sensor.lon !== null ? `${{Number(sensor.lat).toFixed(6)}}, ${{Number(sensor.lon).toFixed(6)}}` : "not shared";
+        return `
+          <tr>
+            <td>${{escapeHtml(sensor.name || "unknown")}}</td>
+            <td>${{escapeHtml(sensor.node_id)}}</td>
+            <td>${{age(sensor.age_seconds)}} ago</td>
+            <td>${{sensor.seen_count}}</td>
+            <td>${{text(sensor.hops, "")}}</td>
+            <td>${{escapeHtml(sensor.source)}}</td>
+            <td>${{escapeHtml(location)}}</td>
+          </tr>
+        `;
+      }}).join("");
+    }}
+
+    async function refresh() {{
+      try {{
+        const [status, packets, sensors] = await Promise.all([
+          getJson(urls.status),
+          getJson(urls.packets),
+          getJson(urls.sensors)
+        ]);
+        renderMetrics(status, packets, sensors);
+        renderNodes(status);
+        renderPackets(packets);
+        renderSensors(sensors);
+      }} catch (error) {{
+        document.getElementById("metricSync").textContent = "link error";
+        setStatus("nodeStatus", "link error", "error");
+        setStatus("packetStatus", "link error", "error");
+        setStatus("feedStatus", "link error", "error");
+        setStatus("sensorStatus", "link error", "error");
+        console.error(error);
+      }}
+    }}
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
 </body>
 </html>
 """
@@ -1404,6 +1715,9 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                     try:
                         reply = await client.send_command(command, node_password)
                         result = f"{client.display_name}> {command}\n{reply}"
+                    except asyncio.TimeoutError:
+                        log.warning("%s: remote command timed out: %s", client.addr, command)
+                        result = "Error: command timed out waiting for bridge reply"
                     except Exception as exc:
                         result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"

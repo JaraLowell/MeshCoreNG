@@ -403,12 +403,20 @@ void TCPBridge::handleBridgePacketPayload(const uint8_t *payload, uint16_t len) 
 }
 
 void TCPBridge::handleCommandPayload(const uint8_t *payload, uint16_t len) {
-  if (!_command_handler || len < 11) return;
+  if (len < 9) return;
 
   uint32_t request_id = ((uint32_t)payload[5] << 24) |
                         ((uint32_t)payload[6] << 16) |
                         ((uint32_t)payload[7] << 8) |
                         payload[8];
+  if (!_command_handler) {
+    sendCommandReply(request_id, "Err - remote command handler unavailable");
+    return;
+  }
+  if (len < 11) {
+    sendCommandReply(request_id, "Err - invalid remote command");
+    return;
+  }
   uint8_t password_len = payload[9];
   uint8_t command_len = payload[10];
   if (command_len == 0 || len < (uint16_t)(11 + password_len + command_len)) {
