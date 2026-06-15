@@ -81,7 +81,43 @@ next_command_id = 1
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
 latest_sensors: dict[str, dict] = {}
+recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
+
+PAYLOAD_TYPE_NAMES = {
+    0x00: "request",
+    0x01: "response",
+    0x02: "text-message",
+    0x03: "ack",
+    0x04: "advert",
+    0x05: "group-text",
+    0x06: "group-data",
+    0x07: "anon-request",
+    0x08: "path",
+    0x09: "trace",
+    0x0A: "multipart",
+    0x0B: "control",
+    0x0C: "atlas",
+    0x0D: "location",
+    0x0F: "raw-custom",
+}
+
+ROUTE_TYPE_NAMES = {
+    0x00: "transport-flood",
+    0x01: "flood",
+    0x02: "direct",
+    0x03: "transport-direct",
+}
+
+CONTROL_TYPE_NAMES = {
+    CONTROL_TYPE_HEARTBEAT: "heartbeat",
+    CONTROL_TYPE_NODE_INFO: "node-info",
+    CONTROL_TYPE_AUTH: "auth",
+    CONTROL_TYPE_CAPS: "capabilities",
+    CONTROL_TYPE_COMMAND: "command",
+    CONTROL_TYPE_COMMAND_REPLY: "command-reply",
+    CONTROL_TYPE_BRIDGE_PACKET: "bridge-v2-packet",
+}
 
 
 def fletcher16(data: bytes) -> int:
@@ -98,6 +134,92 @@ def payload_preview(payload: bytes) -> str:
     if len(payload) > len(shown):
         text += " ..."
     return text
+
+
+def packet_type_name(payload_type: int) -> str:
+    return PAYLOAD_TYPE_NAMES.get(payload_type, f"unknown-0x{payload_type:02x}")
+
+
+def route_type_name(route_type: int) -> str:
+    return ROUTE_TYPE_NAMES.get(route_type, f"unknown-0x{route_type:02x}")
+
+
+def describe_packet(payload: bytes) -> dict:
+    envelope = parse_bridge_packet_envelope(payload)
+    mesh_payload = envelope["mesh_payload"] if envelope is not None else payload
+    description = {
+        "kind": "mesh",
+        "type": "unknown",
+        "type_id": None,
+        "route": "unknown",
+        "route_id": None,
+        "hops": None,
+        "app_len": None,
+        "bridge_v2": envelope is not None,
+        "ttl": envelope["ttl"] if envelope is not None else None,
+        "origin_id": f"0x{envelope['origin_id']:08x}" if envelope is not None else "",
+        "flags": f"0x{envelope['flags']:02x}" if envelope is not None else "",
+        "mesh_len": len(mesh_payload),
+    }
+
+    if envelope is None and payload.startswith(CONTROL_PREFIX):
+        control_type = payload[4] if len(payload) > 4 else None
+        description.update({
+            "kind": "control",
+            "type": CONTROL_TYPE_NAMES.get(control_type, f"control-0x{control_type:02x}" if control_type is not None else "control"),
+            "type_id": control_type,
+            "route": "",
+            "route_id": None,
+            "hops": None,
+            "app_len": max(0, len(payload) - 5),
+            "mesh_len": 0,
+        })
+        return description
+
+    parsed = parse_mesh_payload(mesh_payload)
+    if parsed is None:
+        return description
+
+    payload_type = parsed["payload_type"]
+    route_type = parsed["route_type"]
+    description.update({
+        "type": packet_type_name(payload_type),
+        "type_id": payload_type,
+        "route": route_type_name(route_type),
+        "route_id": route_type,
+        "hops": parsed["path_hash_count"],
+        "app_len": len(parsed["app_payload"]),
+    })
+    return description
+
+
+def format_packet_description(description: dict) -> str:
+    parts = [f"type={description['type']}"]
+    if description.get("route"):
+        parts.append(f"route={description['route']}")
+    if description.get("hops") is not None:
+        parts.append(f"hops={description['hops']}")
+    if description.get("app_len") is not None:
+        parts.append(f"app={description['app_len']}B")
+    if description.get("bridge_v2"):
+        parts.append(f"bridge-v2 ttl={description['ttl']} origin={description['origin_id']}")
+    return " ".join(parts)
+
+
+def record_packet_log(direction: str, client: "BridgeClient", payload: bytes) -> dict:
+    description = describe_packet(payload)
+    mesh_payload = mesh_payload_for_parsing(payload)
+    entry = {
+        "time": int(time.time()),
+        "direction": direction,
+        "client": client.display_name,
+        "addr": client.addr,
+        "size": len(payload),
+        "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
+        **description,
+    }
+    recent_packets.appendleft(entry)
+    return entry
 
 
 def parse_heartbeat(payload: bytes) -> int | None:
@@ -531,8 +653,15 @@ class BridgeClient:
             now = time.time()
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
+            packet_log = record_packet_log("TX", self, payload)
             if LOG_PACKETS:
-                log.info("%s: TX %d bytes: %s", self.addr, len(payload), payload_preview(payload))
+                log.info(
+                    "%s: TX %d bytes %s: %s",
+                    self.addr,
+                    len(payload),
+                    format_packet_description(packet_log),
+                    packet_log["preview"],
+                )
             return True
         except Exception:
             return False
@@ -711,20 +840,25 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             sensor_report = parse_sensor_advert_payload(mesh_payload)
             if sensor_report is not None:
                 record_sensor_advert(sensor_report, client)
+            packet_log = record_packet_log("RX", client, payload)
             if LOG_PACKETS:
                 envelope = parse_bridge_packet_envelope(payload)
                 if envelope is not None:
                     log.info(
-                        "%s: RX bridge-v2 ttl=%d origin=0x%08x flags=0x%02x mesh=%d bytes: %s",
+                        "%s: RX bridge-v2 mesh=%d bytes %s: %s",
                         client.addr,
-                        envelope["ttl"],
-                        envelope["origin_id"],
-                        envelope["flags"],
                         envelope["packet_len"],
-                        payload_preview(envelope["mesh_payload"]),
+                        format_packet_description(packet_log),
+                        packet_log["preview"],
                     )
                 else:
-                    log.info("%s: RX %d bytes: %s", client.addr, len(payload), payload_preview(payload))
+                    log.info(
+                        "%s: RX %d bytes %s: %s",
+                        client.addr,
+                        len(payload),
+                        format_packet_description(packet_log),
+                        packet_log["preview"],
+                    )
             log.debug("%s: RX %d bytes → broadcasting to %d peers",
                       client.addr, len(payload), len(connected_clients) - 1)
             await broadcast(payload, sender=client)
@@ -777,9 +911,24 @@ def sensors_snapshot() -> dict:
     }
 
 
+def packets_snapshot() -> dict:
+    now = int(time.time())
+    packets = []
+    for entry in recent_packets:
+        item = dict(entry)
+        item["age_seconds"] = max(0, now - item["time"])
+        packets.append(item)
+    return {
+        "generated_at": now,
+        "packet_count": len(packets),
+        "packets": packets,
+    }
+
+
 def build_status_html() -> str:
     snapshot = status_snapshot()
     sensor_snapshot = sensors_snapshot()
+    packet_snapshot = packets_snapshot()
     rows = []
     for client in snapshot["clients"]:
         hb_age = client["heartbeat_age_seconds"]
@@ -827,6 +976,31 @@ def build_status_html() -> str:
     sensor_rows_html = "\n".join(sensor_rows) if sensor_rows else (
         '<tr><td colspan="7" class="empty">No sensor node adverts seen yet</td></tr>'
     )
+
+    packet_rows = []
+    for packet in packet_snapshot["packets"][:40]:
+        bridge = "yes" if packet["bridge_v2"] else "no"
+        ttl = packet["ttl"] if packet["ttl"] is not None else ""
+        hops = packet["hops"] if packet["hops"] is not None else ""
+        route = packet["route"] or ""
+        packet_rows.append(
+            "<tr>"
+            f"<td>{packet['age_seconds']}s ago</td>"
+            f"<td>{html.escape(packet['direction'])}</td>"
+            f"<td>{html.escape(packet['client'])}</td>"
+            f"<td>{html.escape(packet['type'])}</td>"
+            f"<td>{html.escape(route)}</td>"
+            f"<td>{hops}</td>"
+            f"<td>{packet['size']}</td>"
+            f"<td>{bridge}</td>"
+            f"<td>{ttl}</td>"
+            f"<td class=\"preview\"><code>{html.escape(packet['preview'])}</code></td>"
+            "</tr>"
+        )
+
+    packet_rows_html = "\n".join(packet_rows) if packet_rows else (
+        '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>'
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -846,6 +1020,7 @@ def build_status_html() -> str:
     th, td {{ padding: 12px 14px; text-align: left; border-bottom: 1px solid #d8dee4; white-space: nowrap; }}
     th {{ background: #eef2f6; font-size: 0.8rem; text-transform: uppercase; color: #47515d; }}
     code {{ font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }}
+    .preview {{ max-width: 420px; white-space: normal; overflow-wrap: anywhere; }}
     tr:last-child td {{ border-bottom: 0; }}
     .empty {{ text-align: center; color: #69737f; padding: 32px; }}
     @media (max-width: 760px) {{
@@ -888,6 +1063,30 @@ def build_status_html() -> str:
           </thead>
           <tbody>
             {rows_html}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section>
+      <h2>Recent packets</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Dir</th>
+              <th>Bridge node</th>
+              <th>Type</th>
+              <th>Route</th>
+              <th>Hops</th>
+              <th>Bytes</th>
+              <th>Bridge v2</th>
+              <th>TTL</th>
+              <th>Preview</th>
+            </tr>
+          </thead>
+          <tbody>
+            {packet_rows_html}
           </tbody>
         </table>
       </div>
@@ -1175,6 +1374,9 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
         elif path == "/sensors.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(sensors_snapshot(), indent=2).encode("utf-8")
+        elif path == "/packets.json":
+            status, content_type = "200 OK", "application/json"
+            body = json.dumps(packets_snapshot(), indent=2).encode("utf-8")
         elif path == "/map":
             status, content_type = "200 OK", "text/html; charset=utf-8"
             body = build_location_map_html().encode("utf-8")
