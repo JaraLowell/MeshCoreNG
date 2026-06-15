@@ -1,9 +1,13 @@
 #pragma once
 
 #include "helpers/bridges/BridgeBase.h"
+#include "helpers/RateLimiter.h"
 #include <stddef.h>
 
 #ifdef WITH_TCP_BRIDGE
+
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 
 /**
  * @brief Bridge implementation that tunnels mesh packets over a TCP connection
@@ -48,6 +52,42 @@ public:
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
   void getStatusStr(char *reply) const;
+  
+  /**
+   * @brief Get the total number of packets dropped due to flood protection (all categories)
+   * @return Total number of dropped packets
+   */
+  uint32_t getFloodDroppedCount() const { return _transport_dropped_count + _control_dropped_count; }
+  
+  /**
+   * @brief Get the number of transport packets dropped due to flood protection
+   * @return Number of transport packets dropped
+   */
+  uint32_t getTransportDroppedCount() const { return _transport_dropped_count; }
+  
+  /**
+   * @brief Get the number of control packets dropped due to flood protection
+   * @return Number of control packets dropped
+   */
+  uint32_t getControlDroppedCount() const { return _control_dropped_count; }
+  
+  /**
+   * @brief Get the current packet count in the transport flood limiter window
+   * @return Current transport packet count
+   */
+  uint16_t getFloodCurrentCount() const { return _transport_flood_limiter.getCount(); }
+  
+  /**
+   * @brief Get the current transport packet count in the flood limiter window
+   * @return Current transport packet count
+   */
+  uint16_t getTransportCurrentCount() const { return _transport_flood_limiter.getCount(); }
+  
+  /**
+   * @brief Get the current control packet count in the flood limiter window
+   * @return Current control packet count
+   */
+  uint16_t getControlCurrentCount() const { return _control_flood_limiter.getCount(); }
   void setCommandHandler(TCPBridgeCommandHandler *handler) { _command_handler = handler; }
 
 private:
@@ -89,6 +129,18 @@ private:
   uint32_t _bridge_id = 0;
   TCPBridgeCommandHandler *_command_handler = nullptr;
 
+  // Selective flood protection with separate limiters per packet category
+  RateLimiter _transport_flood_limiter;  // for transport/message packets
+  RateLimiter _control_flood_limiter;    // for control/admin packets  
+  uint32_t    _transport_dropped_count = 0;
+  uint32_t    _control_dropped_count = 0;
+  
+  // NTP time synchronization
+  WiFiUDP      _ntp_udp;
+  NTPClient    _ntp_client;
+  bool         _ntp_synced = false;
+  uint32_t     _last_ntp_sync = 0;
+
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
   bool shouldExportPacket(const mesh::Packet *packet) const;
@@ -104,7 +156,11 @@ private:
   void handleCommandPayload(const uint8_t *payload, uint16_t len);
   void sendCommandReply(uint32_t request_id, const char *reply);
   bool isControlPayload(const uint8_t *payload, uint16_t len) const;
+  bool isTransportPacket(const uint8_t *payload, uint16_t len) const;
+  bool isControlPacket(const uint8_t *payload, uint16_t len) const;
   void readIncoming();
+  void syncTimeWithNTP();
+  void refreshNTP();
 };
 
 #endif

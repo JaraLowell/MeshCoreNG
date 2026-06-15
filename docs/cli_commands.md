@@ -1795,6 +1795,164 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 
 ---
 
+#### View or enable TCP flood protection (TCP bridge only)
+**Usage:**
+- `get tcp.flood.limit`
+- `set tcp.flood.limit <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+Enable or disable TCP flood protection. When enabled, the bridge monitors incoming packet rate from the TCP connection and stops relaying packets when the configured threshold is exceeded within the time window. This prevents mass flooding of the mesh network via the TCP bridge.
+
+**Default:** `off`
+
+**Note:** See [TCP Flood Protection](tcp_flood_protection.md) for detailed information.
+
+---
+
+#### View or set TCP flood maximum packets (TCP bridge only)
+**Usage:**
+- `get tcp.flood.max`
+- `set tcp.flood.max <value>`
+
+**Parameters:**
+- `value`: Maximum packets allowed in the time window (1–10000)
+
+Configure the maximum number of packets allowed from the TCP bridge within the configured time window. When this limit is exceeded, additional packets are dropped until the time window expires.
+
+**Default:** `100` packets
+
+---
+
+#### View or set TCP flood time window (TCP bridge only)
+**Usage:**
+- `get tcp.flood.window`
+- `set tcp.flood.window <value>`
+
+**Parameters:**
+- `value`: Time window in seconds (1–3600)
+
+Configure the time window for TCP flood protection. The packet counter resets when this window expires.
+
+**Default:** `600` seconds (10 minutes)
+
+**Example configuration:**
+```
+set tcp.flood.limit on
+set tcp.flood.max 200
+set tcp.flood.window 300
+```
+This allows up to 200 packets per 5 minutes from the TCP bridge.
+
+---
+
+#### Configure TCP transport flood protection max packets
+**Usage:** `set tcp.flood.transport.max <value>`
+
+Configure the maximum number of **transport/message packets** (DMs, group messages, requests) allowed within the transport time window. This applies selective rate limiting to user-generated content while allowing control packets to flow.
+
+**Parameters:**
+- `value`: Integer from `1` to `10000`, maximum transport packets in time window
+
+**Default:** `20` packets
+
+**Recommended:** `20` (allows ~20 DMs per 2 minutes)
+
+**Example:**
+```
+set tcp.flood.transport.max 22
+```
+
+---
+
+#### View TCP transport flood protection max packets
+**Usage:** `get tcp.flood.transport.max`
+
+---
+
+#### Configure TCP transport flood protection time window
+**Usage:** `set tcp.flood.transport.window <value>`
+
+Configure the time window in seconds for transport/message packet rate limiting.
+
+**Parameters:**
+- `value`: Integer from `1` to `3600` seconds (1 second to 1 hour)
+
+**Default:** `120` seconds (2 minutes)
+
+**Example:**
+```
+set tcp.flood.transport.window 120
+```
+
+---
+
+#### View TCP transport flood protection time window
+**Usage:** `get tcp.flood.transport.window`
+
+---
+
+#### Configure TCP control flood protection max packets
+**Usage:** `set tcp.flood.control.max <value>`
+
+Configure the maximum number of **control/admin packets** (discovery, adverts, ACKs, traces) allowed within the control time window. Set to `0` to bypass flood protection for control packets (recommended).
+
+**Parameters:**
+- `value`: Integer from `0` to `10000` (`0` = bypass, no limit on control packets)
+
+**Default:** `20` packets
+
+**Recommended:** `20` (same as transport), or `0` to bypass control packets
+
+**Example:**
+```
+set tcp.flood.control.max 0   # Bypass control packets
+```
+or
+```
+set tcp.flood.control.max 500   # Limit to 500 control packets per window
+```
+
+---
+
+#### View TCP control flood protection max packets
+**Usage:** `get tcp.flood.control.max`
+
+---
+
+#### Configure TCP control flood protection time window
+**Usage:** `set tcp.flood.control.window <value>`
+
+Configure the time window in seconds for control/admin packet rate limiting.
+
+**Parameters:**
+- `value`: Integer from `1` to `3600` seconds (1 second to 1 hour)
+
+**Default:** `120` seconds (2 minutes)
+
+**Example:**
+```
+set tcp.flood.control.window 120
+```
+
+---
+
+#### View TCP control flood protection time window
+**Usage:** `get tcp.flood.control.window`
+
+**Example selective flood protection setup:**
+```
+set tcp.flood.limit on              # Enable flood protection
+set tcp.flood.transport.max 20      # Limit transport (DM/group msg) to 20 per 2 min
+set tcp.flood.transport.window 120
+set tcp.flood.control.max 20        # Limit control packets to 20 per 2 min (or 0 to bypass)
+set tcp.flood.control.window 120
+```
+This configuration prevents message spam while allowing network control packets to flow freely.
+
+---
+
 #### View the bootloader version (nRF52 only)
 **Usage:** `get bootloader.ver`
 
