@@ -801,6 +801,9 @@ set wifi.password <passwort>
 set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.password <bridge passwort>
+set ntp.enabled on
+set ntp.server pool.ntp.org
+set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island

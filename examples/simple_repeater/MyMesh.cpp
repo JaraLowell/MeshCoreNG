@@ -1352,9 +1352,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
   _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
   _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
-  memset(_prefs.reserved_ntp_server, 0, sizeof(_prefs.reserved_ntp_server));
-  _prefs.reserved_ntp_enabled = 0;
-  _prefs.reserved_ntp_interval_secs = 0;
+  StrHelper::strncpy(_prefs.ntp_server, "pool.ntp.org", sizeof(_prefs.ntp_server));
+  _prefs.ntp_enabled = 1;
+  _prefs.ntp_interval_secs = 3600;
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
