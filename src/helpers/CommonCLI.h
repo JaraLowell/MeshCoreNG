@@ -100,10 +100,10 @@ struct NodePrefs { // persisted to file
   uint16_t low_bat_boot_guard_mv;
   uint16_t low_bat_boot_valid_min_mv;
   uint16_t low_bat_boot_retry_secs;
-  // WiFi NTP time sync settings (ESP32 WITH_TCP_BRIDGE)
-  char ntp_server[64];
-  uint8_t ntp_enabled;
-  uint32_t ntp_interval_secs;
+  // Reserved bytes kept to preserve the on-device prefs file layout.
+  char reserved_ntp_server[64];
+  uint8_t reserved_ntp_enabled;
+  uint32_t reserved_ntp_interval_secs;
   uint8_t low_bat_runtime_guard_enabled;
   uint16_t low_bat_runtime_guard_mv;
   uint16_t low_bat_runtime_warn_mv;
@@ -189,19 +189,6 @@ public:
   virtual void restartBridge() {
     // no op by default
   };
-
-  virtual void onNtpPrefsChanged() {
-    // no op by default
-  };
-
-  virtual bool startNtpSync(char *reply) {
-    strcpy(reply, "Error: NTP not supported by this build");
-    return false;
-  }
-
-  virtual void formatNtpStatusReply(char *reply) {
-    strcpy(reply, "Error: NTP not supported by this build");
-  }
 
   virtual void setRxBoostedGain(bool enable) {
     // no op by default

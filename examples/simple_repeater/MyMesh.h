@@ -26,9 +26,6 @@
 #ifdef WITH_TCP_BRIDGE
 #include "helpers/bridges/TCPBridge.h"
 #define WITH_BRIDGE
-#if defined(ESP32)
-#include <WiFiUdp.h>
-#endif
 #endif
 
 #ifdef WITH_BLE_BRIDGE
@@ -174,17 +171,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   uint64_t next_daily_reboot_uptime_ms;
   bool daily_reboot_pending;
   unsigned long dirty_contacts_expiry;
-#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
-  WiFiUDP ntp_udp;
-  uint8_t ntp_state;
-  uint8_t ntp_last_result;
-  bool ntp_started_wifi;
-  bool ntp_udp_open;
-  unsigned long ntp_deadline_ms;
-  unsigned long next_ntp_sync_ms;
-  uint32_t ntp_last_sync_epoch;
-  uint32_t ntp_last_attempt_epoch;
-#endif
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -232,14 +218,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   bool shouldDropMalformedGroupText(mesh::Packet* pkt);
   void scheduleDailyReboot();
   void checkDailyReboot();
-#if defined(WITH_TCP_BRIDGE) && defined(ESP32)
-  void scheduleNtpSync(uint32_t delay_secs);
-  bool startNtpSyncInternal(char* reply, bool manual);
-  void loopNtpSync();
-  bool sendNtpRequest();
-  void finishNtpSync(uint8_t result, uint32_t epoch);
-#endif
-
 protected:
   float getAirtimeBudgetFactor() const override {
     return _prefs.airtime_factor;
@@ -357,9 +335,6 @@ public:
 #endif
   void loop();
   void formatDailyRebootReply(char* reply) const;
-  void onNtpPrefsChanged() override;
-  bool startNtpSync(char* reply) override;
-  void formatNtpStatusReply(char* reply) override;
 
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {

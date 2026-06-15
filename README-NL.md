@@ -241,6 +241,18 @@ set bridge.rf local
 
 Bridge RF-forwarding loopt nog steeds via het normale repeater-forwardingpad. Regioregels, duplicate checks, loop detection, hop-limieten, relay probability, retransmit delay en de normale RF TX queue blijven gelden.
 
+Voor gecontroleerde RF-eilanden of backbone-links gebruik je de bridge export- en profile-controls in plaats van de TCP bridge een echte MeshCore route-hop te maken:
+
+```text
+set bridge.profile island    # RF-eiland bridge: source both, RF local, messages tot 4 RF hops
+set bridge.profile repeater  # gecontroleerde backhaul: source both, RF on, export all
+get bridge.export
+get bridge.export.maxhops
+get bridge.tcp.ttl
+```
+
+TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. De MeshCore route/path in het packet wordt niet aangepast.
+
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
 **Bridge firmwaretypes**
@@ -255,7 +267,7 @@ MeshCoreNG heeft meerdere bridge-routes:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
 | `_bridge_ble` | BLE UART bridge | nRF52- en ESP32-BLE-repeaters kunnen een korte-afstand bridge maken zonder WiFi, USB of extra UART-bedrading. |
 
-Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina.
+Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, recente packet type/route/hop logs, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`.
 
 De BLE bridge is beschikbaar voor nRF52 BLE-varianten met Bluefruit en ESP32-varianten met BLE-support. Hij draait tegelijk als central en peripheral, zodat beide repeaters de BLE-link kunnen starten. Flash dezelfde `_bridge_ble` firmware op beide repeaters, zet eventueel op beide kanten dezelfde `bridge.secret` voor een private bridge-pair, en zet daarna `set bridge.enabled on`. Gecombineerde `_bridge_tcp_ble` builds zijn toegevoegd voor ESP32-boards met genoeg flash; 4MB ESP32-boards blijven per board testkandidaten omdat TCP+BLE daar krap kan worden.
 
@@ -675,6 +687,9 @@ set bridge.port   4200
 set bridge.password <bridge wachtwoord>
 set bridge.enabled on
 set bridge.rf on
+set bridge.profile island
+get bridge.export
+get bridge.tcp.ttl
 get bridge.type
 get bridge.status
 get node.info

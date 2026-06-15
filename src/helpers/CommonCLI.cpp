@@ -259,17 +259,17 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
         _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 537 + sizeof(AtlasConfig)
       }
-      char ntp_server[64] = {};
-      if (file.read((uint8_t *)ntp_server, sizeof(ntp_server)) == sizeof(ntp_server)) {
-        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                 // 539 + sizeof(AtlasConfig)
+      char reserved_ntp_server[64] = {};
+      if (file.read((uint8_t *)reserved_ntp_server, sizeof(reserved_ntp_server)) == sizeof(reserved_ntp_server)) {
+        memcpy(_prefs->reserved_ntp_server, reserved_ntp_server, sizeof(reserved_ntp_server));       // 539 + sizeof(AtlasConfig)
       }
-      uint8_t ntp_enabled = _prefs->ntp_enabled;
-      if (file.read((uint8_t *)&ntp_enabled, sizeof(ntp_enabled)) == sizeof(ntp_enabled)) {
-        _prefs->ntp_enabled = ntp_enabled;                                                         // 603 + sizeof(AtlasConfig)
+      uint8_t reserved_ntp_enabled = _prefs->reserved_ntp_enabled;
+      if (file.read((uint8_t *)&reserved_ntp_enabled, sizeof(reserved_ntp_enabled)) == sizeof(reserved_ntp_enabled)) {
+        _prefs->reserved_ntp_enabled = reserved_ntp_enabled;                                       // 603 + sizeof(AtlasConfig)
       }
-      uint32_t ntp_interval_secs = _prefs->ntp_interval_secs;
-      if (file.read((uint8_t *)&ntp_interval_secs, sizeof(ntp_interval_secs)) == sizeof(ntp_interval_secs)) {
-        _prefs->ntp_interval_secs = ntp_interval_secs;                                             // 604 + sizeof(AtlasConfig)
+      uint32_t reserved_ntp_interval_secs = _prefs->reserved_ntp_interval_secs;
+      if (file.read((uint8_t *)&reserved_ntp_interval_secs, sizeof(reserved_ntp_interval_secs)) == sizeof(reserved_ntp_interval_secs)) {
+        _prefs->reserved_ntp_interval_secs = reserved_ntp_interval_secs;                           // 604 + sizeof(AtlasConfig)
       }
       uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
       if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
@@ -339,11 +339,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->low_bat_boot_guard_mv = constrain(_prefs->low_bat_boot_guard_mv, 0, 6000);
     _prefs->low_bat_boot_valid_min_mv = constrain(_prefs->low_bat_boot_valid_min_mv, 0, 6000);
     _prefs->low_bat_boot_retry_secs = constrain(_prefs->low_bat_boot_retry_secs, 5, 3600);
-    if (_prefs->ntp_server[0] == 0) {
-      StrHelper::strncpy(_prefs->ntp_server, "pool.ntp.org", sizeof(_prefs->ntp_server));
-    }
-    _prefs->ntp_enabled = constrain(_prefs->ntp_enabled, 0, 1);
-    _prefs->ntp_interval_secs = constrain(_prefs->ntp_interval_secs, 60UL, 86400UL);
     _prefs->low_bat_runtime_guard_enabled = constrain(_prefs->low_bat_runtime_guard_enabled, 0, 1);
     _prefs->low_bat_runtime_guard_mv = constrain(_prefs->low_bat_runtime_guard_mv, 0, 6000);
     _prefs->low_bat_runtime_warn_mv = constrain(_prefs->low_bat_runtime_warn_mv, 0, 6000);
@@ -453,9 +448,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 533 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 535 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 537 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 539 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 603 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 604 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_server, sizeof(_prefs->reserved_ntp_server));      // 539 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_enabled, sizeof(_prefs->reserved_ntp_enabled));    // 603 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_interval_secs, sizeof(_prefs->reserved_ntp_interval_secs)); // 604 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 608 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 609 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 611 + sizeof(AtlasConfig)
@@ -519,8 +514,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: clock cannot go backwards");
       }
-    } else if (memcmp(command, "ntp.sync", 8) == 0 && (command[8] == 0 || command[8] == ' ')) {
-      _callbacks->startNtpSync(reply);
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         if (reply[0] == 0) strcpy(reply, "Error");
@@ -1446,31 +1439,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
     }
-  } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
-    uint8_t enabled = 0;
-    if (parseOnOff(&config[12], &enabled)) {
-      _prefs->ntp_enabled = enabled;
-      _callbacks->onNtpPrefsChanged();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: expected on or off");
-    }
-  } else if (memcmp(config, "ntp.server ", 11) == 0) {
-    StrHelper::strncpy(_prefs->ntp_server, &config[11], sizeof(_prefs->ntp_server));
-    _callbacks->onNtpPrefsChanged();
-    savePrefs();
-    strcpy(reply, "OK");
-  } else if (memcmp(config, "ntp.interval ", 13) == 0) {
-    uint32_t interval = _atoi(&config[13]);
-    if (interval >= 60 && interval <= 86400) {
-      _prefs->ntp_interval_secs = interval;
-      _callbacks->onNtpPrefsChanged();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: interval must be 60-86400 seconds");
-    }
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
@@ -1706,14 +1674,6 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
-  } else if (memcmp(config, "ntp.enabled", 11) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_enabled ? "on" : "off");
-  } else if (memcmp(config, "ntp.server", 10) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_server);
-  } else if (memcmp(config, "ntp.interval", 12) == 0) {
-    sprintf(reply, "> %lu", (unsigned long)_prefs->ntp_interval_secs);
-  } else if (memcmp(config, "ntp.status", 10) == 0) {
-    _callbacks->formatNtpStatusReply(reply);
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM

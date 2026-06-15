@@ -60,15 +60,6 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### Sync the clock from NTP over WiFi
-**Usage:**
-- `ntp.sync`
-- `get ntp.status`
-
-**Note:** ESP32 TCP bridge builds only. The repeater uses the saved `wifi.ssid` and `wifi.password`, sends a UDP NTP request, and writes the received Unix time through the normal RTC clock layer.
-
----
-
 ### Send a flood advert
 **Usage:** 
 - `advert`
@@ -1765,27 +1756,6 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 - `password`: WiFi network password, up to 63 characters
 
 **Note:** `get wifi.password` always returns `***` for security.
-
----
-
-#### Configure NTP time sync (TCP bridge only)
-**Usage:**
-- `get ntp.enabled`
-- `set ntp.enabled <on|off>`
-- `get ntp.server`
-- `set ntp.server <host>`
-- `get ntp.interval`
-- `set ntp.interval <seconds>`
-- `get ntp.status`
-- `ntp.sync`
-
-**Parameters:**
-- `host`: NTP server hostname or IP address, up to 63 characters
-- `seconds`: Periodic sync interval, 60-86400 seconds
-
-**Default:** `ntp.enabled off`, `ntp.server pool.ntp.org`, `ntp.interval 3600`
-
-**Note:** Requires `WITH_TCP_BRIDGE` firmware build flag and saved WiFi credentials. `ntp.sync` starts a non-blocking sync; use `get ntp.status` to see the result.
 
 ---
 
