@@ -76,7 +76,7 @@ PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
-STATUS_BASE_PATH = ""
+STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
 
@@ -1505,7 +1505,7 @@ if __name__ == "__main__":
                         help="Bind address for the HTTP status page (default: 0.0.0.0)")
     parser.add_argument("--status-port", type=int, default=8080,
                         help="HTTP status page port (default: 8080, 0 disables)")
-    parser.add_argument("--status-base-path", default="",
+    parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
                         help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
