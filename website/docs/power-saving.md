@@ -30,6 +30,30 @@ When power saving is enabled:
 
 `get power.stats` shows how often and how long the repeater has slept. Stats are RAM-only and reset on reboot or when cleared with `clear power.stats`.
 
+## Low-battery guards
+
+MeshCoreNG also has low-battery guards for boards that report battery voltage.
+
+The boot guard runs directly after `board.begin()`. If the battery reading is valid but below the boot threshold, the node sleeps and retries instead of starting radio, display, GPS, sensors or bridge code.
+
+The runtime guard runs after normal startup on repeater, GPS tracker / sensor, and room server builds. It checks battery voltage periodically. If the node is not externally powered and voltage falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further.
+
+```
+get boot.lowbat.guard
+set boot.lowbat.guard on|off
+get boot.lowbat.mv
+set boot.lowbat.mv 3300
+
+get runtime.lowbat.guard
+set runtime.lowbat.guard on|off
+get runtime.lowbat.mv
+set runtime.lowbat.mv 3300
+get runtime.lowbat.retry
+set runtime.lowbat.retry 1800
+```
+
+Default runtime behavior checks every 30 seconds, treats readings below `2500mV` as invalid, and sleeps for `1800s` when a battery-powered node falls below `3300mV`.
+
 ## Daily reboot timer
 
 Repeater-only and TCP bridge repeater builds also support an optional uptime-based reboot timer. This is separate from power saving and is disabled by default.

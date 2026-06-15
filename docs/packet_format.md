@@ -138,9 +138,11 @@ Examples:
 | `0x0A` | `PAYLOAD_TYPE_MULTIPART`  | Packet is part of a sequence of packets      |
 | `0x0B` | `PAYLOAD_TYPE_CONTROL`    | Control packet data (unencrypted)            |
 | `0x0C` | `PAYLOAD_TYPE_ATLAS`      | Optional Atlas telemetry                     |
-| `0x0D` | reserved                  | reserved                                     |
+| `0x0D` | `PAYLOAD_TYPE_LOCATION`   | Compact tracker/APRS-like location report   |
 | `0x0E` | reserved                  | reserved                                     |
 | `0x0F` | `PAYLOAD_TYPE_RAW_CUSTOM` | Custom packet (raw bytes, custom encryption) |
+
+`PAYLOAD_TYPE_LOCATION` packets are flood-routed with a tracker-specific forwarding cap. Repeaters retransmit them only while the packet path contains fewer than two repeater hops.
 
 ### Payload Versions
 

@@ -10,6 +10,7 @@
 #endif
 
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/LowBatteryBootGuard.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/IdentityStore.h>
@@ -573,6 +574,7 @@ void setup() {
   Serial.begin(115200);
 
   board.begin();
+  guardLowBatteryBoot(board);
 
   if (!radio_init()) { halt(); }
 

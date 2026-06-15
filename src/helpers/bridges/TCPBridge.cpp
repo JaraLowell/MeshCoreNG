@@ -15,6 +15,19 @@
 
 static WiFiClient _client;
 
+namespace {
+
+uint32_t fnv1a32(const uint8_t *data, size_t len) {
+  uint32_t hash = 2166136261UL;
+  for (size_t i = 0; i < len; i++) {
+    hash ^= data[i];
+    hash *= 16777619UL;
+  }
+  return hash;
+}
+
+}  // namespace
+
 TCPBridge::TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc), 
       _transport_flood_limiter(20, 120),   // default: 20 transport packets per 2 min
@@ -114,6 +127,7 @@ void TCPBridge::loop() {
         _state = State::RUNNING;
         sendAuth();
         sendNodeInfo();
+        sendCaps();
       } else {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: server connect failed\n");
         _state = State::IDLE;
@@ -164,7 +178,7 @@ void TCPBridge::readIncoming() {
       if (_rx_buffer_pos >= 4) {
         uint16_t len = (_rx_buffer[2] << 8) | _rx_buffer[3];
 
-        if (len > (MAX_TRANS_UNIT + 1)) {
+        if (len > MAX_TCP_PAYLOAD_SIZE) {
           BRIDGE_DEBUG_PRINTLN("TCP bridge: RX invalid length %d, resetting\n", len);
           _rx_buffer_pos = 0;
           continue;
@@ -178,6 +192,7 @@ void TCPBridge::readIncoming() {
             if (isControlPayload(_rx_buffer + 4, len)) {
               BRIDGE_DEBUG_PRINTLN("TCP bridge: RX control len=%d crc=0x%04x\n",
                                    len, received_checksum);
+              handleControlPayload(_rx_buffer + 4, len);
               _rx_buffer_pos = 0;
               continue;
             }
@@ -241,7 +256,7 @@ void TCPBridge::readIncoming() {
 
 bool TCPBridge::sendPayloadFrame(const uint8_t *payload, uint16_t len) {
   if (!_initialized || !_client.connected()) return false;
-  if (len > (MAX_TRANS_UNIT + 1)) return false;
+  if (len > MAX_TCP_PAYLOAD_SIZE) return false;
 
   uint8_t buffer[MAX_TCP_PACKET_SIZE];
   buffer[0] = (BRIDGE_PACKET_MAGIC >> 8) & 0xFF;
@@ -327,6 +342,131 @@ void TCPBridge::sendHeartbeat() {
   }
 }
 
+void TCPBridge::sendCaps() {
+  uint8_t payload[7];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_CAPS;
+  payload[5] = 1;    // caps version
+  payload[6] = 0x01; // bridge packet v2 envelope
+
+  if (sendPayloadFrame(payload, sizeof(payload))) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent caps bridge-v2\n");
+  }
+}
+
+void TCPBridge::handleControlPayload(const uint8_t *payload, uint16_t len) {
+  if (len < 5) return;
+
+  if (payload[4] == CONTROL_TYPE_BRIDGE_PACKET) {
+    handleBridgePacketPayload(payload, len);
+  } else if (payload[4] == CONTROL_TYPE_COMMAND) {
+    handleCommandPayload(payload, len);
+  }
+}
+
+void TCPBridge::handleBridgePacketPayload(const uint8_t *payload, uint16_t len) {
+  if (len < BRIDGE_V2_OVERHEAD) return;
+  if (payload[5] != BRIDGE_PACKET_VERSION) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet version %d unsupported\n", payload[5]);
+    return;
+  }
+
+  uint8_t ttl = payload[6];
+  uint32_t origin_id = ((uint32_t)payload[7] << 24) |
+                       ((uint32_t)payload[8] << 16) |
+                       ((uint32_t)payload[9] << 8) |
+                       payload[10];
+  uint8_t flags = payload[11];
+  uint16_t packet_len = ((uint16_t)payload[12] << 8) | payload[13];
+
+  if (ttl == 0) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet TTL expired\n");
+    return;
+  }
+  if (origin_id != 0 && origin_id == getBridgeId()) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet from self origin=0x%08lx\n", (unsigned long)origin_id);
+    return;
+  }
+  if (packet_len == 0 || len < (uint16_t)(BRIDGE_V2_OVERHEAD + packet_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet invalid mesh length %d\n", packet_len);
+    return;
+  }
+
+  mesh::Packet *pkt = _mgr->allocNew();
+  if (!pkt) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet failed to allocate packet\n");
+    return;
+  }
+  if (pkt->readFrom(payload + BRIDGE_V2_OVERHEAD, packet_len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet ttl=%d origin=0x%08lx flags=0x%02x len=%d\n",
+                         ttl, (unsigned long)origin_id, flags, packet_len);
+    onPacketReceived(pkt);
+  } else {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet failed to parse mesh packet\n");
+    _mgr->free(pkt);
+  }
+}
+
+void TCPBridge::handleCommandPayload(const uint8_t *payload, uint16_t len) {
+  if (!_command_handler || len < 11) return;
+
+  uint32_t request_id = ((uint32_t)payload[5] << 24) |
+                        ((uint32_t)payload[6] << 16) |
+                        ((uint32_t)payload[7] << 8) |
+                        payload[8];
+  uint8_t password_len = payload[9];
+  uint8_t command_len = payload[10];
+  if (command_len == 0 || len < (uint16_t)(11 + password_len + command_len)) {
+    sendCommandReply(request_id, "Err - invalid remote command");
+    return;
+  }
+
+  char password[32];
+  size_t password_copy_len = password_len;
+  if (password_copy_len >= sizeof(password)) password_copy_len = sizeof(password) - 1;
+  memcpy(password, payload + 11, password_copy_len);
+  password[password_copy_len] = 0;
+
+  char command[96];
+  size_t copy_len = command_len;
+  if (copy_len >= sizeof(command)) copy_len = sizeof(command) - 1;
+  memcpy(command, payload + 11 + password_len, copy_len);
+  command[copy_len] = 0;
+
+  char reply[192];
+  reply[0] = 0;
+  _command_handler->handleTcpBridgeCommand(password, command, reply, sizeof(reply));
+  if (reply[0] == 0) {
+    strncpy(reply, "OK", sizeof(reply));
+    reply[sizeof(reply) - 1] = 0;
+  }
+  sendCommandReply(request_id, reply);
+}
+
+void TCPBridge::sendCommandReply(uint32_t request_id, const char *reply) {
+  uint8_t payload[MAX_TRANS_UNIT + 1];
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_COMMAND_REPLY;
+  payload[5] = (request_id >> 24) & 0xFF;
+  payload[6] = (request_id >> 16) & 0xFF;
+  payload[7] = (request_id >> 8) & 0xFF;
+  payload[8] = request_id & 0xFF;
+
+  size_t reply_len = strlen(reply);
+  if (reply_len > (MAX_TRANS_UNIT + 1) - 10) {
+    reply_len = (MAX_TRANS_UNIT + 1) - 10;
+  }
+  payload[9] = (uint8_t)reply_len;
+  memcpy(payload + 10, reply, reply_len);
+  sendPayloadFrame(payload, 10 + reply_len);
+}
+
 bool TCPBridge::isControlPayload(const uint8_t *payload, uint16_t len) const {
   return len >= 5 && payload[0] == 'M' && payload[1] == 'C' &&
          payload[2] == 'N' && payload[3] == 'G';
@@ -371,20 +511,111 @@ bool TCPBridge::isControlPacket(const uint8_t *payload, uint16_t len) const {
 void TCPBridge::sendPacket(mesh::Packet *packet) {
   if (!_initialized || !packet) return;
   if (_state != State::RUNNING) return;
+  if (!shouldExportPacket(packet)) return;
 
   if (!_seen_packets.hasSeen(packet)) {
-    uint8_t payload[MAX_TRANS_UNIT + 1];
-    uint16_t len = packet->writeTo(payload);
-
-    if (len > (MAX_TRANS_UNIT + 1)) {
-      BRIDGE_DEBUG_PRINTLN("TCP bridge: TX packet too large (len=%d)\n", len);
-      return;
-    }
-
-    if (sendPayloadFrame(payload, len)) {
-      BRIDGE_DEBUG_PRINTLN("TCP bridge: TX len=%d\n", len);
-    }
+    sendBridgePacket(packet);
   }
+}
+
+bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
+  uint8_t payload[MAX_TCP_PAYLOAD_SIZE];
+  uint16_t mesh_len = packet->writeTo(payload + BRIDGE_V2_OVERHEAD);
+
+  if (mesh_len > (MAX_TRANS_UNIT + 1)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: TX packet too large (len=%d)\n", mesh_len);
+    return false;
+  }
+
+  uint8_t ttl = _prefs->bridge_tcp_ttl;
+  if (ttl == 0) ttl = 1;
+
+  payload[0] = 'M';
+  payload[1] = 'C';
+  payload[2] = 'N';
+  payload[3] = 'G';
+  payload[4] = CONTROL_TYPE_BRIDGE_PACKET;
+  payload[5] = BRIDGE_PACKET_VERSION;
+  payload[6] = ttl;
+  uint32_t id = getBridgeId();
+  payload[7] = (id >> 24) & 0xFF;
+  payload[8] = (id >> 16) & 0xFF;
+  payload[9] = (id >> 8) & 0xFF;
+  payload[10] = id & 0xFF;
+  payload[11] = packet->wasReceivedFromBridge() ? 0 : BRIDGE_PACKET_FLAG_RF_RX;
+  payload[12] = (mesh_len >> 8) & 0xFF;
+  payload[13] = mesh_len & 0xFF;
+
+  uint16_t len = mesh_len + BRIDGE_V2_OVERHEAD;
+  if (sendPayloadFrame(payload, len)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: TX bridge packet ttl=%d origin=0x%08lx len=%d\n",
+                         ttl, (unsigned long)id, mesh_len);
+    return true;
+  }
+  return false;
+}
+
+bool TCPBridge::shouldExportPacket(const mesh::Packet *packet) const {
+  if (!packet) return false;
+  if (packet->wasReceivedFromBridge()) return false;
+
+  if (_prefs->bridge_export_max_hops > 0 &&
+      packet->getPathHashCount() > _prefs->bridge_export_max_hops) {
+    return false;
+  }
+
+  switch (_prefs->bridge_export_filter) {
+    case BRIDGE_EXPORT_FLOOD:
+      return packet->isRouteFlood();
+    case BRIDGE_EXPORT_CHANNELS:
+      return isChannelPacket(packet);
+    case BRIDGE_EXPORT_MESSAGES:
+      return isMessagePacket(packet);
+    case BRIDGE_EXPORT_ALL:
+    default:
+      return true;
+  }
+}
+
+bool TCPBridge::isChannelPacket(const mesh::Packet *packet) const {
+  if (!packet || !packet->isRouteFlood()) return false;
+  uint8_t type = packet->getPayloadType();
+  return type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA;
+}
+
+bool TCPBridge::isMessagePacket(const mesh::Packet *packet) const {
+  if (!packet) return false;
+  uint8_t type = packet->getPayloadType();
+  switch (type) {
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_ACK:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_GRP_TXT:
+    case PAYLOAD_TYPE_GRP_DATA:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return true;
+    default:
+      return false;
+  }
+}
+
+uint32_t TCPBridge::getBridgeId() {
+  if (_bridge_id != 0) return _bridge_id;
+
+  uint8_t mac[6] = {};
+  WiFi.macAddress(mac);
+  _bridge_id = fnv1a32(mac, sizeof(mac));
+  if (_bridge_id == 0 || _bridge_id == 2166136261UL) {
+    size_t name_len = 0;
+    while (name_len < sizeof(_prefs->node_name) && _prefs->node_name[name_len] != '\0') {
+      name_len++;
+    }
+    _bridge_id = fnv1a32((const uint8_t *)_prefs->node_name, name_len);
+  }
+  if (_bridge_id == 0) _bridge_id = 1;
+  return _bridge_id;
 }
 
 void TCPBridge::onPacketReceived(mesh::Packet *packet) {

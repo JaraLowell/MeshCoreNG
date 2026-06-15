@@ -1,5 +1,6 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <helpers/LowBatteryBootGuard.h>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -597,7 +598,7 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
-  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && !_prefs.bridge_rf) {
+  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && _prefs.bridge_rf == BRIDGE_RF_OFF) {
     return false;
   }
   if (_prefs.disable_fwd) {
@@ -1327,6 +1328,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bridge_delay   = 500;  // milliseconds
   _prefs.bridge_pkt_src = 0;    // logTx
   _prefs.bridge_rf      = 0;    // do not forward bridge floods to RF by default
+  _prefs.bridge_export_filter = BRIDGE_EXPORT_ALL;
+  _prefs.bridge_export_max_hops = 0; // unlimited
+  _prefs.bridge_tcp_ttl = 2;
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 
@@ -1339,6 +1343,18 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
   _prefs.fem_rx_gain = board.getFemRxGain();
+  _prefs.low_bat_boot_guard_enabled = 1;
+  _prefs.low_bat_boot_guard_mv = LOW_BAT_BOOT_GUARD_MV;
+  _prefs.low_bat_boot_valid_min_mv = LOW_BAT_BOOT_VALID_MIN_MV;
+  _prefs.low_bat_boot_retry_secs = LOW_BAT_BOOT_RETRY_SECS;
+  _prefs.low_bat_runtime_guard_enabled = 1;
+  _prefs.low_bat_runtime_guard_mv = LOW_BAT_RUNTIME_GUARD_MV;
+  _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
+  _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
+  _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
+  memset(_prefs.reserved_ntp_server, 0, sizeof(_prefs.reserved_ntp_server));
+  _prefs.reserved_ntp_enabled = 0;
+  _prefs.reserved_ntp_interval_secs = 0;
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -1359,6 +1375,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  guardLowBatteryBoot(board, _prefs.low_bat_boot_guard_enabled, _prefs.low_bat_boot_guard_mv, _prefs.low_bat_boot_valid_min_mv, _prefs.low_bat_boot_retry_secs);
   scheduleDailyReboot();
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
@@ -1390,9 +1407,13 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.setCommandHandler(this);
     tcp_bridge.begin();
     ble_bridge.begin();
 #else
+#if defined(WITH_TCP_BRIDGE)
+    bridge.setCommandHandler(this);
+#endif
     bridge.begin();
 #endif
   }
@@ -1414,6 +1435,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif
+
 }
 
 void MyMesh::scheduleDailyReboot() {
@@ -1918,6 +1940,35 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }
+
+#if defined(WITH_TCP_BRIDGE)
+void MyMesh::handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) {
+  char local_command[96];
+  char local_reply[768];
+
+  if (strcmp(password, _prefs.password) != 0) {
+    if (reply_size > 0) {
+      strncpy(reply, "Error: invalid node admin password", reply_size);
+      reply[reply_size - 1] = 0;
+    }
+    return;
+  }
+
+  size_t command_len = 0;
+  while (command_len < sizeof(local_command) - 1 && command[command_len] != 0) {
+    command_len++;
+  }
+  memcpy(local_command, command, command_len);
+  local_command[command_len] = 0;
+
+  local_reply[0] = 0;
+  handleCommand(0, local_command, local_reply);
+
+  if (reply_size == 0) return;
+  strncpy(reply, local_reply, reply_size);
+  reply[reply_size - 1] = 0;
+}
+#endif
 
 void MyMesh::formatDailyRebootReply(char* reply) const {
 #if SUPPORT_DAILY_REBOOT

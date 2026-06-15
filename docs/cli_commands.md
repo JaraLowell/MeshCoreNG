@@ -9,9 +9,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - [Statistics](#statistics)
 - [Logging](#logging)
 - [Information](#info)
-- [Configuration](#configuration)
+  - [Configuration](#configuration)
   - [Radio](#radio)
   - [System](#system)
+  - [Low Battery Boot Guard](#low-battery-boot-guard)
+  - [Runtime Low Battery Guard](#runtime-low-battery-guard)
   - [Routing](#routing)
   - [ACL](#acl)
   - [Region Management](#region-management-v110)
@@ -495,6 +497,136 @@ These counters are RAM-only and reset on reboot or with `clear power.stats`.
 **Default:** `0.0` (value defined by board)
 
 **Note:** Returns "Error: unsupported by this board" if hardware doesn't support it
+
+---
+
+### Low Battery Boot Guard
+
+The low-battery boot guard prevents supported battery-powered boards from continuing into full firmware startup while the measured battery voltage is still too low. This helps avoid repeated brownout/reset loops after a deeply discharged battery is connected to a charger.
+
+These commands are available on Repeater, GPS tracker / Sensor, and Room Server builds that use the normal MeshCore CLI. KISS modem, companion radio, and secure chat builds use the build-time defaults.
+
+#### Enable or disable the guard
+**Usage:**
+- `get boot.lowbat.guard`
+- `set boot.lowbat.guard <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
+#### View or change the low-battery boot threshold
+**Usage:**
+- `get boot.lowbat.mv`
+- `set boot.lowbat.mv <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0` or `2500-6000`
+
+**Default:** `3300`
+
+**Note:** `0` disables the threshold, but `set boot.lowbat.guard off` is clearer.
+
+---
+
+#### View or change the minimum valid battery reading
+**Usage:**
+- `get boot.lowbat.valid_min`
+- `set boot.lowbat.valid_min <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `2500`
+
+**Note:** Readings below this value are treated as invalid or unsupported and do not block boot.
+
+---
+
+#### View or change the retry interval
+**Usage:**
+- `get boot.lowbat.retry`
+- `set boot.lowbat.retry <seconds>`
+
+**Parameters:**
+- `seconds`: `5-3600`
+
+**Default:** `60`
+
+**Note:** Changes are stored in node preferences and apply on the next boot after preferences are loaded.
+
+---
+
+### Runtime Low Battery Guard
+
+The runtime low-battery guard protects battery-powered Repeater, GPS tracker / Sensor, and Room Server builds after normal startup. When enabled, the firmware periodically checks battery voltage from the main loop. If the reading is valid, the board is not externally powered, and voltage is below the runtime threshold, the node sleeps before continuing work.
+
+This is separate from the boot guard. The boot guard prevents brownout boot loops; the runtime guard prevents a running node from draining the battery too far.
+
+#### Enable or disable the runtime guard
+**Usage:**
+- `get runtime.lowbat.guard`
+- `set runtime.lowbat.guard <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
+#### View or change the runtime sleep threshold
+**Usage:**
+- `get runtime.lowbat.mv`
+- `set runtime.lowbat.mv <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0` or `2500-6000`
+
+**Default:** `3300`
+
+**Note:** `0` disables the threshold, but `set runtime.lowbat.guard off` is clearer.
+
+---
+
+#### View or change the runtime warning threshold
+**Usage:**
+- `get runtime.lowbat.warn`
+- `set runtime.lowbat.warn <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `3500`
+
+**Note:** The warning threshold is stored for status/telemetry use. The current guard action is controlled by `runtime.lowbat.mv`.
+
+---
+
+#### View or change the minimum valid runtime battery reading
+**Usage:**
+- `get runtime.lowbat.valid_min`
+- `set runtime.lowbat.valid_min <millivolts>`
+
+**Parameters:**
+- `millivolts`: `0-6000`
+
+**Default:** `2500`
+
+---
+
+#### View or change the runtime low-battery sleep interval
+**Usage:**
+- `get runtime.lowbat.retry`
+- `set runtime.lowbat.retry <seconds>`
+
+**Parameters:**
+- `seconds`: `5-86400`
+
+**Default:** `1800`
 
 ---
 
@@ -1381,7 +1513,7 @@ set bridge.password optionalSecret
 set bridge.enabled on
 ```
 
-**Upgrade note:** After the large merge from the original MeshCore v1.16.0 firmware, the saved preferences layout may differ from older MeshCoreNG builds. On the first upgrade, WiFi and TCP bridge settings can appear empty or reset to defaults. Re-enter `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optionally `bridge.password`, and `bridge.enabled`. Normal later OTA updates with a non-merged `.bin` should preserve those settings.
+**Upgrade note:** MeshCoreNG keeps compatibility with the TCP bridge preferences used before the large merge from the original MeshCore v1.16.0 firmware. When upgrading from older MeshCoreNG bridge builds, saved WiFi and TCP bridge settings are migrated from the legacy layout automatically. If a node was already booted with a build that saved shifted/empty values, re-enter `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optionally `bridge.password`, and `bridge.enabled` once.
 
 **3. Available firmware variants** (compile with PlatformIO):
 - `Heltec_v3_repeater_bridge_tcp`
@@ -1441,17 +1573,84 @@ set bridge.enabled on
 
 ---
 
-#### View or change RF forwarding for bridge flood packets
+#### View or change RF forwarding for bridge packets
 **Usage:**
 - `get bridge.rf`
 - `set bridge.rf <state>`
 
 **Parameters:**
-- `state`: `on`|`off`
+- `state`:
+  - `off`: do not put bridge-originated packets on RF
+  - `on` or `flood`: allow bridge-originated flood packets through the normal repeater forwarding path
+  - `local` or `ttl1`: inject bridge-originated packets once on local RF only
 
-When enabled, flood packets received from the bridge may be forwarded on LoRa RF by the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+In `on`/`flood` mode, flood packets received from the bridge may be forwarded on LoRa RF by the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+
+In `local`/`ttl1` mode, packets received from the bridge are transmitted once by this node on local RF. Flood packets are marked with a full path before transmit so other repeaters should process but not re-flood them. Direct packets are transmitted as zero-hop local packets so nearby matching clients can receive them without creating a routed multi-hop bridge loop.
 
 **Default:** `off`
+
+---
+
+#### View or change which packets are exported to the bridge
+**Usage:**
+- `get bridge.export`
+- `set bridge.export <mode>`
+
+**Parameters:**
+- `mode`:
+  - `all`: export all packets selected by `bridge.source`
+  - `flood`: export only flood packets selected by `bridge.source`
+  - `channels`: export only channel/group flood packets selected by `bridge.source`
+  - `messages`: export DM/chat-related packets and channel/group packets selected by `bridge.source`
+
+`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision without adding a TCP bridge hop to the MeshCore packet path.
+
+**Default:** `all`
+
+---
+
+#### Limit exported bridge packets by RF hop count
+**Usage:**
+- `get bridge.export.maxhops`
+- `set bridge.export.maxhops <hops>`
+
+**Parameters:**
+- `hops`: Maximum RF path hash count to export, from `0` to `63`. `0` means unlimited.
+
+This is useful for RF island bridges where channel packets heard from several RF hops away should still cross the TCP bridge, but very old floods should stay local.
+
+**Default:** `0`
+
+---
+
+#### View or change TCP bridge envelope TTL
+**Usage:**
+- `get bridge.tcp.ttl`
+- `set bridge.tcp.ttl <ttl>`
+
+**Parameters:**
+- `ttl`: TCP bridge envelope TTL, from `1` to `8`.
+
+The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. The MeshCore route/path is not modified.
+
+**Default:** `2`
+
+---
+
+#### Apply a bridge profile
+**Usage:**
+- `set bridge.profile <profile>`
+
+**Parameters:**
+  - `profile`:
+  - `default`: conservative defaults (`bridge.source logTx`, `bridge.rf off`, export all, unlimited hops, TCP TTL 2)
+  - `island`: RF-island bridge preset (`bridge.source both`, `bridge.rf local`, export message packets up to 4 RF hops, TCP TTL 2)
+  - `repeater`: transport-repeater preset (`bridge.source both`, `bridge.rf on`, export all packets, unlimited export hops, TCP TTL 2)
+
+The `island` profile is intended for controlled RF islands, for example one bridge node on SF7 and another on SF8. It exports eligible RF RX packets to TCP even when the local repeater policy decides not to retransmit them on RF, and injects packets from TCP once on the receiving RF island.
+
+The `repeater` profile is intended for controlled deployments where the TCP bridge should behave as much like a repeater/backhaul as possible. It exports every packet selected by RF RX/TX and lets bridge-originated flood packets pass through the normal RF repeater forwarding path on the receiving side.
 
 ---
 

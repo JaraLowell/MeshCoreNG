@@ -64,6 +64,22 @@ get power.stats
 clear power.stats
 ```
 
+### Low-battery guards
+
+```
+get boot.lowbat.guard
+set boot.lowbat.guard on|off
+get boot.lowbat.mv
+set boot.lowbat.mv 3300
+
+get runtime.lowbat.guard
+set runtime.lowbat.guard on|off
+get runtime.lowbat.mv
+set runtime.lowbat.mv 3300
+get runtime.lowbat.retry
+set runtime.lowbat.retry 1800
+```
+
 ### Daily reboot
 
 Repeater-only and TCP bridge repeater builds can optionally reboot on an uptime timer. The feature is disabled by default and is not included in RS232 or ESP-NOW bridge builds.

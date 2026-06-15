@@ -37,6 +37,22 @@ MeshCoreNG wil dit beter maken:
 - Een telemetry-basis voor toekomstige kaarten, dashboards en observers.
 - Geen breuk met bestaande MeshCore clients.
 
+## Betrouwbaarheid van nodes
+
+MeshCoreNG bevat nu ook een algemene low-battery boot guard voor boards met een batterijmeter. Direct na `board.begin()` leest de firmware de batterijspanning van het board. Als die meting geldig maar te laag is, gaat de node slapen en probeert hij later opnieuw, in plaats van meteen radio, display, GPS, sensors of bridge-code te starten. Dit helpt vooral bij boards die na een diep ontladen batterij aan een lader blijven rebooten.
+
+Standaardgedrag:
+
+- lager dan `2500mV`: behandelen als ongeldige of niet-ondersteunde batterijmeting
+- `2500mV` tot `3299mV`: slapen en opnieuw proberen
+- `3300mV` of hoger: normaal doorstarten
+
+Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI instellen met `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min` en `set boot.lowbat.retry`. Deze waarden zijn ook per build aan te passen met `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` en `LOW_BAT_BOOT_RETRY_SECS`.
+
+Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## Wat hebben we nu gedaan?
 
 We hebben de eerste echte dense-mesh basis toegevoegd aan de repeater firmware.
@@ -209,7 +225,7 @@ set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
-**Upgrade-notitie:** Na de grote merge van de originele MeshCore v1.16.0 firmware kan de opgeslagen preferences-layout afwijken van oudere MeshCoreNG builds. Daardoor kunnen WiFi- en TCP bridge-instellingen na de eerste update leeg/default lijken. Vul in dat geval `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, eventueel `bridge.password` en `bridge.enabled` opnieuw in. Normale volgende OTA-updates met een niet-merged `.bin` zouden deze instellingen daarna behouden.
+**Upgrade-notitie:** MeshCoreNG blijft compatibel met de TCP bridge preferences van voor de grote merge van de originele MeshCore v1.16.0 firmware. Bij een update vanaf oudere MeshCoreNG bridge-builds worden opgeslagen WiFi- en TCP bridge-instellingen automatisch uit de legacy-layout gemigreerd. Als een node al een keer met een build heeft opgestart die verschoven/lege waarden heeft opgeslagen, vul dan eenmalig `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, eventueel `bridge.password` en `bridge.enabled` opnieuw in.
 
 Bridge-repeaters sturen bridge-originated flood traffic standaard niet opnieuw via LoRa RF uit. Voor gecontroleerde deployments waarbij bridge-verkeer bewust het lokale RF-mesh in mag, zet je dit expliciet aan:
 
@@ -217,7 +233,25 @@ Bridge-repeaters sturen bridge-originated flood traffic standaard niet opnieuw v
 set bridge.rf on
 ```
 
+Voor eenmalige lokale RF-injectie van bridge-originated packets gebruik je:
+
+```text
+set bridge.rf local
+```
+
 Bridge RF-forwarding loopt nog steeds via het normale repeater-forwardingpad. Regioregels, duplicate checks, loop detection, hop-limieten, relay probability, retransmit delay en de normale RF TX queue blijven gelden.
+
+Voor gecontroleerde RF-eilanden of backbone-links gebruik je de bridge export- en profile-controls in plaats van de TCP bridge een echte MeshCore route-hop te maken:
+
+```text
+set bridge.profile island    # RF-eiland bridge: source both, RF local, messages tot 4 RF hops
+set bridge.profile repeater  # gecontroleerde backhaul: source both, RF on, export all
+get bridge.export
+get bridge.export.maxhops
+get bridge.tcp.ttl
+```
+
+TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. De MeshCore route/path in het packet wordt niet aangepast.
 
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
@@ -233,7 +267,7 @@ MeshCoreNG heeft meerdere bridge-routes:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
 | `_bridge_ble` | BLE UART bridge | nRF52- en ESP32-BLE-repeaters kunnen een korte-afstand bridge maken zonder WiFi, USB of extra UART-bedrading. |
 
-Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina.
+Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, recente packet type/route/hop logs, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`.
 
 De BLE bridge is beschikbaar voor nRF52 BLE-varianten met Bluefruit en ESP32-varianten met BLE-support. Hij draait tegelijk als central en peripheral, zodat beide repeaters de BLE-link kunnen starten. Flash dezelfde `_bridge_ble` firmware op beide repeaters, zet eventueel op beide kanten dezelfde `bridge.secret` voor een private bridge-pair, en zet daarna `set bridge.enabled on`. Gecombineerde `_bridge_tcp_ble` builds zijn toegevoegd voor ESP32-boards met genoeg flash; 4MB ESP32-boards blijven per board testkandidaten omdat TCP+BLE daar krap kan worden.
 
@@ -653,6 +687,9 @@ set bridge.port   4200
 set bridge.password <bridge wachtwoord>
 set bridge.enabled on
 set bridge.rf on
+set bridge.profile island
+get bridge.export
+get bridge.tcp.ttl
 get bridge.type
 get bridge.status
 get node.info

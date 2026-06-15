@@ -35,6 +35,22 @@ MeshCoreNG will das besser machen:
 - Eine Telemetrie-Basis fuer zukuenftige Karten, Dashboards und Observer.
 - Kein Bruch mit bestehenden MeshCore-Clients.
 
+## Zuverlaessigkeit von Nodes
+
+MeshCoreNG enthaelt jetzt auch einen generischen Low-Battery Boot Guard fuer Boards mit Batteriemessung. Direkt nach `board.begin()` liest die Firmware die Batteriespannung des Boards. Wenn der Wert gueltig, aber zu niedrig ist, schlaeft der Node und versucht es spaeter erneut, statt sofort Radio, Display, GPS, Sensoren oder Bridge-Code zu starten. Das hilft besonders bei Boards, die nach einer tief entladenen Batterie am Ladegeraet in einer Boot-Schleife haengen bleiben.
+
+Standardverhalten:
+
+- unter `2500mV`: als ungueltige oder nicht unterstuetzte Batteriemessung behandeln
+- `2500mV` bis `3299mV`: schlafen und erneut versuchen
+- `3300mV` oder hoeher: normal weiter booten
+
+Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds koennen das per CLI mit `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min` und `set boot.lowbat.retry` einstellen. Diese Werte koennen auch pro Build mit `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` und `LOW_BAT_BOOT_RETRY_SECS` angepasst werden.
+
+Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds haben ausserdem einen Runtime Low-Battery Guard. Waehrend der Node laeuft, prueft die Firmware periodisch die Batteriespannung. Wenn der Node nicht extern versorgt wird und die Batterie unter die Runtime-Schwelle faellt, geht er schlafen, bevor WiFi, Bridge, GPS, Display oder Radio die Batterie weiter entladen. Einstellen kann man das mit `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` und `set runtime.lowbat.retry`. Siehe [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS-Tracker-Varianten mit Display lassen das Display jetzt eingeschaltet und zeigen Tracker-Informationen wie GPS-Fix-Status, Satelliten, Position oder Waiting-Status, TX-Intervall und Batteriespannung. Siehe [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## Was haben wir jetzt gemacht?
 
 Wir haben die erste echte Dense-Mesh-Basis zur Repeater-Firmware hinzugefuegt.
@@ -217,7 +233,7 @@ set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
-**Upgrade-Hinweis:** Nach dem grossen Merge der originalen MeshCore v1.16.0 Firmware kann das gespeicherte Preferences-Layout von aelteren MeshCoreNG Builds abweichen. Beim ersten Upgrade koennen WiFi- und TCP-Bridge-Einstellungen deshalb leer wirken oder auf Defaults zurueckfallen. Trage dann `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optional `bridge.password` und `bridge.enabled` erneut ein. Normale spaetere OTA-Updates mit einer nicht-merged `.bin` sollten diese Einstellungen danach behalten.
+**Upgrade-Hinweis:** MeshCoreNG bleibt kompatibel mit den TCP-Bridge-Preferences von vor dem grossen Merge der originalen MeshCore v1.16.0 Firmware. Beim Upgrade von aelteren MeshCoreNG-Bridge-Builds werden gespeicherte WiFi- und TCP-Bridge-Einstellungen automatisch aus dem Legacy-Layout migriert. Wenn ein Node bereits mit einem Build gestartet wurde, der verschobene/leere Werte gespeichert hat, trage einmalig `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optional `bridge.password` und `bridge.enabled` erneut ein.
 
 Bridge-Repeater leiten Bridge-originated Flood-Traffic standardmaessig nicht erneut ueber LoRa RF weiter. Fuer kontrollierte Deployments, bei denen Bridge-Traffic bewusst in das lokale RF-Mesh eingespeist werden soll, muss das explizit aktiviert werden:
 
@@ -225,7 +241,25 @@ Bridge-Repeater leiten Bridge-originated Flood-Traffic standardmaessig nicht ern
 set bridge.rf on
 ```
 
+Fuer eine einmalige lokale RF-Injektion von Bridge-originated Packets:
+
+```text
+set bridge.rf local
+```
+
 Bridge RF-Forwarding laeuft weiterhin ueber den normalen Repeater-Forwarding-Pfad. Regionsregeln, Duplicate Checks, Loop Detection, Hop-Limits, Relay Probability, Retransmit Delay und die normale RF TX Queue bleiben aktiv.
+
+Fuer kontrollierte RF-Inseln oder Backbone-Links nutze die Bridge-Export- und Profil-Controls, statt die TCP Bridge zu einem echten MeshCore Route-Hop zu machen:
+
+```text
+set bridge.profile island    # RF-Insel-Bridge: source both, RF local, messages bis 4 RF hops
+set bridge.profile repeater  # kontrollierter Backhaul: source both, RF on, export all
+get bridge.export
+get bridge.export.maxhops
+get bridge.tcp.ttl
+```
+
+TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Die MeshCore Route/Path im Packet wird nicht veraendert.
 
 Alle 38 ESP32-Repeater-Varianten haben jetzt eine passende `_bridge_tcp` Firmware. Siehe [docs/cli_commands.md](./docs/cli_commands.md) fuer alle Einstellmoeglichkeiten.
 
@@ -241,7 +275,7 @@ MeshCoreNG hat mehrere Bridge-Routen:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32-Bridge-Experimente, bei denen WiFi-Infrastruktur nicht der Haupttransport ist. |
 | `_bridge_ble` | BLE UART Bridge | nRF52- und ESP32-BLE-Repeater koennen eine Kurzstrecken-Bridge ohne WiFi, USB oder zusaetzliche UART-Verkabelung bilden. |
 
-Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit.
+Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit. Die Python TCP-Bridge-Server-Statusseite zeigt verbundene Nodes, aktuelle Packet-Type/Route/Hop-Logs, Sensor-Adverts, Tracker-Positionen und JSON Endpoints wie `/status.json`, `/packets.json`, `/sensors.json` und `/locations.json`.
 
 Die BLE Bridge ist fuer nRF52-BLE-Varianten mit Bluefruit und ESP32-Varianten mit BLE-Support verfuegbar. Sie laeuft gleichzeitig als Central und Peripheral, sodass beide Repeater den BLE-Link starten koennen. Flash dieselbe `_bridge_ble` Firmware auf beide Repeater, setze optional auf beiden Seiten dieselbe `bridge.secret` fuer ein privates Bridge-Paar, und aktiviere danach `set bridge.enabled on`. Kombinierte `_bridge_tcp_ble` Builds sind fuer ESP32-Boards mit genug Flash enthalten; 4MB ESP32-Boards bleiben Board-fuer-Board-Testkandidaten, weil TCP+BLE dort knapp werden kann.
 
@@ -769,6 +803,9 @@ set bridge.port   4200
 set bridge.password <bridge passwort>
 set bridge.enabled on
 set bridge.rf on
+set bridge.profile island
+get bridge.export
+get bridge.tcp.ttl
 get bridge.type
 get bridge.status
 get node.info

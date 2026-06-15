@@ -1,4 +1,5 @@
 #include "SensorMesh.h"
+#include <helpers/LowBatteryBootGuard.h>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -739,6 +740,15 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
   _prefs.fem_rx_gain = board.getFemRxGain();
+  _prefs.low_bat_boot_guard_enabled = 1;
+  _prefs.low_bat_boot_guard_mv = LOW_BAT_BOOT_GUARD_MV;
+  _prefs.low_bat_boot_valid_min_mv = LOW_BAT_BOOT_VALID_MIN_MV;
+  _prefs.low_bat_boot_retry_secs = LOW_BAT_BOOT_RETRY_SECS;
+  _prefs.low_bat_runtime_guard_enabled = 1;
+  _prefs.low_bat_runtime_guard_mv = LOW_BAT_RUNTIME_GUARD_MV;
+  _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
+  _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
+  _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
@@ -748,6 +758,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  guardLowBatteryBoot(board, _prefs.low_bat_boot_guard_enabled, _prefs.low_bat_boot_guard_mv, _prefs.low_bat_boot_valid_min_mv, _prefs.low_bat_boot_retry_secs);
 
   acl.load(_fs, self_id);
   region_map.load(_fs);

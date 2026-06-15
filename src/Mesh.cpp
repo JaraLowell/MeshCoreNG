@@ -419,6 +419,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       }
       break;
 
+    case PAYLOAD_TYPE_LOCATION:
+      if (!hasSeen(pkt)) {
+        action = routeRecvPacket(pkt);
+      }
+      break;
+
     default:
       MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): unknown payload type, header: %d", getLogDateTime(), (int) pkt->header);
       // Don't flood route unknown packet types!   action = routeRecvPacket(pkt);
@@ -439,6 +445,11 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   uint8_t n = packet->getPathHashCount();
+  const uint8_t max_location_repeater_hops = 2;
+  if (packet->getPayloadType() == PAYLOAD_TYPE_LOCATION && n >= max_location_repeater_hops) {
+    return ACTION_RELEASE;
+  }
+
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
     && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)) {
     // append this node's hash to 'path'

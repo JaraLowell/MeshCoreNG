@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/LowBatteryBootGuard.h>
 #include "MyMesh.h"
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -115,6 +116,7 @@ void setup() {
   Serial.begin(115200);
 
   board.begin();
+  guardLowBatteryBoot(board);
 
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;

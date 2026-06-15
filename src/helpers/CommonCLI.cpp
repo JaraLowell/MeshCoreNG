@@ -61,6 +61,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 #endif
   if (file) {
     uint8_t pad[8];
+    size_t prefs_size = file.size();
+    bool legacy_meshcoreng_v109_tail = prefs_size == 529 + sizeof(AtlasConfig);
 
     file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
     file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
@@ -105,78 +107,202 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    uint8_t flood_max_unscoped = _prefs->flood_max_unscoped;
-    if (file.read((uint8_t *)&flood_max_unscoped, sizeof(flood_max_unscoped)) == sizeof(flood_max_unscoped)) {
-      _prefs->flood_max_unscoped = flood_max_unscoped;                                             // 291
-    }
-    uint8_t flood_max_advert = _prefs->flood_max_advert;
-    if (file.read((uint8_t *)&flood_max_advert, sizeof(flood_max_advert)) == sizeof(flood_max_advert)) {
-      _prefs->flood_max_advert = flood_max_advert;                                                 // 292
-    }
     float default_flood_advert_base = _prefs->flood_advert_base;
-    float flood_advert_base = default_flood_advert_base;
-    if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
-      _prefs->flood_advert_base = flood_advert_base;                                               // 293
-    }
-    uint8_t flood_relay_prob = _prefs->flood_relay_prob;
-    if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
-      _prefs->flood_relay_prob = flood_relay_prob;                                                 // 297
-    }
-    uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
-    if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
-      _prefs->flood_dynamic_enable = flood_dynamic_enable;                                         // 298
-    }
-    char wifi_ssid[32] = {};
-    if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
-      memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                     // 299
-    }
-    char wifi_password[64] = {};
-    if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
-      memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                         // 331
-    }
-    char bridge_server[64] = {};
-    if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
-      memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                         // 395
-    }
-    uint16_t bridge_port = _prefs->bridge_port;
-    if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
-      _prefs->bridge_port = bridge_port;                                                           // 459
-    }
-    uint8_t malformed_drop = _prefs->malformed_drop;
-    if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
-      _prefs->malformed_drop = malformed_drop;                                                     // 461
-    }
-    uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
-    if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
-      _prefs->flood_node_delay_enable = flood_node_delay_enable;                                   // 462
-    }
-    uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
-    if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
-      _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                               // 463
-    }
-    AtlasConfig atlas = _prefs->atlas;
-    if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
-      _prefs->atlas = atlas;                                                                       // 464
-    }
-    uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
-    if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
-      _prefs->daily_reboot_enabled = daily_reboot_enabled;                                         // 464 + sizeof(AtlasConfig)
-    }
-    uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
-    if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
-      _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                           // 465 + sizeof(AtlasConfig)
-    }
-    uint8_t bridge_rf = _prefs->bridge_rf;
-    if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
-      _prefs->bridge_rf = bridge_rf;                                                               // 466 + sizeof(AtlasConfig)
-    }
-    char bridge_password[64] = {};
-    if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
-      memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                    // 467 + sizeof(AtlasConfig)
-    }
-    uint8_t fem_rx_gain = _prefs->fem_rx_gain;
-    if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
-      _prefs->fem_rx_gain = fem_rx_gain;                                                           // 531 + sizeof(AtlasConfig)
+
+    if (legacy_meshcoreng_v109_tail) {
+      float flood_advert_base = default_flood_advert_base;
+      if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
+        _prefs->flood_advert_base = flood_advert_base;                                             // 291 legacy MeshCoreNG <= bridge-tcp-v1.0.9
+      }
+      uint8_t flood_relay_prob = _prefs->flood_relay_prob;
+      if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
+        _prefs->flood_relay_prob = flood_relay_prob;                                               // 295 legacy
+      }
+      uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
+      if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
+        _prefs->flood_dynamic_enable = flood_dynamic_enable;                                       // 296 legacy
+      }
+      char wifi_ssid[32] = {};
+      if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
+        memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 297 legacy
+      }
+      char wifi_password[64] = {};
+      if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
+        memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 329 legacy
+      }
+      char bridge_server[64] = {};
+      if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
+        memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 393 legacy
+      }
+      uint16_t bridge_port = _prefs->bridge_port;
+      if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
+        _prefs->bridge_port = bridge_port;                                                         // 457 legacy
+      }
+      uint8_t malformed_drop = _prefs->malformed_drop;
+      if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
+        _prefs->malformed_drop = malformed_drop;                                                   // 459 legacy
+      }
+      uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+      if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+        _prefs->flood_node_delay_enable = flood_node_delay_enable;                                 // 460 legacy
+      }
+      uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+      if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+        _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                             // 461 legacy
+      }
+      AtlasConfig atlas = _prefs->atlas;
+      if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
+        _prefs->atlas = atlas;                                                                     // 462 legacy
+      }
+      uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
+      if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
+        _prefs->daily_reboot_enabled = daily_reboot_enabled;                                       // 462 + sizeof(AtlasConfig) legacy
+      }
+      uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
+      if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
+        _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                         // 463 + sizeof(AtlasConfig) legacy
+      }
+      uint8_t bridge_rf = _prefs->bridge_rf;
+      if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
+        _prefs->bridge_rf = bridge_rf;                                                             // 464 + sizeof(AtlasConfig) legacy
+      }
+      char bridge_password[64] = {};
+      if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
+        memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                  // 465 + sizeof(AtlasConfig) legacy
+      }
+    } else {
+      uint8_t flood_max_unscoped = _prefs->flood_max_unscoped;
+      if (file.read((uint8_t *)&flood_max_unscoped, sizeof(flood_max_unscoped)) == sizeof(flood_max_unscoped)) {
+        _prefs->flood_max_unscoped = flood_max_unscoped;                                           // 291
+      }
+      uint8_t flood_max_advert = _prefs->flood_max_advert;
+      if (file.read((uint8_t *)&flood_max_advert, sizeof(flood_max_advert)) == sizeof(flood_max_advert)) {
+        _prefs->flood_max_advert = flood_max_advert;                                               // 292
+      }
+      float flood_advert_base = default_flood_advert_base;
+      if (file.read((uint8_t *)&flood_advert_base, sizeof(flood_advert_base)) == sizeof(flood_advert_base)) {
+        _prefs->flood_advert_base = flood_advert_base;                                             // 293
+      }
+      uint8_t flood_relay_prob = _prefs->flood_relay_prob;
+      if (file.read((uint8_t *)&flood_relay_prob, sizeof(flood_relay_prob)) == sizeof(flood_relay_prob)) {
+        _prefs->flood_relay_prob = flood_relay_prob;                                               // 297
+      }
+      uint8_t flood_dynamic_enable = _prefs->flood_dynamic_enable;
+      if (file.read((uint8_t *)&flood_dynamic_enable, sizeof(flood_dynamic_enable)) == sizeof(flood_dynamic_enable)) {
+        _prefs->flood_dynamic_enable = flood_dynamic_enable;                                       // 298
+      }
+      char wifi_ssid[32] = {};
+      if (file.read((uint8_t *)wifi_ssid, sizeof(wifi_ssid)) == sizeof(wifi_ssid)) {
+        memcpy(_prefs->wifi_ssid, wifi_ssid, sizeof(wifi_ssid));                                   // 299
+      }
+      char wifi_password[64] = {};
+      if (file.read((uint8_t *)wifi_password, sizeof(wifi_password)) == sizeof(wifi_password)) {
+        memcpy(_prefs->wifi_password, wifi_password, sizeof(wifi_password));                       // 331
+      }
+      char bridge_server[64] = {};
+      if (file.read((uint8_t *)bridge_server, sizeof(bridge_server)) == sizeof(bridge_server)) {
+        memcpy(_prefs->bridge_server, bridge_server, sizeof(bridge_server));                       // 395
+      }
+      uint16_t bridge_port = _prefs->bridge_port;
+      if (file.read((uint8_t *)&bridge_port, sizeof(bridge_port)) == sizeof(bridge_port)) {
+        _prefs->bridge_port = bridge_port;                                                         // 459
+      }
+      uint8_t malformed_drop = _prefs->malformed_drop;
+      if (file.read((uint8_t *)&malformed_drop, sizeof(malformed_drop)) == sizeof(malformed_drop)) {
+        _prefs->malformed_drop = malformed_drop;                                                   // 461
+      }
+      uint8_t flood_node_delay_enable = _prefs->flood_node_delay_enable;
+      if (file.read((uint8_t *)&flood_node_delay_enable, sizeof(flood_node_delay_enable)) == sizeof(flood_node_delay_enable)) {
+        _prefs->flood_node_delay_enable = flood_node_delay_enable;                                 // 462
+      }
+      uint8_t flood_dup_suppress_enable = _prefs->flood_dup_suppress_enable;
+      if (file.read((uint8_t *)&flood_dup_suppress_enable, sizeof(flood_dup_suppress_enable)) == sizeof(flood_dup_suppress_enable)) {
+        _prefs->flood_dup_suppress_enable = flood_dup_suppress_enable;                             // 463
+      }
+      AtlasConfig atlas = _prefs->atlas;
+      if (file.read((uint8_t *)&atlas, sizeof(atlas)) == sizeof(atlas)) {
+        _prefs->atlas = atlas;                                                                     // 464
+      }
+      uint8_t daily_reboot_enabled = _prefs->daily_reboot_enabled;
+      if (file.read((uint8_t *)&daily_reboot_enabled, sizeof(daily_reboot_enabled)) == sizeof(daily_reboot_enabled)) {
+        _prefs->daily_reboot_enabled = daily_reboot_enabled;                                       // 464 + sizeof(AtlasConfig)
+      }
+      uint8_t daily_reboot_interval_hours = _prefs->daily_reboot_interval_hours;
+      if (file.read((uint8_t *)&daily_reboot_interval_hours, sizeof(daily_reboot_interval_hours)) == sizeof(daily_reboot_interval_hours)) {
+        _prefs->daily_reboot_interval_hours = daily_reboot_interval_hours;                         // 465 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_rf = _prefs->bridge_rf;
+      if (file.read((uint8_t *)&bridge_rf, sizeof(bridge_rf)) == sizeof(bridge_rf)) {
+        _prefs->bridge_rf = bridge_rf;                                                             // 466 + sizeof(AtlasConfig)
+      }
+      char bridge_password[64] = {};
+      if (file.read((uint8_t *)bridge_password, sizeof(bridge_password)) == sizeof(bridge_password)) {
+        memcpy(_prefs->bridge_password, bridge_password, sizeof(bridge_password));                  // 467 + sizeof(AtlasConfig)
+      }
+      uint8_t fem_rx_gain = _prefs->fem_rx_gain;
+      if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
+        _prefs->fem_rx_gain = fem_rx_gain;                                                         // 531 + sizeof(AtlasConfig)
+      }
+      uint8_t low_bat_boot_guard_enabled = _prefs->low_bat_boot_guard_enabled;
+      if (file.read((uint8_t *)&low_bat_boot_guard_enabled, sizeof(low_bat_boot_guard_enabled)) == sizeof(low_bat_boot_guard_enabled)) {
+        _prefs->low_bat_boot_guard_enabled = low_bat_boot_guard_enabled;                           // 532 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_guard_mv = _prefs->low_bat_boot_guard_mv;
+      if (file.read((uint8_t *)&low_bat_boot_guard_mv, sizeof(low_bat_boot_guard_mv)) == sizeof(low_bat_boot_guard_mv)) {
+        _prefs->low_bat_boot_guard_mv = low_bat_boot_guard_mv;                                     // 533 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_valid_min_mv = _prefs->low_bat_boot_valid_min_mv;
+      if (file.read((uint8_t *)&low_bat_boot_valid_min_mv, sizeof(low_bat_boot_valid_min_mv)) == sizeof(low_bat_boot_valid_min_mv)) {
+        _prefs->low_bat_boot_valid_min_mv = low_bat_boot_valid_min_mv;                             // 535 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_boot_retry_secs = _prefs->low_bat_boot_retry_secs;
+      if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
+        _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 537 + sizeof(AtlasConfig)
+      }
+      char reserved_ntp_server[64] = {};
+      if (file.read((uint8_t *)reserved_ntp_server, sizeof(reserved_ntp_server)) == sizeof(reserved_ntp_server)) {
+        memcpy(_prefs->reserved_ntp_server, reserved_ntp_server, sizeof(reserved_ntp_server));       // 539 + sizeof(AtlasConfig)
+      }
+      uint8_t reserved_ntp_enabled = _prefs->reserved_ntp_enabled;
+      if (file.read((uint8_t *)&reserved_ntp_enabled, sizeof(reserved_ntp_enabled)) == sizeof(reserved_ntp_enabled)) {
+        _prefs->reserved_ntp_enabled = reserved_ntp_enabled;                                       // 603 + sizeof(AtlasConfig)
+      }
+      uint32_t reserved_ntp_interval_secs = _prefs->reserved_ntp_interval_secs;
+      if (file.read((uint8_t *)&reserved_ntp_interval_secs, sizeof(reserved_ntp_interval_secs)) == sizeof(reserved_ntp_interval_secs)) {
+        _prefs->reserved_ntp_interval_secs = reserved_ntp_interval_secs;                           // 604 + sizeof(AtlasConfig)
+      }
+      uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
+      if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
+        _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                      // 608 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_guard_mv = _prefs->low_bat_runtime_guard_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_guard_mv, sizeof(low_bat_runtime_guard_mv)) == sizeof(low_bat_runtime_guard_mv)) {
+        _prefs->low_bat_runtime_guard_mv = low_bat_runtime_guard_mv;                                // 609 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_warn_mv = _prefs->low_bat_runtime_warn_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_warn_mv, sizeof(low_bat_runtime_warn_mv)) == sizeof(low_bat_runtime_warn_mv)) {
+        _prefs->low_bat_runtime_warn_mv = low_bat_runtime_warn_mv;                                  // 611 + sizeof(AtlasConfig)
+      }
+      uint16_t low_bat_runtime_valid_min_mv = _prefs->low_bat_runtime_valid_min_mv;
+      if (file.read((uint8_t *)&low_bat_runtime_valid_min_mv, sizeof(low_bat_runtime_valid_min_mv)) == sizeof(low_bat_runtime_valid_min_mv)) {
+        _prefs->low_bat_runtime_valid_min_mv = low_bat_runtime_valid_min_mv;                        // 613 + sizeof(AtlasConfig)
+      }
+      uint32_t low_bat_runtime_retry_secs = _prefs->low_bat_runtime_retry_secs;
+      if (file.read((uint8_t *)&low_bat_runtime_retry_secs, sizeof(low_bat_runtime_retry_secs)) == sizeof(low_bat_runtime_retry_secs)) {
+        _prefs->low_bat_runtime_retry_secs = low_bat_runtime_retry_secs;                            // 615 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_export_filter = _prefs->bridge_export_filter;
+      if (file.read((uint8_t *)&bridge_export_filter, sizeof(bridge_export_filter)) == sizeof(bridge_export_filter)) {
+        _prefs->bridge_export_filter = bridge_export_filter;                                        // 619 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_export_max_hops = _prefs->bridge_export_max_hops;
+      if (file.read((uint8_t *)&bridge_export_max_hops, sizeof(bridge_export_max_hops)) == sizeof(bridge_export_max_hops)) {
+        _prefs->bridge_export_max_hops = bridge_export_max_hops;                                    // 620 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_tcp_ttl = _prefs->bridge_tcp_ttl;
+      if (file.read((uint8_t *)&bridge_tcp_ttl, sizeof(bridge_tcp_ttl)) == sizeof(bridge_tcp_ttl)) {
+        _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                    // 621 + sizeof(AtlasConfig)
+      }
     }
     uint8_t tcp_flood_limit_enable = _prefs->tcp_flood_limit_enable;
     if (file.read((uint8_t *)&tcp_flood_limit_enable, sizeof(tcp_flood_limit_enable)) == sizeof(tcp_flood_limit_enable)) {
@@ -219,6 +345,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       memcpy(_prefs->cli_server_password, cli_server_password, sizeof(cli_server_password));       // 548 + sizeof(AtlasConfig)
     }
     // next: 580 + sizeof(AtlasConfig)
+    // next: 622 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -238,7 +365,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 2);
-    _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 1);
+    _prefs->bridge_rf = constrain(_prefs->bridge_rf, 0, 2);
+    _prefs->bridge_export_filter = constrain(_prefs->bridge_export_filter, 0, 3);
+    _prefs->bridge_export_max_hops = constrain(_prefs->bridge_export_max_hops, 0, 63);
+    _prefs->bridge_tcp_ttl = constrain(_prefs->bridge_tcp_ttl, 1, 8);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -246,6 +376,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
     _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
     _prefs->fem_rx_gain = constrain(_prefs->fem_rx_gain, 0, 1);
+    _prefs->low_bat_boot_guard_enabled = constrain(_prefs->low_bat_boot_guard_enabled, 0, 1);
+    _prefs->low_bat_boot_guard_mv = constrain(_prefs->low_bat_boot_guard_mv, 0, 6000);
+    _prefs->low_bat_boot_valid_min_mv = constrain(_prefs->low_bat_boot_valid_min_mv, 0, 6000);
+    _prefs->low_bat_boot_retry_secs = constrain(_prefs->low_bat_boot_retry_secs, 5, 3600);
+    _prefs->low_bat_runtime_guard_enabled = constrain(_prefs->low_bat_runtime_guard_enabled, 0, 1);
+    _prefs->low_bat_runtime_guard_mv = constrain(_prefs->low_bat_runtime_guard_mv, 0, 6000);
+    _prefs->low_bat_runtime_warn_mv = constrain(_prefs->low_bat_runtime_warn_mv, 0, 6000);
+    _prefs->low_bat_runtime_valid_min_mv = constrain(_prefs->low_bat_runtime_valid_min_mv, 0, 6000);
+    _prefs->low_bat_runtime_retry_secs = constrain(_prefs->low_bat_runtime_retry_secs, 5UL, 86400UL);
 
     // sanitize TCP flood protection settings
     _prefs->tcp_flood_limit_enable = constrain(_prefs->tcp_flood_limit_enable, 0, 1);
@@ -379,6 +518,22 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->cli_server_port, sizeof(_prefs->cli_server_port));              // 546 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->cli_server_password, sizeof(_prefs->cli_server_password));      // 548 + sizeof(AtlasConfig)
     // next: 580 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_enabled, sizeof(_prefs->low_bat_boot_guard_enabled)); // 532 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 533 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 535 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 537 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_server, sizeof(_prefs->reserved_ntp_server));      // 539 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_enabled, sizeof(_prefs->reserved_ntp_enabled));    // 603 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->reserved_ntp_interval_secs, sizeof(_prefs->reserved_ntp_interval_secs)); // 604 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 608 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 609 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 611 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_valid_min_mv, sizeof(_prefs->low_bat_runtime_valid_min_mv)); // 613 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_retry_secs, sizeof(_prefs->low_bat_runtime_retry_secs)); // 615 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 619 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 620 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 621 + sizeof(AtlasConfig)
+    // next: 622 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -874,6 +1029,94 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "boot.lowbat.guard ", 18) == 0) {
+    uint8_t enabled = 0;
+    if (parseOnOff(&config[18], &enabled)) {
+      _prefs->low_bat_boot_guard_enabled = enabled;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "boot.lowbat.mv ", 15) == 0) {
+    const char* value = &config[15];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && (mv == 0 || (mv >= 2500 && mv <= 6000))) {
+      _prefs->low_bat_boot_guard_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: threshold must be 0 or 2500-6000 mV");
+    }
+  } else if (memcmp(config, "boot.lowbat.valid_min ", 22) == 0) {
+    const char* value = &config[22];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_boot_valid_min_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: valid_min must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "boot.lowbat.retry ", 18) == 0) {
+    const char* value = &config[18];
+    uint16_t secs = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && secs >= 5 && secs <= 3600) {
+      _prefs->low_bat_boot_retry_secs = secs;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: retry must be 5-3600 seconds");
+    }
+  } else if (memcmp(config, "runtime.lowbat.guard ", 21) == 0) {
+    uint8_t enabled = 0;
+    if (parseOnOff(&config[21], &enabled)) {
+      _prefs->low_bat_runtime_guard_enabled = enabled;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "runtime.lowbat.mv ", 18) == 0) {
+    const char* value = &config[18];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && (mv == 0 || (mv >= 2500 && mv <= 6000))) {
+      _prefs->low_bat_runtime_guard_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: threshold must be 0 or 2500-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.warn ", 20) == 0) {
+    const char* value = &config[20];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_runtime_warn_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: warning threshold must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.valid_min ", 25) == 0) {
+    const char* value = &config[25];
+    uint16_t mv = (uint16_t)_atoi(value);
+    if (*value >= '0' && *value <= '9' && mv <= 6000) {
+      _prefs->low_bat_runtime_valid_min_mv = mv;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: valid_min must be 0-6000 mV");
+    }
+  } else if (memcmp(config, "runtime.lowbat.retry ", 21) == 0) {
+    const char* value = &config[21];
+    uint32_t secs = _atoi(value);
+    if (*value >= '0' && *value <= '9' && secs >= 5 && secs <= 86400) {
+      _prefs->low_bat_runtime_retry_secs = secs;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: retry must be 5-86400 seconds");
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -1128,9 +1371,87 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: source must be tx, rx, or both");
     }
   } else if (memcmp(config, "bridge.rf ", 10) == 0) {
-    _prefs->bridge_rf = memcmp(&config[10], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    if (memcmp(&config[10], "off", 3) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_OFF;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[10], "on", 2) == 0 || memcmp(&config[10], "flood", 5) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_FLOOD;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[10], "local", 5) == 0 || memcmp(&config[10], "ttl1", 4) == 0) {
+      _prefs->bridge_rf = BRIDGE_RF_LOCAL;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: mode must be off, on, flood, local, or ttl1");
+    }
+  } else if (memcmp(config, "bridge.export.maxhops ", 22) == 0) {
+    int max_hops = _atoi(&config[22]);
+    if (max_hops >= 0 && max_hops <= 63) {
+      _prefs->bridge_export_max_hops = (uint8_t)max_hops;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: maxhops must be between 0-63");
+    }
+  } else if (memcmp(config, "bridge.export ", 14) == 0) {
+    if (memcmp(&config[14], "all", 3) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "flood", 5) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_FLOOD;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "channel", 7) == 0 || memcmp(&config[14], "channels", 8) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_CHANNELS;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "messages", 8) == 0 || memcmp(&config[14], "msg", 3) == 0) {
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: export must be all, flood, channels, or messages");
+    }
+  } else if (memcmp(config, "bridge.tcp.ttl ", 15) == 0) {
+    int ttl = _atoi(&config[15]);
+    if (ttl >= 1 && ttl <= 8) {
+      _prefs->bridge_tcp_ttl = (uint8_t)ttl;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: ttl must be between 1-8");
+    }
+  } else if (memcmp(config, "bridge.profile ", 15) == 0) {
+    if (memcmp(&config[15], "island", 6) == 0) {
+      _prefs->bridge_pkt_src = 2; // RF RX and RF TX export
+      _prefs->bridge_rf = BRIDGE_RF_LOCAL;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
+      _prefs->bridge_export_max_hops = 4;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge island profile applied");
+    } else if (memcmp(&config[15], "repeater", 8) == 0) {
+      _prefs->bridge_pkt_src = 2; // RF RX and RF TX export
+      _prefs->bridge_rf = BRIDGE_RF_FLOOD;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      _prefs->bridge_export_max_hops = 0;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge repeater profile applied");
+    } else if (memcmp(&config[15], "default", 7) == 0) {
+      _prefs->bridge_pkt_src = 0;
+      _prefs->bridge_rf = BRIDGE_RF_OFF;
+      _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
+      _prefs->bridge_export_max_hops = 0;
+      _prefs->bridge_tcp_ttl = 2;
+      savePrefs();
+      strcpy(reply, "OK - bridge default profile applied");
+    } else {
+      strcpy(reply, "Error: profile must be island, repeater, or default");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -1384,6 +1705,24 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: FEM RX gain not supported");
     }
+  } else if (memcmp(config, "boot.lowbat.guard", 17) == 0) {
+    sprintf(reply, "> %s", _prefs->low_bat_boot_guard_enabled ? "on" : "off");
+  } else if (memcmp(config, "boot.lowbat.mv", 14) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_guard_mv);
+  } else if (memcmp(config, "boot.lowbat.valid_min", 21) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_valid_min_mv);
+  } else if (memcmp(config, "boot.lowbat.retry", 17) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_boot_retry_secs);
+  } else if (memcmp(config, "runtime.lowbat.guard", 20) == 0) {
+    sprintf(reply, "> %s", _prefs->low_bat_runtime_guard_enabled ? "on" : "off");
+  } else if (memcmp(config, "runtime.lowbat.mv", 17) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_guard_mv);
+  } else if (memcmp(config, "runtime.lowbat.warn", 19) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_warn_mv);
+  } else if (memcmp(config, "runtime.lowbat.valid_min", 24) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->low_bat_runtime_valid_min_mv);
+  } else if (memcmp(config, "runtime.lowbat.retry", 20) == 0) {
+    sprintf(reply, "> %lu", (unsigned long)_prefs->low_bat_runtime_retry_secs);
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));
@@ -1458,7 +1797,21 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "bridge.source", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_pkt_src == 2 ? "both" : (_prefs->bridge_pkt_src ? "logRx" : "logTx"));
   } else if (memcmp(config, "bridge.rf", 9) == 0) {
-    sprintf(reply, "> %s", _prefs->bridge_rf ? "on" : "off");
+    sprintf(reply, "> %s", _prefs->bridge_rf == BRIDGE_RF_LOCAL ? "local" : (_prefs->bridge_rf ? "on" : "off"));
+  } else if (memcmp(config, "bridge.export.maxhops", 21) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->bridge_export_max_hops);
+  } else if (memcmp(config, "bridge.export", 13) == 0) {
+    const char *mode = "all";
+    if (_prefs->bridge_export_filter == BRIDGE_EXPORT_FLOOD) {
+      mode = "flood";
+    } else if (_prefs->bridge_export_filter == BRIDGE_EXPORT_CHANNELS) {
+      mode = "channels";
+    } else if (_prefs->bridge_export_filter == BRIDGE_EXPORT_MESSAGES) {
+      mode = "messages";
+    }
+    sprintf(reply, "> %s", mode);
+  } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
 #if defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.status", 13) == 0) {
     _callbacks->formatBleBridgeStatusReply(reply);

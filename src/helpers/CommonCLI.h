@@ -26,6 +26,15 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define BRIDGE_RF_OFF         0
+#define BRIDGE_RF_FLOOD       1
+#define BRIDGE_RF_LOCAL       2
+
+#define BRIDGE_EXPORT_ALL       0
+#define BRIDGE_EXPORT_FLOOD     1
+#define BRIDGE_EXPORT_CHANNELS  2
+#define BRIDGE_EXPORT_MESSAGES  3
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -55,7 +64,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_enabled; // boolean
   uint16_t bridge_delay;  // milliseconds (default 500 ms)
   uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx, 2 = both (default logTx)
-  uint8_t bridge_rf;      // allow received bridge flood packets to be forwarded on RF
+  uint8_t bridge_rf;      // BRIDGE_RF_* mode for packets received from a bridge
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for wireless bridge packet isolation (ESP-NOW/BLE)
@@ -100,6 +109,22 @@ struct NodePrefs { // persisted to file
   uint8_t cli_server_enabled; // enable TCP CLI server
   uint16_t cli_server_port; // TCP port for CLI server (default 2323)
   char cli_server_password[32]; // optional password for CLI server access
+  uint8_t low_bat_boot_guard_enabled;
+  uint16_t low_bat_boot_guard_mv;
+  uint16_t low_bat_boot_valid_min_mv;
+  uint16_t low_bat_boot_retry_secs;
+  // Reserved bytes kept to preserve the on-device prefs file layout.
+  char reserved_ntp_server[64];
+  uint8_t reserved_ntp_enabled;
+  uint32_t reserved_ntp_interval_secs;
+  uint8_t low_bat_runtime_guard_enabled;
+  uint16_t low_bat_runtime_guard_mv;
+  uint16_t low_bat_runtime_warn_mv;
+  uint16_t low_bat_runtime_valid_min_mv;
+  uint32_t low_bat_runtime_retry_secs;
+  uint8_t bridge_export_filter;   // BRIDGE_EXPORT_* packet filter before bridge export
+  uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
+  uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
 };
 
 class CommonCLICallbacks {

@@ -1,8 +1,16 @@
 #include "SensorMesh.h"
 
+#include <helpers/LowBatteryBootGuard.h>
+#include <helpers/LocationReport.h>
+#include <helpers/TxtDataHelpers.h>
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
+#endif
+
+#ifndef LOCATION_TRACKER_INTERVAL_SECS
+  #define LOCATION_TRACKER_INTERVAL_SECS 0
 #endif
 
 class MyMesh : public SensorMesh {
@@ -11,12 +19,53 @@ public:
      : SensorMesh(board, radio, ms, rng, rtc, tables), 
        battery_data(12*24, 5*60)    // 24 hours worth of battery data, every 5 minutes
   {
+    next_location_report = 0;
+  }
+
+  void loopApp() {
+#if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+    if (next_location_report == 0 || millisHasNowPassed(next_location_report)) {
+      sendLocationReport();
+      next_location_report = futureMillis(((uint32_t)LOCATION_TRACKER_INTERVAL_SECS) * 1000);
+    }
+#endif
   }
 
 protected:
   /* ========================== custom logic here ========================== */
   Trigger low_batt, critical_batt;
   TimeSeriesData  battery_data;
+  unsigned long next_location_report;
+
+#if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+  void sendLocationReport() {
+    LocationProvider* location = sensors.getLocationProvider();
+    if (!location || !location->isEnabled() || !location->isValid()) return;
+
+    meshcore::LocationReport report;
+    memcpy(report.node_id, self_id.pub_key, sizeof(report.node_id));
+    report.lat_microdeg = (int32_t)location->getLatitude();
+    report.lon_microdeg = (int32_t)location->getLongitude();
+    report.altitude_m = (int16_t)(location->getAltitude() / 1000);
+    report.satellites = (uint8_t)min(255L, location->satellitesCount());
+    report.battery_mv = (uint16_t)min(65535, (int)board.getBattMilliVolts());
+    report.timestamp = (uint32_t)getRTCClock()->getCurrentTime();
+    StrHelper::strncpy(report.name, getNodeName(), sizeof(report.name));
+
+    uint8_t payload[meshcore::LOCATION_REPORT_MAX_ENCODED_LEN];
+    size_t len = meshcore::encodeLocationReport(payload, sizeof(payload), report);
+    if (len == 0) return;
+
+    mesh::Packet* pkt = obtainNewPacket();
+    if (!pkt) return;
+    pkt->header = (PAYLOAD_TYPE_LOCATION << PH_TYPE_SHIFT);
+    memcpy(pkt->payload, payload, len);
+    pkt->payload_len = len;
+
+    NodePrefs* prefs = getNodePrefs();
+    sendFlood(pkt, (uint32_t)0, prefs->path_hash_mode + 1);
+  }
+#endif
 
   void onSensorDataRead() override {
     float batt_voltage = getVoltage(TELEM_CHANNEL_SELF);
@@ -51,6 +100,7 @@ void halt() {
 }
 
 static char command[160];
+static unsigned long next_runtime_lowbat_check = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -107,7 +157,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), &sensors, &board, FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
   // send out initial zero hop Advertisement to the mesh
@@ -146,9 +196,19 @@ void loop() {
   }
 
   the_mesh.loop();
+  the_mesh.loopApp();
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+  NodePrefs* prefs = the_mesh.getNodePrefs();
+  if (next_runtime_lowbat_check == 0 || the_mesh.millisHasNowPassed(next_runtime_lowbat_check)) {
+    next_runtime_lowbat_check = millis() + LOW_BAT_RUNTIME_CHECK_SECS * 1000UL;
+    if (guardRuntimeLowBattery(board, prefs->low_bat_runtime_guard_enabled, prefs->low_bat_runtime_guard_mv,
+                               prefs->low_bat_runtime_valid_min_mv, prefs->low_bat_runtime_retry_secs)) {
+      return;
+    }
+  }
 }

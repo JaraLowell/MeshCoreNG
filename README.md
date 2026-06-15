@@ -42,6 +42,22 @@ MeshCoreNG aims to improve this:
 - A telemetry foundation for future maps, dashboards and observers.
 - No breakage for existing MeshCore clients.
 
+## Device Reliability Updates
+
+MeshCoreNG also includes a generic low-battery boot guard for battery-powered boards. Directly after `board.begin()`, firmware reads the board battery voltage. If the reading is valid but too low, the node sleeps and retries instead of starting radio, display, GPS, sensors or bridge code. This helps boards recover after a deeply discharged battery is connected to a charger.
+
+Default behavior:
+
+- below `2500mV`: treat as invalid or unsupported battery reading
+- `2500mV` to `3299mV`: sleep and retry
+- `3300mV` or higher: continue normal boot
+
+Repeater, GPS tracker / sensor, and room server builds can tune this from the CLI with `set boot.lowbat.guard`, `set boot.lowbat.mv`, `set boot.lowbat.valid_min`, and `set boot.lowbat.retry`. The defaults can also be tuned per build with `LOW_BAT_BOOT_GUARD_MV`, `LOW_BAT_BOOT_VALID_MIN_MV` and `LOW_BAT_BOOT_RETRY_SECS`.
+
+Repeater, GPS tracker / sensor, and room server builds also include a runtime low-battery guard. While the node is running, it periodically checks battery voltage. If the node is not externally powered and the battery falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further. Tune it with `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min`, and `set runtime.lowbat.retry`. See [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
+
+GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. See [docs/location_tracker.md](./docs/location_tracker.md).
+
 ## What Have We Done So Far?
 
 We have added the first real dense-mesh foundation to the repeater firmware.
@@ -296,7 +312,7 @@ set bridge.password bridgeSecret
 set bridge.enabled on
 ```
 
-**Upgrade note:** After the large merge from the original MeshCore v1.16.0 firmware, the saved preferences layout may differ from older MeshCoreNG builds. On the first upgrade, WiFi and TCP bridge settings can appear empty or reset to defaults. Re-enter `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optionally `bridge.password`, and `bridge.enabled`. Normal later OTA updates with a non-merged `.bin` should preserve those settings.
+**Upgrade note:** MeshCoreNG keeps compatibility with the TCP bridge preferences used before the large merge from the original MeshCore v1.16.0 firmware. When upgrading from older MeshCoreNG bridge builds, saved WiFi and TCP bridge settings are migrated from the legacy layout automatically. If a node was already booted with a build that saved shifted/empty values, re-enter `wifi.ssid`, `wifi.password`, `bridge.server`, `bridge.port`, optionally `bridge.password`, and `bridge.enabled` once.
 
 Bridge repeaters do not forward bridge-originated flood traffic onto LoRa RF by default. For controlled deployments that intentionally inject bridge traffic into the local RF mesh, enable:
 
@@ -304,7 +320,25 @@ Bridge repeaters do not forward bridge-originated flood traffic onto LoRa RF by 
 set bridge.rf on
 ```
 
+For one-hop local RF injection of bridge-originated packets, use:
+
+```text
+set bridge.rf local
+```
+
 Bridge RF forwarding still uses the normal repeater forwarding path. Region rules, duplicate checks, loop detection, hop limits, relay probability, retransmit delay, and the normal RF TX queue still apply.
+
+For controlled RF islands or backbone links, use the bridge export and profile controls instead of making the TCP bridge a real MeshCore route hop:
+
+```text
+set bridge.profile island    # RF island bridge: source both, RF local, messages up to 4 RF hops
+set bridge.profile repeater  # controlled backhaul: source both, RF on, export all
+get bridge.export
+get bridge.export.maxhops
+get bridge.tcp.ttl
+```
+
+TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. The MeshCore route/path inside the packet is not modified.
 
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
@@ -320,7 +354,7 @@ MeshCoreNG has multiple bridge paths:
 | `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
 | `_bridge_ble` | BLE UART bridge | nRF52 and ESP32 BLE repeaters can form a short-range bridge without WiFi, USB, or extra UART wiring. |
 
-Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported.
+Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported. The Python TCP bridge server status page shows connected nodes, recent packet type/route/hop logs, sensor adverts, tracker locations, and JSON endpoints such as `/status.json`, `/packets.json`, `/sensors.json`, and `/locations.json`.
 
 The BLE bridge is available for nRF52 BLE variants with Bluefruit and ESP32 variants with BLE support. It runs central and peripheral mode at the same time so either repeater can initiate the BLE link. Flash the same `_bridge_ble` firmware on both repeaters, set the same `bridge.secret` on both sides when you want to isolate a private bridge pair, then enable the bridge with `set bridge.enabled on`. Combined `_bridge_tcp_ble` builds are provided for ESP32 boards with enough flash; 4MB ESP32 boards are left as board-by-board test candidates because TCP+BLE can be tight there.
 
@@ -718,6 +752,9 @@ set bridge.port   4200
 set bridge.password <bridge password>
 set bridge.enabled on
 set bridge.rf on
+set bridge.profile island
+get bridge.export
+get bridge.tcp.ttl
 get bridge.type
 get bridge.status
 get node.info
