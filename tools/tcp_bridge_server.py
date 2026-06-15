@@ -20,7 +20,8 @@ Repeater firmware configuration (via CLI):
     set bridge.password <bridgeSecret>  # only when server --password is set
     set bridge.enabled on
 
-Requires Python 3.7+, no external dependencies.
+Requires Python 3.7+. Public channel decoding additionally needs:
+    pip install cryptography
 """
 
 import asyncio
@@ -28,12 +29,22 @@ import argparse
 import base64
 import binascii
 from collections import deque
+import hashlib
+import hmac
 import html
 import json
 import logging
 import struct
 import time
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+except ImportError:
+    Cipher = None
+    algorithms = None
+    modes = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,6 +66,8 @@ CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
 BRIDGE_V2_OVERHEAD = 14
 PAYLOAD_TYPE_ADVERT = 0x04
+PAYLOAD_TYPE_GRP_TXT = 0x05
+PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
@@ -68,8 +81,12 @@ ADV_NAME_MASK = 0x80
 PUB_KEY_SIZE = 32
 SIGNATURE_SIZE = 64
 MAX_ADVERT_DATA_SIZE = 32
+PATH_HASH_SIZE = 1
+CIPHER_MAC_SIZE = 2
+CIPHER_BLOCK_SIZE = 16
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
+PUBLIC_CHANNELS_FILE = ""
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
@@ -85,6 +102,7 @@ latest_locations: dict[str, dict] = {}
 latest_sensors: dict[str, dict] = {}
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
+public_channels: list[dict] = []
 
 PAYLOAD_TYPE_NAMES = {
     0x00: "request",
@@ -146,6 +164,141 @@ def route_type_name(route_type: int) -> str:
     return ROUTE_TYPE_NAMES.get(route_type, f"unknown-0x{route_type:02x}")
 
 
+def derive_channel_secret(secret_hex: str) -> bytes | None:
+    try:
+        raw = bytes.fromhex(secret_hex.strip())
+    except ValueError:
+        return None
+    if len(raw) == 16:
+        return raw + (b"\x00" * 16)
+    if len(raw) == 32:
+        return raw
+    return None
+
+
+def channel_hash(secret: bytes) -> bytes:
+    key_len = 16 if secret[16:] == b"\x00" * 16 else 32
+    return hashlib.sha256(secret[:key_len]).digest()[:PATH_HASH_SIZE]
+
+
+def load_public_channels(path: str) -> None:
+    public_channels.clear()
+    if not path:
+        return
+    if Cipher is None:
+        log.warning("Public channel decoding disabled: install python package 'cryptography'")
+        return
+
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Public channel decoding disabled: cannot read %s (%s)", path, exc)
+        return
+
+    if isinstance(data, dict):
+        data = data.get("channels", [])
+    if not isinstance(data, list):
+        log.warning("Public channel decoding disabled: %s must contain a list or {'channels': [...]} object", path)
+        return
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        secret = derive_channel_secret(str(item.get("secret", "")))
+        if not name or secret is None:
+            log.warning("Skipping invalid public channel entry: %s", item)
+            continue
+        public_channels.append({
+            "name": name,
+            "secret": secret,
+            "hash": channel_hash(secret),
+        })
+
+    log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
+
+
+def aes_ecb_decrypt(secret: bytes, data: bytes) -> bytes | None:
+    if Cipher is None or len(data) == 0 or len(data) % CIPHER_BLOCK_SIZE:
+        return None
+    cipher = Cipher(algorithms.AES(secret[:16]), modes.ECB())
+    decryptor = cipher.decryptor()
+    return decryptor.update(data) + decryptor.finalize()
+
+
+def mac_then_decrypt(secret: bytes, data: bytes) -> bytes | None:
+    if len(data) <= CIPHER_MAC_SIZE:
+        return None
+    expected = hmac.new(secret, data[CIPHER_MAC_SIZE:], hashlib.sha256).digest()[:CIPHER_MAC_SIZE]
+    if not hmac.compare_digest(expected, data[:CIPHER_MAC_SIZE]):
+        return None
+    return aes_ecb_decrypt(secret, data[CIPHER_MAC_SIZE:])
+
+
+def trim_c_string(data: bytes) -> str:
+    data = data.split(b"\x00", 1)[0]
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def decode_public_channel_payload(parsed: dict) -> dict:
+    result = {
+        "decoded_channel": "",
+        "decoded_status": "",
+        "decoded_text": "",
+        "decoded_data_type": None,
+        "decoded_data_len": None,
+    }
+    payload_type = parsed.get("payload_type")
+    app_payload = parsed.get("app_payload") or b""
+    if payload_type not in (PAYLOAD_TYPE_GRP_TXT, PAYLOAD_TYPE_GRP_DATA):
+        return result
+    if not public_channels:
+        result["decoded_status"] = "channel-keys-not-loaded"
+        return result
+    if len(app_payload) <= PATH_HASH_SIZE + CIPHER_MAC_SIZE:
+        result["decoded_status"] = "short-group-payload"
+        return result
+
+    packet_hash = app_payload[:PATH_HASH_SIZE]
+    encrypted = app_payload[PATH_HASH_SIZE:]
+    candidates = [ch for ch in public_channels if ch["hash"] == packet_hash]
+    if not candidates:
+        result["decoded_status"] = "unknown-channel"
+        return result
+
+    for channel in candidates:
+        plain = mac_then_decrypt(channel["secret"], encrypted)
+        if not plain:
+            continue
+        result["decoded_channel"] = channel["name"]
+        if payload_type == PAYLOAD_TYPE_GRP_TXT:
+            if len(plain) < 5:
+                result["decoded_status"] = "short-group-text"
+                return result
+            txt_type = plain[4]
+            if (txt_type >> 2) != 0:
+                result["decoded_status"] = f"unsupported-text-type-{txt_type}"
+                return result
+            result["decoded_status"] = "decoded"
+            result["decoded_text"] = trim_c_string(plain[5:])
+            return result
+
+        if len(plain) < 3:
+            result["decoded_status"] = "short-group-data"
+            return result
+        data_type = plain[0] | (plain[1] << 8)
+        data_len = plain[2]
+        data = plain[3:3 + data_len]
+        result["decoded_status"] = "decoded"
+        result["decoded_data_type"] = data_type
+        result["decoded_data_len"] = min(data_len, len(data))
+        result["decoded_text"] = f"data_type=0x{data_type:04x} len={min(data_len, len(data))} preview={payload_preview(data)}"
+        return result
+
+    result["decoded_status"] = "mac-failed"
+    return result
+
+
 def describe_packet(payload: bytes) -> dict:
     envelope = parse_bridge_packet_envelope(payload)
     mesh_payload = envelope["mesh_payload"] if envelope is not None else payload
@@ -162,6 +315,11 @@ def describe_packet(payload: bytes) -> dict:
         "origin_id": f"0x{envelope['origin_id']:08x}" if envelope is not None else "",
         "flags": f"0x{envelope['flags']:02x}" if envelope is not None else "",
         "mesh_len": len(mesh_payload),
+        "decoded_channel": "",
+        "decoded_status": "",
+        "decoded_text": "",
+        "decoded_data_type": None,
+        "decoded_data_len": None,
     }
 
     if envelope is None and payload.startswith(CONTROL_PREFIX):
@@ -191,6 +349,7 @@ def describe_packet(payload: bytes) -> dict:
         "route_id": route_type,
         "hops": parsed["path_hash_count"],
         "app_len": len(parsed["app_payload"]),
+        **decode_public_channel_payload(parsed),
     })
     return description
 
@@ -199,6 +358,8 @@ def format_packet_description(description: dict) -> str:
     parts = [f"type={description['type']}"]
     if description.get("route"):
         parts.append(f"route={description['route']}")
+    if description.get("decoded_channel"):
+        parts.append(f"channel={description['decoded_channel']}")
     if description.get("hops") is not None:
         parts.append(f"hops={description['hops']}")
     if description.get("app_len") is not None:
@@ -1227,11 +1388,13 @@ def build_status_html(base_path: str = "") -> str:
                 <th>Bytes</th>
                 <th>V2</th>
                 <th>TTL</th>
+                <th>Channel</th>
+                <th>Decoded</th>
                 <th>Preview</th>
               </tr>
             </thead>
             <tbody id="packetRows">
-              <tr><td colspan="10" class="empty">Loading packet telemetry</td></tr>
+              <tr><td colspan="12" class="empty">Loading packet telemetry</td></tr>
             </tbody>
           </table>
         </div>
@@ -1356,7 +1519,7 @@ def build_status_html(base_path: str = "") -> str:
       const rows = document.getElementById("packetRows");
       const packets = packetData.packets.slice(0, 50);
       if (!packets.length) {{
-        rows.innerHTML = '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>';
+        rows.innerHTML = '<tr><td colspan="12" class="empty">No packets seen yet</td></tr>';
         document.getElementById("packetFeed").innerHTML = '<div class="empty">Awaiting mesh traffic</div>';
         setStatus("packetStatus", "no traffic", "warn");
         setStatus("feedStatus", "quiet", "warn");
@@ -1377,6 +1540,8 @@ def build_status_html(base_path: str = "") -> str:
             <td>${{packet.size}}</td>
             <td>${{yesNo(packet.bridge_v2)}}</td>
             <td>${{text(packet.ttl, "")}}</td>
+            <td>${{escapeHtml(packet.decoded_channel || "")}}</td>
+            <td class="preview">${{escapeHtml(packet.decoded_text || packet.decoded_status || "")}}</td>
             <td class="preview">${{escapeHtml(packet.preview)}}</td>
           </tr>
         `;
@@ -1397,7 +1562,7 @@ def build_status_html(base_path: str = "") -> str:
           line.innerHTML = `
             <span class="meta">${{age(packet.age_seconds)}} ago</span>
             <span class="${{dirClass}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
           `;
           feed.prepend(line);
         }}
@@ -1407,7 +1572,7 @@ def build_status_html(base_path: str = "") -> str:
           <div class="feed-line">
             <span class="meta">${{age(packet.age_seconds)}} ago</span>
             <span class="${{packet.direction === "RX" ? "dir-rx" : "dir-tx"}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{escapeHtml(packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
           </div>
         `).join("");
       }}
@@ -1821,6 +1986,8 @@ if __name__ == "__main__":
                         help="HTTP status page port (default: 8080, 0 disables)")
     parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
                         help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
+    parser.add_argument("--public-channels-file", default="",
+                        help="JSON file with public channel names/secrets for optional group packet decoding")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
@@ -1841,6 +2008,8 @@ if __name__ == "__main__":
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
+    PUBLIC_CHANNELS_FILE = args.public_channels_file
+    load_public_channels(PUBLIC_CHANNELS_FILE)
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
