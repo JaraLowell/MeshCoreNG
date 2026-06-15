@@ -4,9 +4,6 @@
 
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include <WiFiUdp.h>
-#include <NTPClient.h>
-#include <time.h>
 #include <string.h>
 
 #ifndef FIRMWARE_VERSION
@@ -31,8 +28,7 @@ uint32_t fnv1a32(const uint8_t *data, size_t len) {
 TCPBridge::TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc), 
       _transport_flood_limiter(20, 120),   // default: 20 transport packets per 2 min
-      _control_flood_limiter(20, 120),     // default: 20 control packets per 2 min
-      _ntp_client(_ntp_udp, "pool.ntp.org", 0, 60000) {}
+      _control_flood_limiter(20, 120) {}   // default: 20 control packets per 2 min
 
 void TCPBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: starting...\n");
@@ -43,8 +39,6 @@ void TCPBridge::begin() {
   _last_heartbeat_ms = 0;
   _transport_dropped_count = 0;
   _control_dropped_count = 0;
-  _ntp_synced = false;
-  _last_ntp_sync = 0;
   
   // Configure selective rate limiters from preferences
   if (_prefs->tcp_flood_limit_enable) {
@@ -99,11 +93,7 @@ void TCPBridge::loop() {
       if (WiFi.status() == WL_CONNECTED) {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connected, IP=%s\n",
                              WiFi.localIP().toString().c_str());        
-        // Sync time with NTP on WiFi connection
-        if (!_ntp_synced) {
-          syncTimeWithNTP();
-        }
-                _state = State::SERVER_WAIT;
+        _state = State::SERVER_WAIT;
       } else if (now - _wifi_start_ms >= WIFI_CONNECT_TIMEOUT_MS) {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: WiFi connect timeout\n");
         WiFi.disconnect(false);
@@ -149,10 +139,6 @@ void TCPBridge::loop() {
         sendHeartbeat();
         _last_heartbeat_ms = now;
       }      
-      // Periodic NTP refresh every hour (3600000 ms)
-      if (WiFi.status() == WL_CONNECTED && _ntp_synced && (now - _last_ntp_sync > 3600000)) {
-        refreshNTP();
-      }
       readIncoming();
       break;
   }
@@ -628,7 +614,7 @@ void TCPBridge::getStatusStr(char *reply) const {
 
   if (!wifiOk) {
     const char *stateStr = (_state == State::WIFI_WAIT) ? "connecting..." : "disconnected";
-    sprintf(reply, "> WiFi: %s | Server: disconnected | NTP: not synced", stateStr);
+    sprintf(reply, "> WiFi: %s | Server: disconnected", stateStr);
     return;
   }
 
@@ -638,91 +624,16 @@ void TCPBridge::getStatusStr(char *reply) const {
                         : (_state == State::SERVER_WAIT) ? "connecting..."
                         : "disconnected";
   
-  const char *ntpStr = _ntp_synced ? "synced" : "not synced";
-  
   // Show flood protection stats if enabled and packets were dropped
   if (_prefs->tcp_flood_limit_enable && (_transport_dropped_count > 0 || _control_dropped_count > 0)) {
-    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s | Dropped: %lu transport, %lu control",
-            ip, WiFi.RSSI(), serverStr, ntpStr, 
+    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | Dropped: %lu transport, %lu control",
+            ip, WiFi.RSSI(), serverStr,
             (unsigned long)_transport_dropped_count,
             (unsigned long)_control_dropped_count);
   } else {
-    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s",
-            ip, WiFi.RSSI(), serverStr, ntpStr);
+    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s",
+            ip, WiFi.RSSI(), serverStr);
   }
-}
-
-void TCPBridge::syncTimeWithNTP() {
-  if (WiFi.status() != WL_CONNECTED) {
-    BRIDGE_DEBUG_PRINTLN("Cannot sync time - WiFi not connected\\n");
-    return;
-  }
-
-  uint32_t now = millis();
-  if (_ntp_synced && (now - _last_ntp_sync) < 5000) {
-    return;  // Already synced recently
-  }
-
-  BRIDGE_DEBUG_PRINTLN("Syncing time with NTP...\\n");
-
-  bool ntp_ok = false;
-  uint32_t epochTime = 0;
-  const uint32_t kMinValidEpoch = 1767225600;  // 2026-01-01 00:00:00 UTC
-
-  _ntp_client.begin();
-  const int kMaxNtpRetries = 3;
-
-  for (int attempt = 1; attempt <= kMaxNtpRetries && !ntp_ok; attempt++) {
-    if (attempt > 1) {
-      BRIDGE_DEBUG_PRINTLN("NTP retry %d/%d...\\n", attempt, kMaxNtpRetries);
-      delay(1000);
-    }
-    if (_ntp_client.forceUpdate()) {
-      epochTime = _ntp_client.getEpochTime();
-      if (epochTime >= kMinValidEpoch) {
-        ntp_ok = true;
-      }
-    }
-  }
-  _ntp_client.end();
-
-  // Fallback: use ESP32 built-in SNTP when NTPClient fails
-  if (!ntp_ok) {
-    BRIDGE_DEBUG_PRINTLN("NTP client failed, trying SNTP fallback...\\n");
-    configTime(0, 0, "pool.ntp.org");
-    for (int i = 0; i < 20; i++) {
-      delay(500);
-      epochTime = (uint32_t)time(nullptr);
-      if (epochTime >= kMinValidEpoch) {
-        ntp_ok = true;
-        BRIDGE_DEBUG_PRINTLN("SNTP fallback succeeded: %lu\\n", epochTime);
-        break;
-      }
-    }
-  }
-
-  if (ntp_ok) {
-    configTime(0, 0, "pool.ntp.org");
-
-    if (_rtc) {
-      _rtc->setCurrentTime(epochTime);
-    }
-
-    _ntp_synced = true;
-    _last_ntp_sync = millis();
-
-    BRIDGE_DEBUG_PRINTLN("Time synced: %lu\\n", epochTime);
-  } else {
-    BRIDGE_DEBUG_PRINTLN("NTP sync failed\\n");
-  }
-}
-
-void TCPBridge::refreshNTP() {
-  // Lightweight periodic refresh: just restart SNTP which runs async in the background
-  // No blocking DNS, no UDP sockets, no retry loops
-  configTime(0, 0, "pool.ntp.org");
-  _last_ntp_sync = millis();
-  BRIDGE_DEBUG_PRINTLN("NTP refresh triggered (async SNTP)\\n");
 }
 
 #endif

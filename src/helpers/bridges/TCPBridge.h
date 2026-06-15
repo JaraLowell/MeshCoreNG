@@ -6,9 +6,6 @@
 
 #ifdef WITH_TCP_BRIDGE
 
-#include <WiFiUdp.h>
-#include <NTPClient.h>
-
 /**
  * @brief Bridge implementation that tunnels mesh packets over a TCP connection
  *
@@ -134,13 +131,6 @@ private:
   RateLimiter _control_flood_limiter;    // for control/admin packets  
   uint32_t    _transport_dropped_count = 0;
   uint32_t    _control_dropped_count = 0;
-  
-  // NTP time synchronization
-  WiFiUDP      _ntp_udp;
-  NTPClient    _ntp_client;
-  bool         _ntp_synced = false;
-  uint32_t     _last_ntp_sync = 0;
-
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
   bool shouldExportPacket(const mesh::Packet *packet) const;
@@ -159,8 +149,6 @@ private:
   bool isTransportPacket(const uint8_t *payload, uint16_t len) const;
   bool isControlPacket(const uint8_t *payload, uint16_t len) const;
   void readIncoming();
-  void syncTimeWithNTP();
-  void refreshNTP();
 };
 
 #endif
