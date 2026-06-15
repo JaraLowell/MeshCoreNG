@@ -206,7 +206,19 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     if (file.read((uint8_t *)&tcp_flood_control_window, sizeof(tcp_flood_control_window)) == sizeof(tcp_flood_control_window)) {
       _prefs->tcp_flood_control_window = tcp_flood_control_window;                                 // 543 + sizeof(AtlasConfig)
     }
-    // next: 545 + sizeof(AtlasConfig)
+    uint8_t cli_server_enabled = _prefs->cli_server_enabled;
+    if (file.read((uint8_t *)&cli_server_enabled, sizeof(cli_server_enabled)) == sizeof(cli_server_enabled)) {
+      _prefs->cli_server_enabled = cli_server_enabled;                                             // 545 + sizeof(AtlasConfig)
+    }
+    uint16_t cli_server_port = _prefs->cli_server_port;
+    if (file.read((uint8_t *)&cli_server_port, sizeof(cli_server_port)) == sizeof(cli_server_port)) {
+      _prefs->cli_server_port = cli_server_port;                                                   // 546 + sizeof(AtlasConfig)
+    }
+    char cli_server_password[32] = {};
+    if (file.read((uint8_t *)cli_server_password, sizeof(cli_server_password)) == sizeof(cli_server_password)) {
+      memcpy(_prefs->cli_server_password, cli_server_password, sizeof(cli_server_password));       // 548 + sizeof(AtlasConfig)
+    }
+    // next: 580 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -251,6 +263,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->tcp_flood_transport_window = constrain(_prefs->tcp_flood_transport_window, 1, 3600);
     _prefs->tcp_flood_control_max = constrain(_prefs->tcp_flood_control_max, 0, 10000); // 0 = bypass
     _prefs->tcp_flood_control_window = constrain(_prefs->tcp_flood_control_window, 1, 3600);
+
+    // sanitize CLI server settings
+    _prefs->cli_server_enabled = constrain(_prefs->cli_server_enabled, 0, 1);
+    if (_prefs->cli_server_port == 0) _prefs->cli_server_port = 2323; // default telnet alternative port
+    _prefs->cli_server_port = constrain(_prefs->cli_server_port, 1024, 65535);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -358,7 +375,10 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->tcp_flood_transport_window, sizeof(_prefs->tcp_flood_transport_window)); // 539 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_max, sizeof(_prefs->tcp_flood_control_max));   // 541 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_window, sizeof(_prefs->tcp_flood_control_window)); // 543 + sizeof(AtlasConfig)
-    // next: 545 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->cli_server_enabled, sizeof(_prefs->cli_server_enabled));        // 545 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->cli_server_port, sizeof(_prefs->cli_server_port));              // 546 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->cli_server_password, sizeof(_prefs->cli_server_password));      // 548 + sizeof(AtlasConfig)
+    // next: 580 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1172,6 +1192,27 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
     }
+  } else if (memcmp(config, "cli.server.enabled ", 19) == 0) {
+    const char* value = &config[19];
+    if (parseOnOff(value, &_prefs->cli_server_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "cli.server.port ", 16) == 0) {
+    int port = _atoi(&config[16]);
+    if (port >= 1024 && port <= 65535) {
+      _prefs->cli_server_port = (uint16_t)port;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    } else {
+      strcpy(reply, "Error: port must be between 1024-65535");
+    }
+  } else if (memcmp(config, "cli.server.password ", 20) == 0) {
+    StrHelper::strncpy(_prefs->cli_server_password, &config[20], sizeof(_prefs->cli_server_password));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
   } else if (memcmp(config, "tcp.flood.limit ", 16) == 0) {
     const char* value = &config[16];
     if (parseOnOff(value, &_prefs->tcp_flood_limit_enable)) {
@@ -1448,6 +1489,16 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
+  } else if (memcmp(config, "cli.server.enabled", 18) == 0) {
+    sprintf(reply, "> %s", _prefs->cli_server_enabled ? "on" : "off");
+  } else if (memcmp(config, "cli.server.port", 15) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->cli_server_port);
+  } else if (memcmp(config, "cli.server.password", 19) == 0) {
+    if (_prefs->cli_server_password[0] != '\0') {
+      strcpy(reply, "> ***");
+    } else {
+      strcpy(reply, "> (none)");
+    }
   } else if (memcmp(config, "tcp.flood.limit", 15) == 0) {
     strcpy(reply, _prefs->tcp_flood_limit_enable ? "> on" : "> off");
   } else if (memcmp(config, "tcp.flood.max", 13) == 0) {

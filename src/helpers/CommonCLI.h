@@ -96,6 +96,10 @@ struct NodePrefs { // persisted to file
   uint16_t tcp_flood_transport_window; // transport time window in seconds
   uint16_t tcp_flood_control_max; // max control/admin packets (0 = bypass)
   uint16_t tcp_flood_control_window; // control time window in seconds
+  // CLI server settings (ESP32 only)
+  uint8_t cli_server_enabled; // enable TCP CLI server
+  uint16_t cli_server_port; // TCP port for CLI server (default 2323)
+  char cli_server_password[32]; // optional password for CLI server access
 };
 
 class CommonCLICallbacks {
