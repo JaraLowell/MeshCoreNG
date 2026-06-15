@@ -935,7 +935,7 @@ def normalize_base_path(path: str) -> str:
 
 
 def request_base_path(headers: dict[str, str]) -> str:
-    forwarded_prefix = headers.get("x-forwarded-prefix", "")
+    forwarded_prefix = headers.get("x-forwarded-prefix", "") or headers.get("x-script-name", "")
     if forwarded_prefix:
         return normalize_base_path(forwarded_prefix)
     return STATUS_BASE_PATH
