@@ -35,6 +35,7 @@ import hmac
 import html
 import json
 import logging
+import math
 import re
 import struct
 import time
@@ -107,6 +108,8 @@ CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 LOCATION_TRACKS_DIR = Path("logs/location_tracks")
+LOCATION_ROUTE_STATIONARY_SECS = 30 * 60
+LOCATION_ROUTE_STATIONARY_METERS = 30
 TRANSPORT_RATE_LIMIT_ENABLE = True
 TRANSPORT_RATE_LIMIT_MAX = 20
 TRANSPORT_RATE_LIMIT_WINDOW_SECS = 120
@@ -123,6 +126,7 @@ next_client_id = 1
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
 latest_location_tracks: dict[str, list[dict]] = {}
+latest_location_stationary: dict[str, dict] = {}
 latest_sensors: dict[str, dict] = {}
 transport_rx_times: deque[float] = deque()
 transport_rate_dropped = 0
@@ -867,6 +871,83 @@ def location_track_point(report: dict) -> dict:
     }
 
 
+def location_point_time(point: dict) -> int:
+    value = point.get("timestamp") or point.get("received_at") or int(time.time())
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(time.time())
+
+
+def location_distance_m(a: dict, b: dict) -> float:
+    lat1 = math.radians(float(a["lat"]))
+    lat2 = math.radians(float(b["lat"]))
+    dlat = lat2 - lat1
+    dlon = math.radians(float(b["lon"]) - float(a["lon"]))
+    hav = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6371000.0 * 2 * math.atan2(math.sqrt(hav), math.sqrt(max(0.0, 1.0 - hav)))
+
+
+def seed_stationary_state(node_id: str, track: list[dict]) -> None:
+    if not track:
+        return
+    anchor = track[-1]
+    latest_location_stationary[node_id] = {
+        "anchor": anchor,
+        "since": location_point_time(anchor),
+        "closed": bool(anchor.get("route_break_after")),
+    }
+
+
+def mark_route_breaks(track: list[dict]) -> None:
+    anchor = None
+    stationary_since = 0
+    closed = False
+    for point in track:
+        if anchor is None:
+            anchor = point
+            stationary_since = location_point_time(point)
+            closed = bool(point.get("route_break_after"))
+            continue
+
+        if location_distance_m(anchor, point) <= LOCATION_ROUTE_STATIONARY_METERS:
+            point_time = location_point_time(point)
+            if not closed and point_time - stationary_since >= LOCATION_ROUTE_STATIONARY_SECS:
+                point["route_break_after"] = True
+                closed = True
+            continue
+
+        anchor = point
+        stationary_since = location_point_time(point)
+        closed = False
+
+
+def update_stationary_route_state(node_id: str, track: list[dict], point: dict) -> None:
+    state = latest_location_stationary.get(node_id)
+    if state is None:
+        state = {"anchor": point, "since": location_point_time(point), "closed": False}
+        latest_location_stationary[node_id] = state
+        return
+
+    anchor = state["anchor"]
+    point_time = location_point_time(point)
+    if location_distance_m(anchor, point) <= LOCATION_ROUTE_STATIONARY_METERS:
+        if not state.get("closed") and point_time - int(state.get("since", point_time)) >= LOCATION_ROUTE_STATIONARY_SECS:
+            point["route_break_after"] = True
+            state["closed"] = True
+            log.info(
+                "Closed tracker route for %s after %d minutes within %dm",
+                node_id,
+                LOCATION_ROUTE_STATIONARY_SECS // 60,
+                LOCATION_ROUTE_STATIONARY_METERS,
+            )
+        return
+
+    state["anchor"] = point
+    state["since"] = point_time
+    state["closed"] = False
+
+
 def append_location_track_point(node_id: str, point: dict) -> None:
     try:
         LOCATION_TRACKS_DIR.mkdir(parents=True, exist_ok=True)
@@ -879,6 +960,7 @@ def append_location_track_point(node_id: str, point: dict) -> None:
 def load_location_tracks() -> None:
     latest_location_tracks.clear()
     latest_locations.clear()
+    latest_location_stationary.clear()
     if not LOCATION_TRACKS_DIR.exists():
         return
     loaded_points = 0
@@ -909,6 +991,7 @@ def load_location_tracks() -> None:
             continue
         if not track:
             continue
+        mark_route_breaks(track)
         latest = dict(track[-1])
         actual_node_id = latest.get("node_id") or node_id
         latest["node_id"] = actual_node_id
@@ -918,6 +1001,7 @@ def load_location_tracks() -> None:
         latest["source"] = "track-file"
         latest_location_tracks[actual_node_id] = track
         latest_locations[actual_node_id] = latest
+        seed_stationary_state(actual_node_id, track)
         loaded_points += len(track)
     if loaded_points:
         log.info("Loaded %d persisted location track point(s) for %d tracker node(s)",
@@ -935,6 +1019,7 @@ def record_location(report: dict, client: "BridgeClient") -> None:
     track = latest_location_tracks.setdefault(report["node_id"], [])
     point = location_track_point(report)
     if not track or any(track[-1].get(key) != point.get(key) for key in ("lat", "lon", "timestamp")):
+        update_stationary_route_state(report["node_id"], track, point)
         track.append(point)
         append_location_track_point(report["node_id"], point)
 
@@ -2205,11 +2290,11 @@ def build_location_map_html(base_path: str = "") -> str:
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: radial-gradient(circle, var(--green-soft), var(--green) 55%, #0c4f2a 100%);
-      border: 2px solid rgba(223,255,233,.9);
+      background: radial-gradient(circle, var(--marker-core, var(--green-soft)), var(--marker-fill, var(--green)) 55%, var(--marker-edge, #0c4f2a) 100%);
+      border: 2px solid var(--marker-border, rgba(223,255,233,.9));
       box-shadow:
-        0 0 0 3px rgba(104,255,157,.18),
-        0 0 22px rgba(104,255,157,.54),
+        0 0 0 3px var(--marker-ring, rgba(104,255,157,.18)),
+        0 0 22px var(--marker-glow, rgba(104,255,157,.54)),
         0 3px 9px rgba(0,0,0,.5);
       position: relative;
     }
@@ -2221,8 +2306,8 @@ def build_location_map_html(base_path: str = "") -> str:
       transform: translateX(-50%);
       border-left: 7px solid transparent;
       border-right: 7px solid transparent;
-      border-bottom: 14px solid var(--green);
-      filter: drop-shadow(0 -1px 5px rgba(104,255,157,.55));
+      border-bottom: 14px solid var(--marker-fill, var(--green));
+      filter: drop-shadow(0 -1px 5px var(--marker-glow, rgba(104,255,157,.55)));
     }
     .tracker-icon.stationary::before { display: none; }
     .tracker-label {
@@ -2230,9 +2315,9 @@ def build_location_map_html(base_path: str = "") -> str:
       margin-top: -28px;
       padding: 3px 6px;
       border-radius: 4px;
-      background: rgba(5,12,8,.9);
-      border: 1px solid var(--line);
-      color: var(--green-soft);
+      background: var(--marker-label-bg, rgba(5,12,8,.9));
+      border: 1px solid var(--marker-label-border, var(--line));
+      color: var(--marker-label-color, var(--green-soft));
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
@@ -2301,6 +2386,33 @@ def build_location_map_html(base_path: str = "") -> str:
       Humanitarian: { color: '#0057ff', weight: 5, opacity: 0.9 },
       Topo: { color: '#d0006f', weight: 5, opacity: 0.92 }
     };
+    const markerStyles = {
+      Tactical: {
+        core: '#dfffe9', fill: '#68ff9d', edge: '#0c4f2a', border: '#f4fff8',
+        ring: 'rgba(104,255,157,.2)', glow: 'rgba(104,255,157,.58)',
+        labelBg: 'rgba(5,12,8,.92)', labelBorder: 'rgba(97,255,154,.46)', labelColor: '#a1ffc4'
+      },
+      Night: {
+        core: '#fff3c2', fill: '#ffd166', edge: '#6f4c00', border: '#fff8dc',
+        ring: 'rgba(255,209,102,.22)', glow: 'rgba(255,209,102,.62)',
+        labelBg: 'rgba(18,12,4,.94)', labelBorder: 'rgba(255,209,102,.5)', labelColor: '#ffe59a'
+      },
+      Standard: {
+        core: '#ffffff', fill: '#d0006f', edge: '#3b001f', border: '#ffffff',
+        ring: 'rgba(208,0,111,.24)', glow: 'rgba(208,0,111,.58)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#d0006f', labelColor: '#3b001f'
+      },
+      Humanitarian: {
+        core: '#ffffff', fill: '#0057ff', edge: '#001d54', border: '#ffffff',
+        ring: 'rgba(0,87,255,.24)', glow: 'rgba(0,87,255,.55)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#0057ff', labelColor: '#001d54'
+      },
+      Topo: {
+        core: '#ffffff', fill: '#d0006f', edge: '#3b001f', border: '#ffffff',
+        ring: 'rgba(208,0,111,.24)', glow: 'rgba(208,0,111,.58)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#d0006f', labelColor: '#3b001f'
+      }
+    };
     let currentLayout = 'Tactical';
 
     function routeStyle() {
@@ -2310,18 +2422,38 @@ def build_location_map_html(base_path: str = "") -> str:
       };
     }
 
+    function markerStyleVars() {
+      const style = markerStyles[currentLayout] || markerStyles.Tactical;
+      return [
+        `--marker-core:${style.core}`,
+        `--marker-fill:${style.fill}`,
+        `--marker-edge:${style.edge}`,
+        `--marker-border:${style.border}`,
+        `--marker-ring:${style.ring}`,
+        `--marker-glow:${style.glow}`,
+        `--marker-label-bg:${style.labelBg}`,
+        `--marker-label-border:${style.labelBorder}`,
+        `--marker-label-color:${style.labelColor}`
+      ].join(';');
+    }
+
     function setMapLayout(name) {
       currentLayout = baseLayers[name] ? name : 'Tactical';
       for (const cls of Object.values(layoutClasses)) mapEl.classList.remove(cls);
       mapEl.classList.add(layoutClasses[currentLayout] || layoutClasses.Tactical);
       localStorage.setItem('meshcore_tracker_map_layout', currentLayout);
       for (const track of tracks.values()) {
-        track.setStyle(routeStyle());
+        track.eachLayer((layer) => layer.setStyle(routeStyle()));
+      }
+      for (const [nodeId, marker] of markers) {
+        const loc = latestLocationByNode.get(nodeId);
+        if (loc) marker.setIcon(trackerIcon(loc));
       }
     }
 
     const markers = new Map();
     const tracks = new Map();
+    const latestLocationByNode = new Map();
     const initialLayout = baseLayers[savedLayout] ? savedLayout : 'Tactical';
     setMapLayout(initialLayout);
     baseLayers[initialLayout].addTo(map);
@@ -2370,22 +2502,41 @@ def build_location_map_html(base_path: str = "") -> str:
         iconSize: [110, 34],
         iconAnchor: [14, 14],
         popupAnchor: [0, -16],
-        html: `<div class="tracker-icon ${moving ? '' : 'stationary'}" style="transform: rotate(${rotation}deg)"></div>` +
-          `<div class="tracker-label">${escapeHtml(labelSpeed || '0 km/h')} ${Number.isFinite(heading) ? Math.round(heading) + '&deg;' : ''}</div>`
+        html: `<div style="${markerStyleVars()}">` +
+          `<div class="tracker-icon ${moving ? '' : 'stationary'}" style="transform: rotate(${rotation}deg)"></div>` +
+          `<div class="tracker-label">${escapeHtml(labelSpeed || '0 km/h')} ${Number.isFinite(heading) ? Math.round(heading) + '&deg;' : ''}</div>` +
+          `</div>`
       });
     }
 
-    function trackLatLngs(loc) {
+    function trackSegments(loc) {
       const points = Array.isArray(loc.track) ? loc.track : [];
-      return points
-        .map(point => [Number(point.lat), Number(point.lon)])
-        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+      const segments = [];
+      let segment = [];
+      for (const point of points) {
+        const lat = Number(point.lat);
+        const lon = Number(point.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        segment.push([lat, lon]);
+        if (point.route_break_after) {
+          if (segment.length) segments.push(segment);
+          segment = [];
+        }
+      }
+      if (segment.length) segments.push(segment);
+      return segments;
     }
 
-    function routeDistanceKm(latlngs) {
+    function trackLatLngs(loc) {
+      return trackSegments(loc).flat();
+    }
+
+    function routeDistanceKm(segments) {
       let km = 0;
-      for (let i = 1; i < latlngs.length; i++) {
-        km += map.distance(latlngs[i - 1], latlngs[i]) / 1000;
+      for (const latlngs of segments) {
+        for (let i = 1; i < latlngs.length; i++) {
+          km += map.distance(latlngs[i - 1], latlngs[i]) / 1000;
+        }
       }
       return km;
     }
@@ -2397,9 +2548,11 @@ def build_location_map_html(base_path: str = "") -> str:
       const seen = new Set();
       for (const loc of data.locations) {
         seen.add(loc.node_id);
+        latestLocationByNode.set(loc.node_id, loc);
         const label = loc.name || loc.node_id;
-        const latlngs = trackLatLngs(loc);
-        const routeKm = routeDistanceKm(latlngs);
+        const segments = trackSegments(loc);
+        const latlngs = segments.flat();
+        const routeKm = routeDistanceKm(segments);
         const popup = `<strong>${escapeHtml(label)}</strong><br>` +
           `Node: ${escapeHtml(loc.node_id)}<br>` +
           `Age: ${fmtAge(loc.age_seconds)}<br>` +
@@ -2410,14 +2563,15 @@ def build_location_map_html(base_path: str = "") -> str:
           `Battery: ${loc.battery_mv} mV<br>` +
           `Alt: ${loc.altitude_m} m`;
         let track = tracks.get(loc.node_id);
-        if (latlngs.length >= 2) {
-          if (!track) {
-            track = L.polyline(latlngs, routeStyle()).addTo(map);
-            tracks.set(loc.node_id, track);
-          } else {
-            track.setLatLngs(latlngs);
-            track.setStyle(routeStyle());
+        const drawableSegments = segments.filter(segment => segment.length >= 2);
+        if (drawableSegments.length) {
+          if (track) {
+            track.remove();
           }
+          track = L.layerGroup(
+            drawableSegments.map(segment => L.polyline(segment, routeStyle()))
+          ).addTo(map);
+          tracks.set(loc.node_id, track);
         } else if (track) {
           track.remove();
           tracks.delete(loc.node_id);
@@ -2436,6 +2590,7 @@ def build_location_map_html(base_path: str = "") -> str:
         if (!seen.has(nodeId)) {
           marker.remove();
           markers.delete(nodeId);
+          latestLocationByNode.delete(nodeId);
         }
       }
       for (const [nodeId, track] of tracks) {
