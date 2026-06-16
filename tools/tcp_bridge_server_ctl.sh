@@ -12,9 +12,11 @@ HOST="${TCP_BRIDGE_HOST:-0.0.0.0}"
 PORT="${TCP_BRIDGE_PORT:-4200}"
 STATUS_HOST="${TCP_BRIDGE_STATUS_HOST:-0.0.0.0}"
 STATUS_PORT="${TCP_BRIDGE_STATUS_PORT:-8080}"
+STATUS_BASE_PATH="${TCP_BRIDGE_STATUS_BASE_PATH:-/meshbridgestatus}"
 CLIENT_TIMEOUT="${TCP_BRIDGE_CLIENT_TIMEOUT:-180}"
 STATUS_INTERVAL="${TCP_BRIDGE_STATUS_INTERVAL:-60}"
 PASSWORD="${TCP_BRIDGE_PASSWORD:-}"
+PUBLIC_CHANNELS_FILE="${TCP_BRIDGE_PUBLIC_CHANNELS_FILE:-}"
 EXTRA_ARGS="${TCP_BRIDGE_EXTRA_ARGS:-}"
 
 is_running() {
@@ -39,12 +41,16 @@ start_server() {
     --port "${PORT}"
     --status-host "${STATUS_HOST}"
     --status-port "${STATUS_PORT}"
+    --status-base-path "${STATUS_BASE_PATH}"
     --client-timeout "${CLIENT_TIMEOUT}"
     --status-interval "${STATUS_INTERVAL}"
   )
 
   if [[ -n "${PASSWORD}" ]]; then
     args+=(--password "${PASSWORD}")
+  fi
+  if [[ -n "${PUBLIC_CHANNELS_FILE}" ]]; then
+    args+=(--public-channels-file "${PUBLIC_CHANNELS_FILE}")
   fi
 
   # shellcheck disable=SC2086
@@ -82,7 +88,7 @@ stop_server() {
 status_server() {
   if is_running; then
     echo "TCP bridge server is running, pid $(cat "${PID_FILE}")"
-    echo "Status page: http://${STATUS_HOST}:${STATUS_PORT}/"
+    echo "Status page: http://${STATUS_HOST}:${STATUS_PORT}${STATUS_BASE_PATH:-/}"
     echo "Log: ${LOG_FILE}"
   else
     echo "TCP bridge server is not running"
@@ -117,7 +123,9 @@ Environment variables:
   TCP_BRIDGE_PORT             default: 4200
   TCP_BRIDGE_STATUS_HOST      default: 0.0.0.0
   TCP_BRIDGE_STATUS_PORT      default: 8080
+  TCP_BRIDGE_STATUS_BASE_PATH default: /meshbridgestatus, set empty for root
   TCP_BRIDGE_PASSWORD         optional
+  TCP_BRIDGE_PUBLIC_CHANNELS_FILE optional JSON file with public channel keys
   TCP_BRIDGE_CLIENT_TIMEOUT   default: 180
   TCP_BRIDGE_STATUS_INTERVAL  default: 60
   TCP_BRIDGE_LOG_FILE         default: ./logs/tcp_bridge_server.log
@@ -126,6 +134,8 @@ Environment variables:
 Examples:
   tools/tcp_bridge_server_ctl.sh start
   TCP_BRIDGE_PASSWORD=secret tools/tcp_bridge_server_ctl.sh start
+  TCP_BRIDGE_PUBLIC_CHANNELS_FILE=tools/public_channels.json tools/tcp_bridge_server_ctl.sh start
+  TCP_BRIDGE_STATUS_BASE_PATH=/meshbridgestatus tools/tcp_bridge_server_ctl.sh start
   tools/tcp_bridge_server_ctl.sh logs
 EOF
     exit 2

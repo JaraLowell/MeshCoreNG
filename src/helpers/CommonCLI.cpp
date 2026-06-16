@@ -1429,6 +1429,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
       _prefs->bridge_export_max_hops = 4;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 1;
       savePrefs();
       strcpy(reply, "OK - bridge island profile applied");
     } else if (memcmp(&config[15], "repeater", 8) == 0) {
@@ -1437,6 +1438,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 2;
       savePrefs();
       strcpy(reply, "OK - bridge repeater profile applied");
     } else if (memcmp(&config[15], "default", 7) == 0) {
@@ -1445,6 +1447,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 0;
       savePrefs();
       strcpy(reply, "OK - bridge default profile applied");
     } else {
@@ -1813,6 +1816,9 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", mode);
   } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
+  } else if (memcmp(config, "bridge.profile", 14) == 0) {
+    const char* profile = _prefs->bridge_profile == 1 ? "island" : (_prefs->bridge_profile == 2 ? "repeater" : "default");
+    sprintf(reply, "> %s", profile);
 #if defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.status", 13) == 0) {
     _callbacks->formatBleBridgeStatusReply(reply);

@@ -1,0 +1,560 @@
+{
+  "source": "https://meshwiki.nl/wiki/Publieke_kanalen",
+  "channels": [
+    {
+      "name": "#024-bot",
+      "secret": "f5920e8b7ba3573602eac69d4daa13bf",
+      "source": "meshcore://channel/add?name=%23024-bot&secret=f5920e8b7ba3573602eac69d4daa13bf"
+    },
+    {
+      "name": "#420",
+      "secret": "d4346dd20f9a85256cff48f33f46de0a",
+      "source": "meshcore://channel/add?name=%23420&secret=d4346dd20f9a85256cff48f33f46de0a"
+    },
+    {
+      "name": "#afrithonbot",
+      "secret": "e9807f9026c6c5cefacd70884608d158",
+      "source": "meshcore://channel/add?name=%23afrithonbot&secret=e9807f9026c6c5cefacd70884608d158"
+    },
+    {
+      "name": "#ai",
+      "secret": "800a8855214344434f0c0cff91e5bdf9",
+      "source": "meshcore://channel/add?name=%23ai&secret=800a8855214344434f0c0cff91e5bdf9"
+    },
+    {
+      "name": "#alkmaar",
+      "secret": "1110447e9244642327062a5884618f0e",
+      "source": "meshcore://channel/add?name=%23alkmaar&secret=1110447e9244642327062a5884618f0e"
+    },
+    {
+      "name": "#almere",
+      "secret": "d67016a5b1da57f54b3a96edea9e8757",
+      "source": "meshcore://channel/add?name=%23almere&secret=d67016a5b1da57f54b3a96edea9e8757"
+    },
+    {
+      "name": "#amradio",
+      "secret": "b633a431dd3511bd280ec7912431f182",
+      "source": "meshcore://channel/add?name=%23amradio&secret=b633a431dd3511bd280ec7912431f182"
+    },
+    {
+      "name": "#amstelland",
+      "secret": "4c8f7039d51b73717c2faac253a1f042",
+      "source": "meshcore://channel/add?name=%23amstelland&secret=4c8f7039d51b73717c2faac253a1f042"
+    },
+    {
+      "name": "#amsterdam",
+      "secret": "d768f5a0aa65f8c54e4ea521bd49eb4f",
+      "source": "meshcore://channel/add?name=%23amsterdam&secret=d768f5a0aa65f8c54e4ea521bd49eb4f"
+    },
+    {
+      "name": "#analyser",
+      "secret": "01855fdfe641cd0750fdd355a46675b5",
+      "source": "meshcore://channel/add?name=%23analyser&secret=01855fdfe641cd0750fdd355a46675b5"
+    },
+    {
+      "name": "#angrynerds",
+      "secret": "5765da62f4c9c38aea4512836196ca99",
+      "source": "meshcore://channel/add?name=%23angrynerds&secret=5765da62f4c9c38aea4512836196ca99"
+    },
+    {
+      "name": "#antwerpen",
+      "secret": "5900168627ddb2963d3fd8dba3fecbb9",
+      "source": "meshcore://channel/add?name=%23antwerpen&secret=5900168627ddb2963d3fd8dba3fecbb9"
+    },
+    {
+      "name": "#bemesh",
+      "secret": "4e92675e10b4a5b3df305e86a6f4f8fa",
+      "source": "meshcore://channel/add?name=%23bemesh&secret=4e92675e10b4a5b3df305e86a6f4f8fa"
+    },
+    {
+      "name": "#brabant",
+      "secret": "7eeb6cd1af4560658fb99e4e4b512865",
+      "source": "meshcore://channel/add?name=%23brabant&secret=7eeb6cd1af4560658fb99e4e4b512865"
+    },
+    {
+      "name": "#breda",
+      "secret": "799747b9a8d53b8de14ba872a5402764",
+      "source": "meshcore://channel/add?name=%23breda&secret=799747b9a8d53b8de14ba872a5402764"
+    },
+    {
+      "name": "#buch",
+      "secret": "13bbca5cd40e82b83c494a3a99c9c1a8",
+      "source": "meshcore://channel/add?name=%23buch&secret=13bbca5cd40e82b83c494a3a99c9c1a8"
+    },
+    {
+      "name": "#burgernet",
+      "secret": "0e7835b51405a691abc1c38c8b9f830c",
+      "source": "meshcore://channel/add?name=%23burgernet&secret=0e7835b51405a691abc1c38c8b9f830c"
+    },
+    {
+      "name": "#capelleaandenijssel",
+      "secret": "bdbe92e1922848b6cef05dadf9c1cd2d",
+      "source": "meshcore://channel/add?name=%23capelleaandenijssel&secret=bdbe92e1922848b6cef05dadf9c1cd2d"
+    },
+    {
+      "name": "#chat",
+      "secret": "d0bdd6d71538138ed979eec00d98ad97",
+      "source": "meshcore://channel/add?name=%23chat&secret=d0bdd6d71538138ed979eec00d98ad97"
+    },
+    {
+      "name": "#chatgpt",
+      "secret": "6eebf621279e56212faca4cb31b09ee6",
+      "source": "meshcore://channel/add?name=%23chatgpt&secret=6eebf621279e56212faca4cb31b09ee6"
+    },
+    {
+      "name": "#dares",
+      "secret": "9a25f99aa7255090e6e17896a48c2873",
+      "source": "meshcore://channel/add?name=%23dares&secret=9a25f99aa7255090e6e17896a48c2873"
+    },
+    {
+      "name": "#darkroom",
+      "secret": "5f08dfe2cdd8e77429ffbe40cc145656",
+      "source": "meshcore://channel/add?name=%23darkroom&secret=5f08dfe2cdd8e77429ffbe40cc145656"
+    },
+    {
+      "name": "#dekroeg",
+      "secret": "e7acdd0a98dd4e6745e5f6458bc5a523",
+      "source": "meshcore://channel/add?name=%23dekroeg&secret=e7acdd0a98dd4e6745e5f6458bc5a523"
+    },
+    {
+      "name": "#denhaag",
+      "secret": "84eed36f62c7b22527dbf8883585ad14",
+      "source": "meshcore://channel/add?name=%23denhaag&secret=84eed36f62c7b22527dbf8883585ad14"
+    },
+    {
+      "name": "#deventer",
+      "secret": "c8731ae7432dcfd447cd00a43b163ea5",
+      "source": "meshcore://channel/add?name=%23deventer&secret=c8731ae7432dcfd447cd00a43b163ea5"
+    },
+    {
+      "name": "#devnull",
+      "secret": "591885133038ed54f1a6d579a95aecfb",
+      "source": "meshcore://channel/add?name=%23devnull&secret=591885133038ed54f1a6d579a95aecfb"
+    },
+    {
+      "name": "#dinteloord",
+      "secret": "645fd3397290ae1aeb69e7b5c5633d31",
+      "source": "meshcore://channel/add?name=%23dinteloord&secret=645fd3397290ae1aeb69e7b5c5633d31"
+    },
+    {
+      "name": "#dordrecht",
+      "secret": "4d2bbe1e1de7aac3befd58e818b8cd5b",
+      "source": "meshcore://channel/add?name=%23dordrecht&secret=4d2bbe1e1de7aac3befd58e818b8cd5b"
+    },
+    {
+      "name": "#drechtsteden",
+      "secret": "cea7c95c5b5d61345c4201bb10f2b812",
+      "source": "meshcore://channel/add?name=%23drechtsteden&secret=cea7c95c5b5d61345c4201bb10f2b812"
+    },
+    {
+      "name": "#drenthe",
+      "secret": "12659f15dc363db44f5c7727d6f2d60b",
+      "source": "meshcore://channel/add?name=%23drenthe&secret=12659f15dc363db44f5c7727d6f2d60b"
+    },
+    {
+      "name": "#dtis",
+      "secret": "0b540e14e0afb7b708c079fb21a8938f",
+      "source": "meshcore://channel/add?name=%23dtis&secret=0b540e14e0afb7b708c079fb21a8938f"
+    },
+    {
+      "name": "#dtv",
+      "secret": "bb89af838292935560a94444082376fe",
+      "source": "meshcore://channel/add?name=%23dtv&secret=bb89af838292935560a94444082376fe"
+    },
+    {
+      "name": "#ede",
+      "secret": "41161d7c49634f0a8685259f2a95c19c",
+      "source": "meshcore://channel/add?name=%23ede&secret=41161d7c49634f0a8685259f2a95c19c"
+    },
+    {
+      "name": "#eindhoven",
+      "secret": "aceb8cceae584a3890c8db173668ae2b",
+      "source": "meshcore://channel/add?name=%23eindhoven&secret=aceb8cceae584a3890c8db173668ae2b"
+    },
+    {
+      "name": "#emergency",
+      "secret": "e1ad578d25108e344808f30dfdaaf926",
+      "source": "meshcore://channel/add?name=%23emergency&secret=e1ad578d25108e344808f30dfdaaf926"
+    },
+    {
+      "name": "#english",
+      "secret": "6c4af6ab8b0500632db3b9af87e361ed",
+      "source": "meshcore://channel/add?name=%23english&secret=6c4af6ab8b0500632db3b9af87e361ed"
+    },
+    {
+      "name": "#evenvroegopstaan",
+      "secret": "6301ea9febc1ad5f9a1f6d18c9f2e5ff",
+      "source": "meshcore://channel/add?name=%23evenvroegopstaan&secret=6301ea9febc1ad5f9a1f6d18c9f2e5ff"
+    },
+    {
+      "name": "#ezhe",
+      "secret": "33bdfa3383c317551d953387e39756e1",
+      "source": "meshcore://channel/add?name=%23ezhe&secret=33bdfa3383c317551d953387e39756e1"
+    },
+    {
+      "name": "#flevoland",
+      "secret": "fa5558d7ab9b63f23798947020e8cbf2",
+      "source": "meshcore://channel/add?name=%23flevoland&secret=fa5558d7ab9b63f23798947020e8cbf2"
+    },
+    {
+      "name": "#fosdem",
+      "secret": "e9737d9ed4eddb7d2c80c0f712a846a9",
+      "source": "meshcore://channel/add?name=%23fosdem&secret=e9737d9ed4eddb7d2c80c0f712a846a9"
+    },
+    {
+      "name": "#gelderland",
+      "secret": "7c5f276b6ace11177427bae7f5190b61",
+      "source": "meshcore://channel/add?name=%23gelderland&secret=7c5f276b6ace11177427bae7f5190b61"
+    },
+    {
+      "name": "#gezellig",
+      "secret": "a9719d35c2f9ffbb8e317ce9dcff3cc3",
+      "source": "meshcore://channel/add?name=%23gezellig&secret=a9719d35c2f9ffbb8e317ce9dcff3cc3"
+    },
+    {
+      "name": "#gmr",
+      "secret": "86f8a1e7b56ce90f47bead20d98baaec",
+      "source": "meshcore://channel/add?name=%23gmr&secret=86f8a1e7b56ce90f47bead20d98baaec"
+    },
+    {
+      "name": "#gmrbot",
+      "secret": "ae5424e0cbbdc905a7aa46f1642a2983",
+      "source": "meshcore://channel/add?name=%23gmrbot&secret=ae5424e0cbbdc905a7aa46f1642a2983"
+    },
+    {
+      "name": "#goedemorgen",
+      "secret": "869557c3e1cd107ca47f2152a4436c1f",
+      "source": "meshcore://channel/add?name=%23goedemorgen&secret=869557c3e1cd107ca47f2152a4436c1f"
+    },
+    {
+      "name": "#groenehart",
+      "secret": "9f20c4e877ac4b122febc66bff046fcd",
+      "source": "meshcore://channel/add?name=%23groenehart&secret=9f20c4e877ac4b122febc66bff046fcd"
+    },
+    {
+      "name": "#grunn",
+      "secret": "47a821e5b3ab0a613acc0e92d6bbc639",
+      "source": "meshcore://channel/add?name=%23grunn&secret=47a821e5b3ab0a613acc0e92d6bbc639"
+    },
+    {
+      "name": "#haarlem",
+      "secret": "1b3c0adb0803c149ab00850724ef81fc",
+      "source": "meshcore://channel/add?name=%23haarlem&secret=1b3c0adb0803c149ab00850724ef81fc"
+    },
+    {
+      "name": "#hackerspacenijmegen",
+      "secret": "f7eaefaa8f8098f31e7ff589c54f88a6",
+      "source": "meshcore://channel/add?name=%23hackerspacenijmegen&secret=f7eaefaa8f8098f31e7ff589c54f88a6"
+    },
+    {
+      "name": "#hamradio",
+      "secret": "83c8b01997654265938da8765cbc7db9",
+      "source": "meshcore://channel/add?name=%23hamradio&secret=83c8b01997654265938da8765cbc7db9"
+    },
+    {
+      "name": "#hamradionederland",
+      "secret": "2e18eaedd9ef230f88a5ecfc69999cca",
+      "source": "meshcore://channel/add?name=%23hamradionederland&secret=2e18eaedd9ef230f88a5ecfc69999cca"
+    },
+    {
+      "name": "#hellevoetsluis",
+      "secret": "7c97f9f6c158d3eeaab270a6050fe1c2",
+      "source": "meshcore://channel/add?name=%23hellevoetsluis&secret=7c97f9f6c158d3eeaab270a6050fe1c2"
+    },
+    {
+      "name": "#helmond",
+      "secret": "958551c82da0b7ae0736dcf55cb5e4be",
+      "source": "meshcore://channel/add?name=%23helmond&secret=958551c82da0b7ae0736dcf55cb5e4be"
+    },
+    {
+      "name": "#hetweerinjegemeente",
+      "secret": "052f90f42e6f1396d09c67af32015333",
+      "source": "meshcore://channel/add?name=%23hetweerinjegemeente&secret=052f90f42e6f1396d09c67af32015333"
+    },
+    {
+      "name": "#hilversum",
+      "secret": "7382836202e91eab3ef7dbe1e934fcab",
+      "source": "meshcore://channel/add?name=%23hilversum&secret=7382836202e91eab3ef7dbe1e934fcab"
+    },
+    {
+      "name": "#hsnl",
+      "secret": "3208ba4ddfb19c5047ef9cad62601db1",
+      "source": "meshcore://channel/add?name=%23hsnl&secret=3208ba4ddfb19c5047ef9cad62601db1"
+    },
+    {
+      "name": "#ijsselstein",
+      "secret": "d2915a2757417b48c650b2bccc968088",
+      "source": "meshcore://channel/add?name=%23ijsselstein&secret=d2915a2757417b48c650b2bccc968088"
+    },
+    {
+      "name": "#jokes",
+      "secret": "abe610d61dee508c0ac18793c36c41c3",
+      "source": "meshcore://channel/add?name=%23jokes&secret=abe610d61dee508c0ac18793c36c41c3"
+    },
+    {
+      "name": "#kanalen",
+      "secret": "59970dddfc3a87fa99f3eceeefa4cc17",
+      "source": "meshcore://channel/add?name=%23kanalen&secret=59970dddfc3a87fa99f3eceeefa4cc17"
+    },
+    {
+      "name": "#katwijk",
+      "secret": "3f97d51e77a8d317182e0cfd65f66864",
+      "source": "meshcore://channel/add?name=%23katwijk&secret=3f97d51e77a8d317182e0cfd65f66864"
+    },
+    {
+      "name": "#koffie",
+      "secret": "88e3fb0b5ca9fbd7af99efb413cfeed3",
+      "source": "meshcore://channel/add?name=%23koffie&secret=88e3fb0b5ca9fbd7af99efb413cfeed3"
+    },
+    {
+      "name": "#lelystad",
+      "secret": "02bf69eeac950fb6c2eba630a9b9b896",
+      "source": "meshcore://channel/add?name=%23lelystad&secret=02bf69eeac950fb6c2eba630a9b9b896"
+    },
+    {
+      "name": "#limburg",
+      "secret": "a1354f99a1e3fb4c59212ed72a0af9bb",
+      "source": "meshcore://channel/add?name=%23limburg&secret=a1354f99a1e3fb4c59212ed72a0af9bb"
+    },
+    {
+      "name": "#linux",
+      "secret": "02c74eda5d8ec8b9bb945049fb2f55c6",
+      "source": "meshcore://channel/add?name=%23linux&secret=02c74eda5d8ec8b9bb945049fb2f55c6"
+    },
+    {
+      "name": "#maassluis",
+      "secret": "b1d2bed2053ba3da1490e575af8da7c5",
+      "source": "meshcore://channel/add?name=%23maassluis&secret=b1d2bed2053ba3da1490e575af8da7c5"
+    },
+    {
+      "name": "#maastricht-hl",
+      "secret": "42ca665b63456ee7403431fa46f65de8",
+      "source": "meshcore://channel/add?name=%23maastricht-hl&secret=42ca665b63456ee7403431fa46f65de8"
+    },
+    {
+      "name": "#mc-radar",
+      "secret": "f27acf0bf185c2ec4b9fd36bf12fa1ee",
+      "source": "meshcore://channel/add?name=%23mc-radar&secret=f27acf0bf185c2ec4b9fd36bf12fa1ee"
+    },
+    {
+      "name": "#meshcore",
+      "secret": "2fa78a5aef618e7c2a78f0ab5c8869b3",
+      "source": "meshcore://channel/add?name=%23meshcore&secret=2fa78a5aef618e7c2a78f0ab5c8869b3"
+    },
+    {
+      "name": "#middelburg",
+      "secret": "efb542910a2a41810be08f87c1009d52",
+      "source": "meshcore://channel/add?name=%23middelburg&secret=efb542910a2a41810be08f87c1009d52"
+    },
+    {
+      "name": "#mierlo",
+      "secret": "19cea0be81d10022682af04ffef1007b",
+      "source": "meshcore://channel/add?name=%23mierlo&secret=19cea0be81d10022682af04ffef1007b"
+    },
+    {
+      "name": "#mnot",
+      "secret": "5b8a4e82b19059bd08b973d0ec8a91c0",
+      "source": "meshcore://channel/add?name=%23mnot&secret=5b8a4e82b19059bd08b973d0ec8a91c0"
+    },
+    {
+      "name": "#nerd",
+      "secret": "94f9f21d274d442d3b79b9733eb5aa58",
+      "source": "meshcore://channel/add?name=%23nerd&secret=94f9f21d274d442d3b79b9733eb5aa58"
+    },
+    {
+      "name": "#nl-alert",
+      "secret": "68b8175b40434e08d7ef3af0c6801210",
+      "source": "meshcore://channel/add?name=%23nl-alert&secret=68b8175b40434e08d7ef3af0c6801210"
+    },
+    {
+      "name": "#nl-gtb-bs",
+      "secret": "860e6baef1ee80a41749ec553beac94a",
+      "source": "meshcore://channel/add?name=%23nl-gtb-bs&secret=860e6baef1ee80a41749ec553beac94a"
+    },
+    {
+      "name": "#nl-prio",
+      "secret": "72ae4a0d06f3345fd7898e2f7cabbfb7",
+      "source": "meshcore://channel/add?name=%23nl-prio&secret=72ae4a0d06f3345fd7898e2f7cabbfb7"
+    },
+    {
+      "name": "#noodkanaal",
+      "secret": "31edc84037d3eac3a258e0f45f226016",
+      "source": "meshcore://channel/add?name=%23noodkanaal&secret=31edc84037d3eac3a258e0f45f226016"
+    },
+    {
+      "name": "#noordbrabant",
+      "secret": "cd7f105d202f74a928c78eda211de4ac",
+      "source": "meshcore://channel/add?name=%23noordbrabant&secret=cd7f105d202f74a928c78eda211de4ac"
+    },
+    {
+      "name": "#noordholland",
+      "secret": "53feb654c06deec33576c78090956b90",
+      "source": "meshcore://channel/add?name=%23noordholland&secret=53feb654c06deec33576c78090956b90"
+    },
+    {
+      "name": "#nrw",
+      "secret": "482281b86496e41d93083ebd4e40f03e",
+      "source": "meshcore://channel/add?name=%23nrw&secret=482281b86496e41d93083ebd4e40f03e"
+    },
+    {
+      "name": "#overijssel",
+      "secret": "65dc44cb887bfd6595d07d69bdf2ca71",
+      "source": "meshcore://channel/add?name=%23overijssel&secret=65dc44cb887bfd6595d07d69bdf2ca71"
+    },
+    {
+      "name": "#pi4hm",
+      "secret": "868a4b4e3cad3b421e18160ac47ef57c",
+      "source": "meshcore://channel/add?name=%23pi4hm&secret=868a4b4e3cad3b421e18160ac47ef57c"
+    },
+    {
+      "name": "#pi4utr",
+      "secret": "7cfc5dcd61f6e2696c209a7b5c286338",
+      "source": "meshcore://channel/add?name=%23pi4utr&secret=7cfc5dcd61f6e2696c209a7b5c286338"
+    },
+    {
+      "name": "#pingbot",
+      "secret": "69d8b268014e48451053f51ebf6e5521",
+      "source": "meshcore://channel/add?name=%23pingbot&secret=69d8b268014e48451053f51ebf6e5521"
+    },
+    {
+      "name": "#pixels",
+      "secret": "532fc3e952eb50afb0dbc5e7208d3a31",
+      "source": "meshcore://channel/add?name=%23pixels&secret=532fc3e952eb50afb0dbc5e7208d3a31"
+    },
+    {
+      "name": "#putyourspamhere",
+      "secret": "9a10b12e68f878939e64b27ec0663f76",
+      "source": "meshcore://channel/add?name=%23putyourspamhere&secret=9a10b12e68f878939e64b27ec0663f76"
+    },
+    {
+      "name": "#radio-zend-amateurs",
+      "secret": "fe45ca2b9027771cb5aa650a220979f4",
+      "source": "meshcore://channel/add?name=%23radio-zend-amateurs&secret=fe45ca2b9027771cb5aa650a220979f4"
+    },
+    {
+      "name": "#rijnmond",
+      "secret": "213582a3820c0b4d875f8d8ef0c284c2",
+      "source": "meshcore://channel/add?name=%23rijnmond&secret=213582a3820c0b4d875f8d8ef0c284c2"
+    },
+    {
+      "name": "#rotterdam",
+      "secret": "e3f3ad251e512a029bd27161b14f0bdd",
+      "source": "meshcore://channel/add?name=%23rotterdam&secret=e3f3ad251e512a029bd27161b14f0bdd"
+    },
+    {
+      "name": "#sensemakers",
+      "secret": "2470c61f38561689c12b2a87b0abfce5",
+      "source": "meshcore://channel/add?name=%23sensemakers&secret=2470c61f38561689c12b2a87b0abfce5"
+    },
+    {
+      "name": "#sports",
+      "secret": "e8ee81f3aabf105d9ba2d2d4bd94fe4a",
+      "source": "meshcore://channel/add?name=%23sports&secret=e8ee81f3aabf105d9ba2d2d4bd94fe4a"
+    },
+    {
+      "name": "#tilburg",
+      "secret": "d5903059924b12c395867b7683b3dd4e",
+      "source": "meshcore://channel/add?name=%23tilburg&secret=d5903059924b12c395867b7683b3dd4e"
+    },
+    {
+      "name": "#tweakersmeshcore",
+      "secret": "8bef50b938f751640f1b0f56778093f5",
+      "source": "meshcore://channel/add?name=%23tweakersmeshcore&secret=8bef50b938f751640f1b0f56778093f5"
+    },
+    {
+      "name": "#twente",
+      "secret": "e050eb10ed98803b3997257074264dc7",
+      "source": "meshcore://channel/add?name=%23twente&secret=e050eb10ed98803b3997257074264dc7"
+    },
+    {
+      "name": "#uitdagingen",
+      "secret": "f8a6b5d6237f030b46bc171aa7a4ca56",
+      "source": "meshcore://channel/add?name=%23uitdagingen&secret=f8a6b5d6237f030b46bc171aa7a4ca56"
+    },
+    {
+      "name": "#utrecht",
+      "secret": "042e458dfb05b17cbdee57f93df4be4c",
+      "source": "meshcore://channel/add?name=%23utrecht&secret=042e458dfb05b17cbdee57f93df4be4c"
+    },
+    {
+      "name": "#valleirug",
+      "secret": "b3cfb6fb7111c628bb6bf5d26cecdbfd",
+      "source": "meshcore://channel/add?name=%23valleirug&secret=b3cfb6fb7111c628bb6bf5d26cecdbfd"
+    },
+    {
+      "name": "#veenendaal",
+      "secret": "0f858325edd8e0a3fd58194a9a2a72e0",
+      "source": "meshcore://channel/add?name=%23veenendaal&secret=0f858325edd8e0a3fd58194a9a2a72e0"
+    },
+    {
+      "name": "#vleesboek",
+      "secret": "d2374eb91d7f1c2699026a3b304e9bff",
+      "source": "meshcore://channel/add?name=%23vleesboek&secret=d2374eb91d7f1c2699026a3b304e9bff"
+    },
+    {
+      "name": "#vlissingen",
+      "secret": "6b573a1676030d8e1a6f85cb36dcf085",
+      "source": "meshcore://channel/add?name=%23vlissingen&secret=6b573a1676030d8e1a6f85cb36dcf085"
+    },
+    {
+      "name": "#voorburg",
+      "secret": "1573ccc77987f1c60b5c7115c728056e",
+      "source": "meshcore://channel/add?name=%23voorburg&secret=1573ccc77987f1c60b5c7115c728056e"
+    },
+    {
+      "name": "#voorne-putten",
+      "secret": "fb9b9338cd1c7f1f7d6f5a58cba7d320",
+      "source": "meshcore://channel/add?name=%23voorne-putten&secret=fb9b9338cd1c7f1f7d6f5a58cba7d320"
+    },
+    {
+      "name": "#walcheren",
+      "secret": "1a10fcd90f6e7c2d4fda895fc9e84442",
+      "source": "meshcore://channel/add?name=%23walcheren&secret=1a10fcd90f6e7c2d4fda895fc9e84442"
+    },
+    {
+      "name": "#wardriving",
+      "secret": "e3c26491e9cd321e3a6be50d57d54acf",
+      "source": "meshcore://channel/add?name=%23wardriving&secret=e3c26491e9cd321e3a6be50d57d54acf"
+    },
+    {
+      "name": "#weer",
+      "secret": "be5bf33261e93dcaf1548ecf25426810",
+      "source": "meshcore://channel/add?name=%23weer&secret=be5bf33261e93dcaf1548ecf25426810"
+    },
+    {
+      "name": "#west-friesland",
+      "secret": "85758cf3411937039f0b11b98473e9bb",
+      "source": "meshcore://channel/add?name=%23west-friesland&secret=85758cf3411937039f0b11b98473e9bb"
+    },
+    {
+      "name": "#zaandam",
+      "secret": "8dc77176a7e54ccf7a048793e63927c2",
+      "source": "meshcore://channel/add?name=%23zaandam&secret=8dc77176a7e54ccf7a048793e63927c2"
+    },
+    {
+      "name": "#zaanstreek-waterland",
+      "secret": "0f3a11f7693fb1e9414882c9a4ce5549",
+      "source": "meshcore://channel/add?name=%23zaanstreek-waterland&secret=0f3a11f7693fb1e9414882c9a4ce5549"
+    },
+    {
+      "name": "#zeeland",
+      "secret": "d49981832e87495678ab1624fe0a6d29",
+      "source": "meshcore://channel/add?name=%23zeeland&secret=d49981832e87495678ab1624fe0a6d29"
+    },
+    {
+      "name": "#zuid-holland",
+      "secret": "a242466a8c438797955eb6704bf20fe0",
+      "source": "meshcore://channel/add?name=%23zuid-holland&secret=a242466a8c438797955eb6704bf20fe0"
+    },
+    {
+      "name": "#zuidholland",
+      "secret": "9f5752f1e25a6ad90b075a425d4cffe5",
+      "source": "meshcore://channel/add?name=%23zuidholland&secret=9f5752f1e25a6ad90b075a425d4cffe5"
+    },
+    {
+      "name": "#zwolle",
+      "secret": "d65fabeef323a4b9ec18fa5b761ceba4",
+      "source": "meshcore://channel/add?name=%23zwolle&secret=d65fabeef323a4b9ec18fa5b761ceba4"
+    }
+  ]
+}

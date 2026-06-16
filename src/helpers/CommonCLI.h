@@ -121,6 +121,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_export_filter;   // BRIDGE_EXPORT_* packet filter before bridge export
   uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
   uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
+  uint8_t bridge_profile;         // 0=default, 1=island, 2=repeater
 };
 
 class CommonCLICallbacks {

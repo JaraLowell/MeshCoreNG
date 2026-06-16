@@ -268,16 +268,19 @@ Operators should bridge only what is needed for the deployment. Keep local traff
 - Monitor airtime, duplicate counters, and congestion after enabling a bridge.
 - Treat every bridge as an operated network service with an owner and a purpose.
 
-#### Planned loop and duplicate protections
+#### Loop and duplicate protections
 
 Multi-bridge environments need additional safeguards because the same packet may be able to return through a different bridge path.
 
-Planned or under consideration protections include:
+Implemented protections:
+- TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; the MeshCore route/path inside the packet is not modified.
+- Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
+
+Planned or under consideration:
 - path fingerprints
 - lightweight path hashes
 - bridge loop detection
 - duplicate suppression
-- TTL and hop controls
 - bridge scoping
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
@@ -333,6 +336,7 @@ For controlled RF islands or backbone links, use the bridge export and profile c
 ```text
 set bridge.profile island    # RF island bridge: source both, RF local, messages up to 4 RF hops
 set bridge.profile repeater  # controlled backhaul: source both, RF on, export all
+get bridge.profile           # returns the last profile applied: default, island, or repeater
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
@@ -354,7 +358,7 @@ MeshCoreNG has multiple bridge paths:
 | `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
 | `_bridge_ble` | BLE UART bridge | nRF52 and ESP32 BLE repeaters can form a short-range bridge without WiFi, USB, or extra UART wiring. |
 
-Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported. The Python TCP bridge server status page shows connected nodes, recent packet type/route/hop logs, sensor adverts, tracker locations, and JSON endpoints such as `/status.json`, `/packets.json`, `/sensors.json`, and `/locations.json`.
+Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported. The Python TCP bridge server status page shows connected nodes (including their node name, firmware version, and first-4-byte public key ID), recent packet type/route/hop logs, sensor adverts, tracker locations, and JSON endpoints such as `/status.json`, `/packets.json`, `/sensors.json`, and `/locations.json`. IP addresses and connection details are redacted from data exposed on the public status page.
 
 The BLE bridge is available for nRF52 BLE variants with Bluefruit and ESP32 variants with BLE support. It runs central and peripheral mode at the same time so either repeater can initiate the BLE link. Flash the same `_bridge_ble` firmware on both repeaters, set the same `bridge.secret` on both sides when you want to isolate a private bridge pair, then enable the bridge with `set bridge.enabled on`. Combined `_bridge_tcp_ble` builds are provided for ESP32 boards with enough flash; 4MB ESP32 boards are left as board-by-board test candidates because TCP+BLE can be tight there.
 
@@ -413,6 +417,26 @@ python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+
+#### Public channel decryption on the bridge server
+
+The bridge server can optionally decrypt and display the plaintext of public MeshCore channel messages in its status page and packet log. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
+
+Supply a JSON file listing the channel names and secrets:
+
+```bash
+TCP_BRIDGE_PUBLIC_CHANNELS_FILE=tools/public_channels.json tools/tcp_bridge_server_ctl.sh start
+# or pass the flag directly:
+python3 tools/tcp_bridge_server.py --port 4200 --public-channels-file tools/public_channels.json
+```
+
+The included `tools/public_channels.json` contains public channels scraped from MeshWiki. To refresh it from the live MeshWiki page, run:
+
+```bash
+python3 tools/update_public_channels.py
+```
+
+This writes a fresh `tools/public_channels.json`. Restart the server to pick up the updated list. The file format is a JSON object with a `channels` array; each entry has a `name` and a `secret` (32 or 64 hex characters). Channels not in the list are still forwarded; the server simply cannot decrypt their payload.
 
 #### Path 3: Python room server through the bridge
 
