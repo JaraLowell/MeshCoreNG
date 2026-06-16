@@ -598,9 +598,19 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
-  if (packet->isRouteFlood() && packet->wasReceivedFromBridge() && _prefs.bridge_rf == BRIDGE_RF_OFF) {
-    return false;
+  const bool is_bridge_flood = packet->isRouteFlood() && packet->wasReceivedFromBridge();
+
+  if (is_bridge_flood) {
+    if (_prefs.bridge_rf == BRIDGE_RF_OFF) {
+      MESH_DEBUG_PRINTLN("allowPacketForward: bridge RF forwarding is off");
+      return false;
+    }
+    if (_prefs.bridge_rf == BRIDGE_RF_FLOOD) {
+      if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
+      return true;
+    }
   }
+
   if (_prefs.disable_fwd) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
@@ -621,7 +631,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
   }
-  if (packet->isRouteFlood() && packet->wasReceivedFromBridge()) {
+  if (is_bridge_flood) {
     if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
     return true;
   }
@@ -865,7 +875,8 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
     dense_stats.n_recv_flood_adverts++;
   }
 
-  if (shouldDropMalformedGroupText(pkt)) {
+  const bool bridge_rf_flood = pkt->isRouteFlood() && pkt->wasReceivedFromBridge() && _prefs.bridge_rf == BRIDGE_RF_FLOOD;
+  if (!bridge_rf_flood && shouldDropMalformedGroupText(pkt)) {
     recordDenseSuppressedTx();
     return true;
   }
