@@ -10,6 +10,8 @@ TCP flood protection is a **selective rate limiting** feature that monitors inco
 
 When enabled, each category tracks packets within its own time window. When a category exceeds its threshold, only packets of that type are dropped - other categories continue to flow normally.
 
+The Python TCP bridge server also has a server-side transport limiter. It drops excessive DM/group/transport packets before broadcasting them to other bridge clients. This limiter is based on the TCP bridge client and packet category, not on MeshCore node name or advertised identity, so changing names or node IDs does not bypass it.
+
 ## Packet Categories
 
 ### Transport/Message Packets
@@ -33,6 +35,42 @@ Network control messages essential for mesh operation. These can bypass flood pr
 - `ATLAS` - Telemetry data
 
 ## Configuration
+
+### Python TCP Bridge Server Protection
+
+The server-side limiter is enabled by default:
+
+```bash
+python3 tools/tcp_bridge_server.py \
+  --transport-rate-limit on \
+  --transport-rate-max 20 \
+  --transport-rate-window 120 \
+  --transport-global-rate-max 80 \
+  --transport-global-rate-window 120
+```
+
+With `tools/tcp_bridge_server_ctl.sh`, use environment variables:
+
+```bash
+TCP_BRIDGE_TRANSPORT_RATE_LIMIT=on
+TCP_BRIDGE_TRANSPORT_RATE_MAX=20
+TCP_BRIDGE_TRANSPORT_RATE_WINDOW=120
+TCP_BRIDGE_TRANSPORT_GLOBAL_RATE_MAX=80
+TCP_BRIDGE_TRANSPORT_GLOBAL_RATE_WINDOW=120
+tools/tcp_bridge_server_ctl.sh restart
+```
+
+For an active DM flood, a stricter temporary setup is:
+
+```bash
+TCP_BRIDGE_TRANSPORT_RATE_MAX=10
+TCP_BRIDGE_TRANSPORT_RATE_WINDOW=120
+TCP_BRIDGE_TRANSPORT_GLOBAL_RATE_MAX=40
+TCP_BRIDGE_TRANSPORT_GLOBAL_RATE_WINDOW=120
+tools/tcp_bridge_server_ctl.sh restart
+```
+
+`0` disables only the corresponding max cap. For example, `--transport-global-rate-max 0` keeps per-client limiting but disables the global cap.
 
 ### Basic Flood Protection (Legacy)
 

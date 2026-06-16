@@ -72,12 +72,21 @@ IP_ADDRESS_RE = re.compile(
     r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
 )
 PAYLOAD_TYPE_ADVERT = 0x04
+PAYLOAD_TYPE_REQ = 0x00
+PAYLOAD_TYPE_RESPONSE = 0x01
+PAYLOAD_TYPE_TXT_MSG = 0x02
+PAYLOAD_TYPE_ACK = 0x03
+PAYLOAD_TYPE_PATH = 0x08
+PAYLOAD_TYPE_ANON_REQ = 0x07
+PAYLOAD_TYPE_MULTIPART = 0x0A
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
+ROUTE_TYPE_FLOOD = 0x01
+ROUTE_TYPE_DIRECT = 0x02
 ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 ADV_TYPE_SENSOR = 0x04
 ADV_TYPE_REPEATER = 0x02
@@ -98,6 +107,11 @@ CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 LOCATION_TRACKS_DIR = Path("logs/location_tracks")
+TRANSPORT_RATE_LIMIT_ENABLE = True
+TRANSPORT_RATE_LIMIT_MAX = 20
+TRANSPORT_RATE_LIMIT_WINDOW_SECS = 120
+TRANSPORT_GLOBAL_RATE_LIMIT_MAX = 80
+TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = 120
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
@@ -110,6 +124,8 @@ connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
 latest_location_tracks: dict[str, list[dict]] = {}
 latest_sensors: dict[str, dict] = {}
+transport_rx_times: deque[float] = deque()
+transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 public_channels: list[dict] = []
@@ -323,6 +339,41 @@ def decode_public_channel_payload(parsed: dict) -> dict:
     return result
 
 
+def describe_peer_encrypted_payload(parsed: dict) -> dict:
+    payload_type = parsed["payload_type"]
+    app_payload = parsed["app_payload"]
+    result = {
+        "peer_dest_hash": "",
+        "peer_src_hash": "",
+        "peer_mac": "",
+        "peer_encrypted_len": None,
+        "peer_encrypted_preview": "",
+        "decoded_status": "",
+        "decoded_text": "",
+    }
+    if payload_type not in (PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE, PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_PATH):
+        return result
+    if len(app_payload) < 4:
+        result["decoded_status"] = "short-peer-payload"
+        result["decoded_text"] = f"encrypted peer payload too short ({len(app_payload)}B)"
+        return result
+
+    dest_hash = app_payload[0]
+    src_hash = app_payload[1]
+    encrypted = app_payload[4:]
+    result["peer_dest_hash"] = f"{dest_hash:02x}"
+    result["peer_src_hash"] = f"{src_hash:02x}"
+    result["peer_mac"] = binascii.hexlify(app_payload[2:4]).decode("ascii")
+    result["peer_encrypted_len"] = len(encrypted)
+    result["peer_encrypted_preview"] = payload_preview(encrypted)
+    result["decoded_status"] = "encrypted-peer-payload"
+    result["decoded_text"] = (
+        f"encrypted peer payload dest={dest_hash:02x} src={src_hash:02x} "
+        f"mac={result['peer_mac']} enc={len(encrypted)}B"
+    )
+    return result
+
+
 def describe_packet(payload: bytes) -> dict:
     envelope = parse_bridge_packet_envelope(payload)
     mesh_payload = envelope["mesh_payload"] if envelope is not None else payload
@@ -344,6 +395,11 @@ def describe_packet(payload: bytes) -> dict:
         "decoded_text": "",
         "decoded_data_type": None,
         "decoded_data_len": None,
+        "peer_dest_hash": "",
+        "peer_src_hash": "",
+        "peer_mac": "",
+        "peer_encrypted_len": None,
+        "peer_encrypted_preview": "",
     }
 
     if envelope is None and payload.startswith(CONTROL_PREFIX):
@@ -366,6 +422,8 @@ def describe_packet(payload: bytes) -> dict:
 
     payload_type = parsed["payload_type"]
     route_type = parsed["route_type"]
+    public_decode = decode_public_channel_payload(parsed)
+    peer_info = describe_peer_encrypted_payload(parsed)
     description.update({
         "type": packet_type_name(payload_type),
         "type_id": payload_type,
@@ -373,8 +431,18 @@ def describe_packet(payload: bytes) -> dict:
         "route_id": route_type,
         "hops": parsed["path_hash_count"],
         "app_len": len(parsed["app_payload"]),
-        **decode_public_channel_payload(parsed),
+        **public_decode,
     })
+    if not description.get("decoded_status"):
+        description.update(peer_info)
+    else:
+        description.update({
+            "peer_dest_hash": peer_info["peer_dest_hash"],
+            "peer_src_hash": peer_info["peer_src_hash"],
+            "peer_mac": peer_info["peer_mac"],
+            "peer_encrypted_len": peer_info["peer_encrypted_len"],
+            "peer_encrypted_preview": peer_info["peer_encrypted_preview"],
+        })
     return description
 
 
@@ -622,6 +690,51 @@ def parse_mesh_payload(frame_payload: bytes) -> dict | None:
         "path_hash_count": path_hash_count,
         "app_payload": frame_payload[pos:],
     }
+
+
+def is_transport_or_message_packet(parsed: dict | None) -> bool:
+    if not parsed:
+        return False
+    if parsed["route_type"] in (ROUTE_TYPE_TRANSPORT_FLOOD, ROUTE_TYPE_TRANSPORT_DIRECT):
+        return True
+    return parsed["payload_type"] in (
+        PAYLOAD_TYPE_REQ,
+        PAYLOAD_TYPE_RESPONSE,
+        PAYLOAD_TYPE_TXT_MSG,
+        PAYLOAD_TYPE_GRP_TXT,
+        PAYLOAD_TYPE_GRP_DATA,
+        PAYLOAD_TYPE_ANON_REQ,
+        PAYLOAD_TYPE_MULTIPART,
+    )
+
+
+def prune_rate_window(times: deque[float], now: float, window_secs: int) -> None:
+    cutoff = now - max(1, window_secs)
+    while times and times[0] < cutoff:
+        times.popleft()
+
+
+def allow_transport_packet(client: "BridgeClient", parsed: dict | None, now: float) -> bool:
+    global transport_rate_dropped
+
+    if not TRANSPORT_RATE_LIMIT_ENABLE or not is_transport_or_message_packet(parsed):
+        return True
+
+    prune_rate_window(client.transport_rx_times, now, TRANSPORT_RATE_LIMIT_WINDOW_SECS)
+    prune_rate_window(transport_rx_times, now, TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS)
+
+    if TRANSPORT_RATE_LIMIT_MAX > 0 and len(client.transport_rx_times) >= TRANSPORT_RATE_LIMIT_MAX:
+        client.transport_rate_dropped += 1
+        transport_rate_dropped += 1
+        return False
+    if TRANSPORT_GLOBAL_RATE_LIMIT_MAX > 0 and len(transport_rx_times) >= TRANSPORT_GLOBAL_RATE_LIMIT_MAX:
+        client.transport_rate_dropped += 1
+        transport_rate_dropped += 1
+        return False
+
+    client.transport_rx_times.append(now)
+    transport_rx_times.append(now)
+    return True
 
 
 def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
@@ -881,6 +994,8 @@ class BridgeClient:
         self.packets_tx = 0
         self.packet_rx_times: deque[float] = deque()
         self.packet_tx_times: deque[float] = deque()
+        self.transport_rx_times: deque[float] = deque()
+        self.transport_rate_dropped = 0
         self.heartbeats_rx = 0
         self._connect_time = time.time()
         self.last_seen = self._connect_time
@@ -912,6 +1027,7 @@ class BridgeClient:
     def status_dict(self, now: float) -> dict:
         prune_packet_times(self.packet_rx_times, now)
         prune_packet_times(self.packet_tx_times, now)
+        prune_rate_window(self.transport_rx_times, now, TRANSPORT_RATE_LIMIT_WINDOW_SECS)
         return {
             "name": self.node_name,
             "id": self.client_id,
@@ -926,6 +1042,8 @@ class BridgeClient:
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(self.packet_rx_times),
             "packets_tx_24h": len(self.packet_tx_times),
+            "transport_rx_window": len(self.transport_rx_times),
+            "transport_rate_dropped": self.transport_rate_dropped,
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
             "supports_bridge_v2": self.supports_bridge_v2,
@@ -1171,6 +1289,20 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
             mesh_payload = mesh_payload_for_parsing(payload)
+            parsed_payload = parse_mesh_payload(mesh_payload)
+            if not allow_transport_packet(client, parsed_payload, now):
+                packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
+                log.warning(
+                    "%s: dropping transport flood packet from %s (%d/%ds client, %d/%ds global): %s",
+                    client.addr,
+                    client.display_name,
+                    len(client.transport_rx_times),
+                    TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+                    len(transport_rx_times),
+                    TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+                    format_packet_description(packet_log),
+                )
+                continue
             location_report = parse_mesh_location_payload(mesh_payload)
             if location_report is not None:
                 record_location(location_report, client)
@@ -1217,6 +1349,15 @@ def status_snapshot() -> dict:
     return {
         "generated_at": int(now),
         "connected_count": len(clients),
+        "transport_rate_limit": {
+            "enabled": TRANSPORT_RATE_LIMIT_ENABLE,
+            "client_max": TRANSPORT_RATE_LIMIT_MAX,
+            "client_window_secs": TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+            "global_max": TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+            "global_window_secs": TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+            "global_count": len(transport_rx_times),
+            "dropped": transport_rate_dropped,
+        },
         "clients": redact_public_value(clients),
     }
 
@@ -2294,6 +2435,16 @@ if __name__ == "__main__":
                         help="JSON file with public channel names/secrets for optional group packet decoding")
     parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
                         help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)")
+    parser.add_argument("--transport-rate-limit", choices=("on", "off"), default="on",
+                        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)")
+    parser.add_argument("--transport-rate-max", type=int, default=TRANSPORT_RATE_LIMIT_MAX,
+                        help="Max transport packets per bridge client per window (default: 20)")
+    parser.add_argument("--transport-rate-window", type=int, default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+                        help="Per-client transport rate window in seconds (default: 120)")
+    parser.add_argument("--transport-global-rate-max", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+                        help="Max transport packets globally per window, 0 disables global cap (default: 80)")
+    parser.add_argument("--transport-global-rate-window", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+                        help="Global transport rate window in seconds (default: 120)")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
@@ -2316,6 +2467,11 @@ if __name__ == "__main__":
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     PUBLIC_CHANNELS_FILE = args.public_channels_file
     LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
+    TRANSPORT_RATE_LIMIT_ENABLE = args.transport_rate_limit == "on"
+    TRANSPORT_RATE_LIMIT_MAX = max(0, args.transport_rate_max)
+    TRANSPORT_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_rate_window)
+    TRANSPORT_GLOBAL_RATE_LIMIT_MAX = max(0, args.transport_global_rate_max)
+    TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_global_rate_window)
     load_public_channels(PUBLIC_CHANNELS_FILE)
     load_location_tracks()
 
