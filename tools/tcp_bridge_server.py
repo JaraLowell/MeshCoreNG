@@ -74,6 +74,7 @@ PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
 ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 ADV_TYPE_SENSOR = 0x04
+ADV_TYPE_REPEATER = 0x02
 ADV_LATLON_MASK = 0x10
 ADV_FEAT1_MASK = 0x20
 ADV_FEAT2_MASK = 0x40
@@ -96,6 +97,7 @@ ADMIN_PASSWORD = ""
 STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
+next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
@@ -384,7 +386,8 @@ def record_packet_log(
         "time": int(time.time()),
         "direction": direction,
         "client": client.display_name,
-        "addr": client.addr,
+        "client_id": client.client_id,
+        "node_id": client.node_id,
         "source": source,
         "target": target,
         "flow": f"{source} -> {target}",
@@ -673,12 +676,40 @@ def parse_sensor_advert_payload(frame_payload: bytes) -> dict | None:
     }
 
 
+def parse_node_advert_payload(frame_payload: bytes) -> dict | None:
+    parsed = parse_mesh_payload(frame_payload)
+    if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_ADVERT:
+        return None
+
+    payload = parsed["app_payload"]
+    advert_header_len = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE
+    if len(payload) < advert_header_len:
+        return None
+
+    pub_key = payload[:PUB_KEY_SIZE]
+    timestamp = struct.unpack("<I", payload[PUB_KEY_SIZE:PUB_KEY_SIZE + 4])[0]
+    app_data = payload[advert_header_len:advert_header_len + MAX_ADVERT_DATA_SIZE]
+    advert = parse_advert_app_data(app_data)
+    if not advert:
+        return None
+
+    return {
+        "node_id": binascii.hexlify(pub_key[:4]).decode("ascii"),
+        "pubkey_prefix": binascii.hexlify(pub_key[:8]).decode("ascii"),
+        "timestamp": timestamp,
+        "name": advert["name"],
+        "advert_type": advert["advert_type"],
+        "hops": parsed["path_hash_count"],
+    }
+
+
 def record_location(report: dict, client: "BridgeClient") -> None:
     now = time.time()
     report = dict(report)
     report["received_at"] = int(now)
     report["age_seconds"] = 0
     report["source"] = client.display_name
+    client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_locations[report["node_id"]] = report
 
 
@@ -690,6 +721,7 @@ def record_sensor_advert(report: dict, client: "BridgeClient") -> None:
     report["age_seconds"] = 0
     report["source"] = client.display_name
     report["seen_count"] = int(existing.get("seen_count", 0)) + 1
+    client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_sensors[report["node_id"]] = report
 
 
@@ -722,12 +754,16 @@ def prune_packet_times(packet_times: deque[float], now: float) -> None:
 
 class BridgeClient:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        global next_client_id
+
         self.reader = reader
         self.writer = writer
         addr = writer.get_extra_info("peername")
         self.host = addr[0] if addr else "unknown"
         self.port = addr[1] if addr else 0
         self.addr = f"{self.host}:{self.port}" if addr else "unknown"
+        self._client_id = f"client-{next_client_id}"
+        next_client_id += 1
         self.packets_rx = 0
         self.packets_tx = 0
         self.packet_rx_times: deque[float] = deque()
@@ -737,6 +773,7 @@ class BridgeClient:
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
         self.node_name = ""
+        self.node_id = ""
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.authenticated = not BRIDGE_PASSWORD
@@ -747,7 +784,17 @@ class BridgeClient:
 
     @property
     def client_id(self) -> str:
-        return self.addr
+        return self._client_id
+
+    def learn_node_id(self, node_id: str, name: str = "") -> None:
+        node_id = (node_id or "").strip().lower()
+        if not node_id:
+            return
+        name = (name or "").strip()
+        if self.node_name and name and name != self.node_name:
+            return
+        if not self.node_id or name == self.node_name:
+            self.node_id = node_id
 
     def status_dict(self, now: float) -> dict:
         prune_packet_times(self.packet_rx_times, now)
@@ -755,7 +802,7 @@ class BridgeClient:
         return {
             "name": self.node_name,
             "id": self.client_id,
-            "addr": self.addr,
+            "node_id": self.node_id,
             "firmware_version": self.firmware_version,
             "display_name": self.display_name,
             "connected_seconds": int(now - self._connect_time),
@@ -1012,6 +1059,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             location_report = parse_mesh_location_payload(mesh_payload)
             if location_report is not None:
                 record_location(location_report, client)
+            node_advert = parse_node_advert_payload(mesh_payload)
+            if node_advert is not None and node_advert.get("advert_type") == ADV_TYPE_REPEATER:
+                client.learn_node_id(node_advert.get("node_id", ""), node_advert.get("name", ""))
             sensor_report = parse_sensor_advert_payload(mesh_payload)
             if sensor_report is not None:
                 record_sensor_advert(sensor_report, client)
@@ -1512,7 +1562,7 @@ def build_status_html(base_path: str = "") -> str:
               <span>${{escapeHtml(client.display_name)}}</span>
               <span class="badge">${{client.supports_bridge_v2 ? "v2" : "v1"}}</span>
             </div>
-            <div class="node-meta">${{escapeHtml(client.addr)}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
+            <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
@@ -1651,9 +1701,10 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     options = []
     for client in snapshot["clients"]:
         label = client["display_name"]
+        if client.get("node_id"):
+            label += f" [{client['node_id']}]"
         if client["firmware_version"]:
             label += f" ({client['firmware_version']})"
-        label += f" - {client['addr']}"
         options.append(
             f'<option value="{html.escape(client["id"], quote=True)}">{html.escape(label)}</option>'
         )
