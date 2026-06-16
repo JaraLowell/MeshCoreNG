@@ -243,109 +243,103 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&fem_rx_gain, sizeof(fem_rx_gain)) == sizeof(fem_rx_gain)) {
         _prefs->fem_rx_gain = fem_rx_gain;                                                         // 531 + sizeof(AtlasConfig)
       }
+      uint8_t tcp_flood_limit_enable = _prefs->tcp_flood_limit_enable;
+      if (file.read((uint8_t *)&tcp_flood_limit_enable, sizeof(tcp_flood_limit_enable)) == sizeof(tcp_flood_limit_enable)) {
+        _prefs->tcp_flood_limit_enable = tcp_flood_limit_enable;                                   // 532 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_max_packets = _prefs->tcp_flood_max_packets;
+      if (file.read((uint8_t *)&tcp_flood_max_packets, sizeof(tcp_flood_max_packets)) == sizeof(tcp_flood_max_packets)) {
+        _prefs->tcp_flood_max_packets = tcp_flood_max_packets;                                     // 533 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_window_secs = _prefs->tcp_flood_window_secs;
+      if (file.read((uint8_t *)&tcp_flood_window_secs, sizeof(tcp_flood_window_secs)) == sizeof(tcp_flood_window_secs)) {
+        _prefs->tcp_flood_window_secs = tcp_flood_window_secs;                                     // 535 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_transport_max = _prefs->tcp_flood_transport_max;
+      if (file.read((uint8_t *)&tcp_flood_transport_max, sizeof(tcp_flood_transport_max)) == sizeof(tcp_flood_transport_max)) {
+        _prefs->tcp_flood_transport_max = tcp_flood_transport_max;                                 // 537 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_transport_window = _prefs->tcp_flood_transport_window;
+      if (file.read((uint8_t *)&tcp_flood_transport_window, sizeof(tcp_flood_transport_window)) == sizeof(tcp_flood_transport_window)) {
+        _prefs->tcp_flood_transport_window = tcp_flood_transport_window;                           // 539 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_control_max = _prefs->tcp_flood_control_max;
+      if (file.read((uint8_t *)&tcp_flood_control_max, sizeof(tcp_flood_control_max)) == sizeof(tcp_flood_control_max)) {
+        _prefs->tcp_flood_control_max = tcp_flood_control_max;                                     // 541 + sizeof(AtlasConfig)
+      }
+      uint16_t tcp_flood_control_window = _prefs->tcp_flood_control_window;
+      if (file.read((uint8_t *)&tcp_flood_control_window, sizeof(tcp_flood_control_window)) == sizeof(tcp_flood_control_window)) {
+        _prefs->tcp_flood_control_window = tcp_flood_control_window;                               // 543 + sizeof(AtlasConfig)
+      }
+      file.read(pad, 1);                                                                           // 545 + sizeof(AtlasConfig), unused
+      file.read(pad, 2);                                                                           // 546 + sizeof(AtlasConfig), unused
+      file.read(pad, 8);                                                                           // 548 + sizeof(AtlasConfig), unused
+      file.read(pad, 8);                                                                           // 556 + sizeof(AtlasConfig), unused
+      file.read(pad, 8);                                                                           // 564 + sizeof(AtlasConfig), unused
+      file.read(pad, 8);                                                                           // 572 + sizeof(AtlasConfig), unused
+      // next: 580 + sizeof(AtlasConfig)
       uint8_t low_bat_boot_guard_enabled = _prefs->low_bat_boot_guard_enabled;
       if (file.read((uint8_t *)&low_bat_boot_guard_enabled, sizeof(low_bat_boot_guard_enabled)) == sizeof(low_bat_boot_guard_enabled)) {
-        _prefs->low_bat_boot_guard_enabled = low_bat_boot_guard_enabled;                           // 532 + sizeof(AtlasConfig)
+        _prefs->low_bat_boot_guard_enabled = low_bat_boot_guard_enabled;                           // 580 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_boot_guard_mv = _prefs->low_bat_boot_guard_mv;
       if (file.read((uint8_t *)&low_bat_boot_guard_mv, sizeof(low_bat_boot_guard_mv)) == sizeof(low_bat_boot_guard_mv)) {
-        _prefs->low_bat_boot_guard_mv = low_bat_boot_guard_mv;                                     // 533 + sizeof(AtlasConfig)
+        _prefs->low_bat_boot_guard_mv = low_bat_boot_guard_mv;                                     // 581 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_boot_valid_min_mv = _prefs->low_bat_boot_valid_min_mv;
       if (file.read((uint8_t *)&low_bat_boot_valid_min_mv, sizeof(low_bat_boot_valid_min_mv)) == sizeof(low_bat_boot_valid_min_mv)) {
-        _prefs->low_bat_boot_valid_min_mv = low_bat_boot_valid_min_mv;                             // 535 + sizeof(AtlasConfig)
+        _prefs->low_bat_boot_valid_min_mv = low_bat_boot_valid_min_mv;                             // 583 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_boot_retry_secs = _prefs->low_bat_boot_retry_secs;
       if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
-        _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 537 + sizeof(AtlasConfig)
+        _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 585 + sizeof(AtlasConfig)
       }
       char ntp_server[64] = {};
       if (file.read((uint8_t *)ntp_server, sizeof(ntp_server)) == sizeof(ntp_server)) {
-        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                  // 539 + sizeof(AtlasConfig)
+        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                // 587 + sizeof(AtlasConfig)
       }
       uint8_t ntp_enabled = _prefs->ntp_enabled;
       if (file.read((uint8_t *)&ntp_enabled, sizeof(ntp_enabled)) == sizeof(ntp_enabled)) {
-        _prefs->ntp_enabled = ntp_enabled;                                                          // 603 + sizeof(AtlasConfig)
+        _prefs->ntp_enabled = ntp_enabled;                                                         // 651 + sizeof(AtlasConfig)
       }
       uint32_t ntp_interval_secs = _prefs->ntp_interval_secs;
       if (file.read((uint8_t *)&ntp_interval_secs, sizeof(ntp_interval_secs)) == sizeof(ntp_interval_secs)) {
-        _prefs->ntp_interval_secs = ntp_interval_secs;                                              // 604 + sizeof(AtlasConfig)
+        _prefs->ntp_interval_secs = ntp_interval_secs;                                             // 652 + sizeof(AtlasConfig)
       }
       uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
       if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
-        _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                      // 608 + sizeof(AtlasConfig)
+        _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                     // 656 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_runtime_guard_mv = _prefs->low_bat_runtime_guard_mv;
       if (file.read((uint8_t *)&low_bat_runtime_guard_mv, sizeof(low_bat_runtime_guard_mv)) == sizeof(low_bat_runtime_guard_mv)) {
-        _prefs->low_bat_runtime_guard_mv = low_bat_runtime_guard_mv;                                // 609 + sizeof(AtlasConfig)
+        _prefs->low_bat_runtime_guard_mv = low_bat_runtime_guard_mv;                               // 657 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_runtime_warn_mv = _prefs->low_bat_runtime_warn_mv;
       if (file.read((uint8_t *)&low_bat_runtime_warn_mv, sizeof(low_bat_runtime_warn_mv)) == sizeof(low_bat_runtime_warn_mv)) {
-        _prefs->low_bat_runtime_warn_mv = low_bat_runtime_warn_mv;                                  // 611 + sizeof(AtlasConfig)
+        _prefs->low_bat_runtime_warn_mv = low_bat_runtime_warn_mv;                                 // 659 + sizeof(AtlasConfig)
       }
       uint16_t low_bat_runtime_valid_min_mv = _prefs->low_bat_runtime_valid_min_mv;
       if (file.read((uint8_t *)&low_bat_runtime_valid_min_mv, sizeof(low_bat_runtime_valid_min_mv)) == sizeof(low_bat_runtime_valid_min_mv)) {
-        _prefs->low_bat_runtime_valid_min_mv = low_bat_runtime_valid_min_mv;                        // 613 + sizeof(AtlasConfig)
+        _prefs->low_bat_runtime_valid_min_mv = low_bat_runtime_valid_min_mv;                       // 661 + sizeof(AtlasConfig)
       }
       uint32_t low_bat_runtime_retry_secs = _prefs->low_bat_runtime_retry_secs;
       if (file.read((uint8_t *)&low_bat_runtime_retry_secs, sizeof(low_bat_runtime_retry_secs)) == sizeof(low_bat_runtime_retry_secs)) {
-        _prefs->low_bat_runtime_retry_secs = low_bat_runtime_retry_secs;                            // 615 + sizeof(AtlasConfig)
+        _prefs->low_bat_runtime_retry_secs = low_bat_runtime_retry_secs;                           // 663 + sizeof(AtlasConfig)
       }
       uint8_t bridge_export_filter = _prefs->bridge_export_filter;
       if (file.read((uint8_t *)&bridge_export_filter, sizeof(bridge_export_filter)) == sizeof(bridge_export_filter)) {
-        _prefs->bridge_export_filter = bridge_export_filter;                                        // 619 + sizeof(AtlasConfig)
+        _prefs->bridge_export_filter = bridge_export_filter;                                       // 667 + sizeof(AtlasConfig)
       }
       uint8_t bridge_export_max_hops = _prefs->bridge_export_max_hops;
       if (file.read((uint8_t *)&bridge_export_max_hops, sizeof(bridge_export_max_hops)) == sizeof(bridge_export_max_hops)) {
-        _prefs->bridge_export_max_hops = bridge_export_max_hops;                                    // 620 + sizeof(AtlasConfig)
+        _prefs->bridge_export_max_hops = bridge_export_max_hops;                                   // 668 + sizeof(AtlasConfig)
       }
       uint8_t bridge_tcp_ttl = _prefs->bridge_tcp_ttl;
       if (file.read((uint8_t *)&bridge_tcp_ttl, sizeof(bridge_tcp_ttl)) == sizeof(bridge_tcp_ttl)) {
-        _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                    // 621 + sizeof(AtlasConfig)
+        _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                   // 669 + sizeof(AtlasConfig)
       }
+      // next: 670 + sizeof(AtlasConfig)
     }
-    uint8_t tcp_flood_limit_enable = _prefs->tcp_flood_limit_enable;
-    if (file.read((uint8_t *)&tcp_flood_limit_enable, sizeof(tcp_flood_limit_enable)) == sizeof(tcp_flood_limit_enable)) {
-      _prefs->tcp_flood_limit_enable = tcp_flood_limit_enable;                                     // 532 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_max_packets = _prefs->tcp_flood_max_packets;
-    if (file.read((uint8_t *)&tcp_flood_max_packets, sizeof(tcp_flood_max_packets)) == sizeof(tcp_flood_max_packets)) {
-      _prefs->tcp_flood_max_packets = tcp_flood_max_packets;                                       // 533 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_window_secs = _prefs->tcp_flood_window_secs;
-    if (file.read((uint8_t *)&tcp_flood_window_secs, sizeof(tcp_flood_window_secs)) == sizeof(tcp_flood_window_secs)) {
-      _prefs->tcp_flood_window_secs = tcp_flood_window_secs;                                       // 535 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_transport_max = _prefs->tcp_flood_transport_max;
-    if (file.read((uint8_t *)&tcp_flood_transport_max, sizeof(tcp_flood_transport_max)) == sizeof(tcp_flood_transport_max)) {
-      _prefs->tcp_flood_transport_max = tcp_flood_transport_max;                                   // 537 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_transport_window = _prefs->tcp_flood_transport_window;
-    if (file.read((uint8_t *)&tcp_flood_transport_window, sizeof(tcp_flood_transport_window)) == sizeof(tcp_flood_transport_window)) {
-      _prefs->tcp_flood_transport_window = tcp_flood_transport_window;                             // 539 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_control_max = _prefs->tcp_flood_control_max;
-    if (file.read((uint8_t *)&tcp_flood_control_max, sizeof(tcp_flood_control_max)) == sizeof(tcp_flood_control_max)) {
-      _prefs->tcp_flood_control_max = tcp_flood_control_max;                                       // 541 + sizeof(AtlasConfig)
-    }
-    uint16_t tcp_flood_control_window = _prefs->tcp_flood_control_window;
-    if (file.read((uint8_t *)&tcp_flood_control_window, sizeof(tcp_flood_control_window)) == sizeof(tcp_flood_control_window)) {
-      _prefs->tcp_flood_control_window = tcp_flood_control_window;                                 // 543 + sizeof(AtlasConfig)
-    }
-    uint8_t cli_server_enabled = _prefs->cli_server_enabled;
-    if (file.read((uint8_t *)&cli_server_enabled, sizeof(cli_server_enabled)) == sizeof(cli_server_enabled)) {
-      _prefs->cli_server_enabled = cli_server_enabled;                                             // 545 + sizeof(AtlasConfig)
-    }
-    uint16_t cli_server_port = _prefs->cli_server_port;
-    if (file.read((uint8_t *)&cli_server_port, sizeof(cli_server_port)) == sizeof(cli_server_port)) {
-      _prefs->cli_server_port = cli_server_port;                                                   // 546 + sizeof(AtlasConfig)
-    }
-    char cli_server_password[32] = {};
-    if (file.read((uint8_t *)cli_server_password, sizeof(cli_server_password)) == sizeof(cli_server_password)) {
-      memcpy(_prefs->cli_server_password, cli_server_password, sizeof(cli_server_password));       // 548 + sizeof(AtlasConfig)
-    }
-    // next: 580 + sizeof(AtlasConfig)
-    // next: 622 + sizeof(AtlasConfig)
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -402,11 +396,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->tcp_flood_transport_window = constrain(_prefs->tcp_flood_transport_window, 1, 3600);
     _prefs->tcp_flood_control_max = constrain(_prefs->tcp_flood_control_max, 0, 10000); // 0 = bypass
     _prefs->tcp_flood_control_window = constrain(_prefs->tcp_flood_control_window, 1, 3600);
-
-    // sanitize CLI server settings
-    _prefs->cli_server_enabled = constrain(_prefs->cli_server_enabled, 0, 1);
-    if (_prefs->cli_server_port == 0) _prefs->cli_server_port = 2323; // default telnet alternative port
-    _prefs->cli_server_port = constrain(_prefs->cli_server_port, 1024, 65535);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -520,26 +509,29 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->tcp_flood_transport_window, sizeof(_prefs->tcp_flood_transport_window)); // 539 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_max, sizeof(_prefs->tcp_flood_control_max));   // 541 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_window, sizeof(_prefs->tcp_flood_control_window)); // 543 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->cli_server_enabled, sizeof(_prefs->cli_server_enabled));        // 545 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->cli_server_port, sizeof(_prefs->cli_server_port));              // 546 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->cli_server_password, sizeof(_prefs->cli_server_password));      // 548 + sizeof(AtlasConfig)
+    file.write(pad, 1);                                                                            // 545 + sizeof(AtlasConfig), unused
+    file.write(pad, 2);                                                                            // 546 + sizeof(AtlasConfig), unused
+    file.write(pad, 8);                                                                            // 548 + sizeof(AtlasConfig), unused
+    file.write(pad, 8);                                                                            // 556 + sizeof(AtlasConfig), unused
+    file.write(pad, 8);                                                                            // 564 + sizeof(AtlasConfig), unused
+    file.write(pad, 8);                                                                            // 572 + sizeof(AtlasConfig), unused
     // next: 580 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_boot_guard_enabled, sizeof(_prefs->low_bat_boot_guard_enabled)); // 532 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 533 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 535 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 537 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 539 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 603 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 604 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 608 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 609 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 611 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_runtime_valid_min_mv, sizeof(_prefs->low_bat_runtime_valid_min_mv)); // 613 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->low_bat_runtime_retry_secs, sizeof(_prefs->low_bat_runtime_retry_secs)); // 615 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 619 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 620 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 621 + sizeof(AtlasConfig)
-    // next: 622 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_enabled, sizeof(_prefs->low_bat_boot_guard_enabled)); // 580 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 581 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 583 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 585 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 587 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 651 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 652 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 656 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 657 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 659 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_valid_min_mv, sizeof(_prefs->low_bat_runtime_valid_min_mv)); // 661 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->low_bat_runtime_retry_secs, sizeof(_prefs->low_bat_runtime_retry_secs)); // 663 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 667 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 668 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 669 + sizeof(AtlasConfig)
+    // next: 670 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1437,6 +1429,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_MESSAGES;
       _prefs->bridge_export_max_hops = 4;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 1;
       savePrefs();
       strcpy(reply, "OK - bridge island profile applied");
     } else if (memcmp(&config[15], "repeater", 8) == 0) {
@@ -1445,6 +1438,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 2;
       savePrefs();
       strcpy(reply, "OK - bridge repeater profile applied");
     } else if (memcmp(&config[15], "default", 7) == 0) {
@@ -1453,6 +1447,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->bridge_profile = 0;
       savePrefs();
       strcpy(reply, "OK - bridge default profile applied");
     } else {
@@ -1519,27 +1514,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
     }
-  } else if (memcmp(config, "cli.server.enabled ", 19) == 0) {
-    const char* value = &config[19];
-    if (parseOnOff(value, &_prefs->cli_server_enabled)) {
-      savePrefs();
-      strcpy(reply, "OK - reboot to apply");
-    } else {
-      strcpy(reply, "Error: expected on or off");
-    }
-  } else if (memcmp(config, "cli.server.port ", 16) == 0) {
-    int port = _atoi(&config[16]);
-    if (port >= 1024 && port <= 65535) {
-      _prefs->cli_server_port = (uint16_t)port;
-      savePrefs();
-      strcpy(reply, "OK - reboot to apply");
-    } else {
-      strcpy(reply, "Error: port must be between 1024-65535");
-    }
-  } else if (memcmp(config, "cli.server.password ", 20) == 0) {
-    StrHelper::strncpy(_prefs->cli_server_password, &config[20], sizeof(_prefs->cli_server_password));
-    savePrefs();
-    strcpy(reply, "OK - reboot to apply");
   } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
     const char* value = &config[12];
     if (parseOnOff(value, &_prefs->ntp_enabled)) {
@@ -1842,6 +1816,9 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", mode);
   } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
+  } else if (memcmp(config, "bridge.profile", 14) == 0) {
+    const char* profile = _prefs->bridge_profile == 1 ? "island" : (_prefs->bridge_profile == 2 ? "repeater" : "default");
+    sprintf(reply, "> %s", profile);
 #if defined(WITH_BLE_BRIDGE)
   } else if (memcmp(config, "bridge.status", 13) == 0) {
     _callbacks->formatBleBridgeStatusReply(reply);
@@ -1872,16 +1849,6 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
-  } else if (memcmp(config, "cli.server.enabled", 18) == 0) {
-    sprintf(reply, "> %s", _prefs->cli_server_enabled ? "on" : "off");
-  } else if (memcmp(config, "cli.server.port", 15) == 0) {
-    sprintf(reply, "> %d", (uint32_t)_prefs->cli_server_port);
-  } else if (memcmp(config, "cli.server.password", 19) == 0) {
-    if (_prefs->cli_server_password[0] != '\0') {
-      strcpy(reply, "> ***");
-    } else {
-      strcpy(reply, "> (none)");
-    }
   } else if (memcmp(config, "ntp.enabled", 11) == 0) {
     sprintf(reply, "> %s", _prefs->ntp_enabled ? "on" : "off");
   } else if (memcmp(config, "ntp.server", 10) == 0) {

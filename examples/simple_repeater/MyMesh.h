@@ -332,6 +332,7 @@ public:
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
 #if defined(WITH_TCP_BRIDGE)
   void handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) override;
+  void configureTcpBridgeNodeIds();
 #endif
   void loop();
   void formatDailyRebootReply(char* reply) const;
@@ -341,6 +342,7 @@ public:
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     if (enable == (tcp_bridge.isRunning() && ble_bridge.isRunning())) return;
     if (enable) {
+      configureTcpBridgeNodeIds();
       tcp_bridge.setCommandHandler(this);
       tcp_bridge.begin();
       ble_bridge.begin();
@@ -353,6 +355,7 @@ public:
     if (enable)
     {
 #if defined(WITH_TCP_BRIDGE)
+      configureTcpBridgeNodeIds();
       bridge.setCommandHandler(this);
 #endif
       bridge.begin();
@@ -369,6 +372,7 @@ public:
     if (!tcp_bridge.isRunning() && !ble_bridge.isRunning()) return;
     tcp_bridge.end();
     ble_bridge.end();
+    configureTcpBridgeNodeIds();
     tcp_bridge.setCommandHandler(this);
     tcp_bridge.begin();
     ble_bridge.begin();
@@ -376,6 +380,7 @@ public:
     if (!bridge.isRunning()) return;
     bridge.end();
 #if defined(WITH_TCP_BRIDGE)
+    configureTcpBridgeNodeIds();
     bridge.setCommandHandler(this);
 #endif
     bridge.begin();

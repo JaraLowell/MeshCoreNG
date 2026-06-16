@@ -78,6 +78,7 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
       _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
     }
   } else {
+    BRIDGE_DEBUG_PRINTLN("BridgeBase: duplicate bridge packet dropped\n");
     _mgr->free(packet);
   }
 }

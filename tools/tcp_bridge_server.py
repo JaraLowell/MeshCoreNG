@@ -10,6 +10,7 @@ Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
     open http://localhost:8080/manage for remote management
+    use --status-base-path /meshbridgestatus when reverse-proxying below a URL prefix
 
 Repeater firmware configuration (via CLI):
     set wifi.ssid    <your-wifi>
@@ -19,7 +20,8 @@ Repeater firmware configuration (via CLI):
     set bridge.password <bridgeSecret>  # only when server --password is set
     set bridge.enabled on
 
-Requires Python 3.7+, no external dependencies.
+Requires Python 3.7+. Public channel decoding additionally needs:
+    pip install cryptography
 """
 
 import asyncio
@@ -27,12 +29,23 @@ import argparse
 import base64
 import binascii
 from collections import deque
+import hashlib
+import hmac
 import html
 import json
 import logging
+import re
 import struct
 import time
-from urllib.parse import parse_qs
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+except ImportError:
+    Cipher = None
+    algorithms = None
+    modes = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,13 +66,20 @@ CONTROL_TYPE_COMMAND_REPLY = 0x11
 CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
 BRIDGE_V2_OVERHEAD = 14
+IP_ADDRESS_RE = re.compile(
+    r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\w.])"
+    r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
+)
 PAYLOAD_TYPE_ADVERT = 0x04
+PAYLOAD_TYPE_GRP_TXT = 0x05
+PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
 ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 ADV_TYPE_SENSOR = 0x04
+ADV_TYPE_REPEATER = 0x02
 ADV_LATLON_MASK = 0x10
 ADV_FEAT1_MASK = 0x20
 ADV_FEAT2_MASK = 0x40
@@ -67,22 +87,29 @@ ADV_NAME_MASK = 0x80
 PUB_KEY_SIZE = 32
 SIGNATURE_SIZE = 64
 MAX_ADVERT_DATA_SIZE = 32
+PATH_HASH_SIZE = 1
+CIPHER_MAC_SIZE = 2
+CIPHER_BLOCK_SIZE = 16
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
+PUBLIC_CHANNELS_FILE = ""
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
+STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
+next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
 latest_sensors: dict[str, dict] = {}
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
+public_channels: list[dict] = []
 
 PAYLOAD_TYPE_NAMES = {
     0x00: "request",
@@ -144,6 +171,155 @@ def route_type_name(route_type: int) -> str:
     return ROUTE_TYPE_NAMES.get(route_type, f"unknown-0x{route_type:02x}")
 
 
+def redact_public_text(value: str) -> str:
+    return IP_ADDRESS_RE.sub("[hidden]", value)
+
+
+def redact_public_value(value):
+    if isinstance(value, str):
+        return redact_public_text(value)
+    if isinstance(value, list):
+        return [redact_public_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: redact_public_value(item) for key, item in value.items() if key != "addr"}
+    return value
+
+
+def derive_channel_secret(secret_hex: str) -> bytes | None:
+    try:
+        raw = bytes.fromhex(secret_hex.strip())
+    except ValueError:
+        return None
+    if len(raw) == 16:
+        return raw + (b"\x00" * 16)
+    if len(raw) == 32:
+        return raw
+    return None
+
+
+def channel_hash(secret: bytes) -> bytes:
+    key_len = 16 if secret[16:] == b"\x00" * 16 else 32
+    return hashlib.sha256(secret[:key_len]).digest()[:PATH_HASH_SIZE]
+
+
+def load_public_channels(path: str) -> None:
+    public_channels.clear()
+    if not path:
+        return
+    if Cipher is None:
+        log.warning("Public channel decoding disabled: install python package 'cryptography'")
+        return
+
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Public channel decoding disabled: cannot read %s (%s)", path, exc)
+        return
+
+    if isinstance(data, dict):
+        data = data.get("channels", [])
+    if not isinstance(data, list):
+        log.warning("Public channel decoding disabled: %s must contain a list or {'channels': [...]} object", path)
+        return
+
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        secret = derive_channel_secret(str(item.get("secret", "")))
+        if not name or secret is None:
+            log.warning("Skipping invalid public channel entry: %s", item)
+            continue
+        public_channels.append({
+            "name": name,
+            "secret": secret,
+            "hash": channel_hash(secret),
+        })
+
+    log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
+
+
+def aes_ecb_decrypt(secret: bytes, data: bytes) -> bytes | None:
+    if Cipher is None or len(data) == 0 or len(data) % CIPHER_BLOCK_SIZE:
+        return None
+    cipher = Cipher(algorithms.AES(secret[:16]), modes.ECB())
+    decryptor = cipher.decryptor()
+    return decryptor.update(data) + decryptor.finalize()
+
+
+def mac_then_decrypt(secret: bytes, data: bytes) -> bytes | None:
+    if len(data) <= CIPHER_MAC_SIZE:
+        return None
+    expected = hmac.new(secret, data[CIPHER_MAC_SIZE:], hashlib.sha256).digest()[:CIPHER_MAC_SIZE]
+    if not hmac.compare_digest(expected, data[:CIPHER_MAC_SIZE]):
+        return None
+    return aes_ecb_decrypt(secret, data[CIPHER_MAC_SIZE:])
+
+
+def trim_c_string(data: bytes) -> str:
+    data = data.split(b"\x00", 1)[0]
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def decode_public_channel_payload(parsed: dict) -> dict:
+    result = {
+        "decoded_channel": "",
+        "decoded_status": "",
+        "decoded_text": "",
+        "decoded_data_type": None,
+        "decoded_data_len": None,
+    }
+    payload_type = parsed.get("payload_type")
+    app_payload = parsed.get("app_payload") or b""
+    if payload_type not in (PAYLOAD_TYPE_GRP_TXT, PAYLOAD_TYPE_GRP_DATA):
+        return result
+    if not public_channels:
+        result["decoded_status"] = "channel-keys-not-loaded"
+        return result
+    if len(app_payload) <= PATH_HASH_SIZE + CIPHER_MAC_SIZE:
+        result["decoded_status"] = "short-group-payload"
+        return result
+
+    packet_hash = app_payload[:PATH_HASH_SIZE]
+    encrypted = app_payload[PATH_HASH_SIZE:]
+    candidates = [ch for ch in public_channels if ch["hash"] == packet_hash]
+    if not candidates:
+        result["decoded_status"] = "unknown-channel"
+        return result
+
+    for channel in candidates:
+        plain = mac_then_decrypt(channel["secret"], encrypted)
+        if not plain:
+            continue
+        result["decoded_channel"] = channel["name"]
+        if payload_type == PAYLOAD_TYPE_GRP_TXT:
+            if len(plain) < 5:
+                result["decoded_status"] = "short-group-text"
+                return result
+            txt_type = plain[4]
+            if (txt_type >> 2) != 0:
+                result["decoded_status"] = f"unsupported-text-type-{txt_type}"
+                return result
+            result["decoded_status"] = "decoded"
+            result["decoded_text"] = trim_c_string(plain[5:])
+            return result
+
+        if len(plain) < 3:
+            result["decoded_status"] = "short-group-data"
+            return result
+        data_type = plain[0] | (plain[1] << 8)
+        data_len = plain[2]
+        data = plain[3:3 + data_len]
+        result["decoded_status"] = "decoded"
+        result["decoded_data_type"] = data_type
+        result["decoded_data_len"] = min(data_len, len(data))
+        result["decoded_text"] = f"data_type=0x{data_type:04x} len={min(data_len, len(data))} preview={payload_preview(data)}"
+        return result
+
+    result["decoded_status"] = "mac-failed"
+    return result
+
+
 def describe_packet(payload: bytes) -> dict:
     envelope = parse_bridge_packet_envelope(payload)
     mesh_payload = envelope["mesh_payload"] if envelope is not None else payload
@@ -160,6 +336,11 @@ def describe_packet(payload: bytes) -> dict:
         "origin_id": f"0x{envelope['origin_id']:08x}" if envelope is not None else "",
         "flags": f"0x{envelope['flags']:02x}" if envelope is not None else "",
         "mesh_len": len(mesh_payload),
+        "decoded_channel": "",
+        "decoded_status": "",
+        "decoded_text": "",
+        "decoded_data_type": None,
+        "decoded_data_len": None,
     }
 
     if envelope is None and payload.startswith(CONTROL_PREFIX):
@@ -189,6 +370,7 @@ def describe_packet(payload: bytes) -> dict:
         "route_id": route_type,
         "hops": parsed["path_hash_count"],
         "app_len": len(parsed["app_payload"]),
+        **decode_public_channel_payload(parsed),
     })
     return description
 
@@ -197,6 +379,8 @@ def format_packet_description(description: dict) -> str:
     parts = [f"type={description['type']}"]
     if description.get("route"):
         parts.append(f"route={description['route']}")
+    if description.get("decoded_channel"):
+        parts.append(f"channel={description['decoded_channel']}")
     if description.get("hops") is not None:
         parts.append(f"hops={description['hops']}")
     if description.get("app_len") is not None:
@@ -206,14 +390,26 @@ def format_packet_description(description: dict) -> str:
     return " ".join(parts)
 
 
-def record_packet_log(direction: str, client: "BridgeClient", payload: bytes) -> dict:
+def record_packet_log(
+    direction: str,
+    client: "BridgeClient",
+    payload: bytes,
+    source: str = "",
+    target: str = "",
+) -> dict:
     description = describe_packet(payload)
     mesh_payload = mesh_payload_for_parsing(payload)
+    source = source or ("server" if direction == "TX" else client.display_name)
+    target = target or (client.display_name if direction == "TX" else "server")
     entry = {
         "time": int(time.time()),
         "direction": direction,
         "client": client.display_name,
-        "addr": client.addr,
+        "client_id": client.client_id,
+        "node_id": client.node_id,
+        "source": source,
+        "target": target,
+        "flow": f"{source} -> {target}",
         "size": len(payload),
         "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
         **description,
@@ -234,7 +430,7 @@ def parse_heartbeat(payload: bytes) -> int | None:
     return 0
 
 
-def parse_node_info(payload: bytes) -> tuple[str, str] | None:
+def parse_node_info(payload: bytes) -> tuple[str, str, str] | None:
     if len(payload) < 6:
         return None
     if not payload.startswith(CONTROL_PREFIX):
@@ -250,14 +446,22 @@ def parse_node_info(payload: bytes) -> tuple[str, str] | None:
     name = raw_name.decode("utf-8", errors="replace").strip()[:32]
 
     firmware = ""
+    version_len = 0
     version_pos = 6 + name_len
     if len(payload) > version_pos:
         version_len = payload[version_pos]
         raw_version = payload[version_pos + 1:version_pos + 1 + version_len]
         if len(raw_version) == version_len:
             firmware = raw_version.decode("utf-8", errors="replace").strip()[:32]
+    node_id = ""
+    node_id_pos = version_pos + 1 + version_len
+    if len(payload) > node_id_pos:
+        node_id_len = payload[node_id_pos]
+        raw_node_id = payload[node_id_pos + 1:node_id_pos + 1 + node_id_len]
+        if node_id_len in (4, 8, 32) and len(raw_node_id) == node_id_len:
+            node_id = binascii.hexlify(raw_node_id).decode("ascii")
 
-    return name, firmware
+    return name, firmware, node_id
 
 
 def parse_auth(payload: bytes) -> str | None:
@@ -486,7 +690,7 @@ def parse_sensor_advert_payload(frame_payload: bytes) -> dict | None:
         return None
 
     return {
-        "node_id": binascii.hexlify(pub_key[:4]).decode("ascii"),
+        "node_id": binascii.hexlify(pub_key).decode("ascii"),
         "pubkey_prefix": binascii.hexlify(pub_key[:8]).decode("ascii"),
         "timestamp": timestamp,
         "name": advert["name"],
@@ -499,12 +703,40 @@ def parse_sensor_advert_payload(frame_payload: bytes) -> dict | None:
     }
 
 
+def parse_node_advert_payload(frame_payload: bytes) -> dict | None:
+    parsed = parse_mesh_payload(frame_payload)
+    if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_ADVERT:
+        return None
+
+    payload = parsed["app_payload"]
+    advert_header_len = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE
+    if len(payload) < advert_header_len:
+        return None
+
+    pub_key = payload[:PUB_KEY_SIZE]
+    timestamp = struct.unpack("<I", payload[PUB_KEY_SIZE:PUB_KEY_SIZE + 4])[0]
+    app_data = payload[advert_header_len:advert_header_len + MAX_ADVERT_DATA_SIZE]
+    advert = parse_advert_app_data(app_data)
+    if not advert:
+        return None
+
+    return {
+        "node_id": binascii.hexlify(pub_key).decode("ascii"),
+        "pubkey_prefix": binascii.hexlify(pub_key[:8]).decode("ascii"),
+        "timestamp": timestamp,
+        "name": advert["name"],
+        "advert_type": advert["advert_type"],
+        "hops": parsed["path_hash_count"],
+    }
+
+
 def record_location(report: dict, client: "BridgeClient") -> None:
     now = time.time()
     report = dict(report)
     report["received_at"] = int(now)
     report["age_seconds"] = 0
     report["source"] = client.display_name
+    client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_locations[report["node_id"]] = report
 
 
@@ -516,6 +748,7 @@ def record_sensor_advert(report: dict, client: "BridgeClient") -> None:
     report["age_seconds"] = 0
     report["source"] = client.display_name
     report["seen_count"] = int(existing.get("seen_count", 0)) + 1
+    client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_sensors[report["node_id"]] = report
 
 
@@ -548,12 +781,16 @@ def prune_packet_times(packet_times: deque[float], now: float) -> None:
 
 class BridgeClient:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        global next_client_id
+
         self.reader = reader
         self.writer = writer
         addr = writer.get_extra_info("peername")
         self.host = addr[0] if addr else "unknown"
         self.port = addr[1] if addr else 0
         self.addr = f"{self.host}:{self.port}" if addr else "unknown"
+        self._client_id = f"client-{next_client_id}"
+        next_client_id += 1
         self.packets_rx = 0
         self.packets_tx = 0
         self.packet_rx_times: deque[float] = deque()
@@ -563,9 +800,12 @@ class BridgeClient:
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
         self.node_name = ""
+        self.node_id = ""
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.authenticated = not BRIDGE_PASSWORD
+        self._seen_hash_set: set[bytes] = set()
+        self._seen_hash_deque: deque[bytes] = deque(maxlen=256)
 
     @property
     def display_name(self) -> str:
@@ -573,7 +813,30 @@ class BridgeClient:
 
     @property
     def client_id(self) -> str:
-        return self.addr
+        return self._client_id
+
+    def has_seen_payload(self, payload: bytes) -> bool:
+        """Return True if this client has already received this mesh payload recently."""
+        mesh = mesh_payload_for_parsing(payload)
+        h = hashlib.sha256(mesh).digest()[:8]
+        if h in self._seen_hash_set:
+            return True
+        if len(self._seen_hash_deque) >= self._seen_hash_deque.maxlen:
+            oldest = self._seen_hash_deque[0]
+            self._seen_hash_set.discard(oldest)
+        self._seen_hash_deque.append(h)
+        self._seen_hash_set.add(h)
+        return False
+
+    def learn_node_id(self, node_id: str, name: str = "") -> None:
+        node_id = (node_id or "").strip().lower()
+        if not node_id:
+            return
+        name = (name or "").strip()
+        if self.node_name and name and name != self.node_name:
+            return
+        if not self.node_id or len(node_id) > len(self.node_id) or name == self.node_name:
+            self.node_id = node_id
 
     def status_dict(self, now: float) -> dict:
         prune_packet_times(self.packet_rx_times, now)
@@ -581,7 +844,7 @@ class BridgeClient:
         return {
             "name": self.node_name,
             "id": self.client_id,
-            "addr": self.addr,
+            "node_id": self.node_id,
             "firmware_version": self.firmware_version,
             "display_name": self.display_name,
             "connected_seconds": int(now - self._connect_time),
@@ -645,7 +908,7 @@ class BridgeClient:
             + struct.pack(">H", csum)
         )
 
-    async def send_payload(self, payload: bytes) -> bool:
+    async def send_payload(self, payload: bytes, source: str = "") -> bool:
         try:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
@@ -653,11 +916,12 @@ class BridgeClient:
             now = time.time()
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
-            packet_log = record_packet_log("TX", self, payload)
+            packet_log = record_packet_log("TX", self, payload, source=source, target=self.display_name)
             if LOG_PACKETS:
                 log.info(
-                    "%s: TX %d bytes %s: %s",
-                    self.addr,
+                    "%s -> %s: TX %d bytes %s: %s",
+                    packet_log["source"],
+                    packet_log["target"],
                     len(payload),
                     format_packet_description(packet_log),
                     packet_log["preview"],
@@ -714,15 +978,22 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         log.debug("%s: dropping bridge packet with expired TTL", sender.addr)
         return
 
+    # Mark the sender as having seen this payload so it is skipped if it reconnects
+    # and the same packet arrives again before the deque ages out.
+    sender.has_seen_payload(forwarded_payload)
+
     dead = set()
     envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
         if client is sender:
             continue
+        if client.has_seen_payload(forwarded_payload):
+            log.debug("%s: skipping duplicate payload to %s", sender.addr, client.addr)
+            continue
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:
             client_payload = envelope["mesh_payload"]
-        ok = await client.send_payload(client_payload)
+        ok = await client.send_payload(client_payload, source=sender.display_name)
         if not ok:
             dead.add(client)
 
@@ -820,14 +1091,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 else:
                     log.debug("%s: stale command reply id=%d", client.addr, request_id)
                 continue
-            node_name = parse_node_info(payload)
-            if node_name is not None:
-                client.node_name, client.firmware_version = node_name
+            node_info = parse_node_info(payload)
+            if node_info is not None:
+                client.node_name, client.firmware_version, node_id = node_info
+                if node_id:
+                    client.node_id = node_id
                 if client.firmware_version:
-                    log.info("%s: node name is %s firmware=%s",
-                             client.addr, client.node_name, client.firmware_version)
+                    log.info("%s: node name is %s firmware=%s node_id=%s",
+                             client.addr, client.node_name, client.firmware_version, client.node_id or "unknown")
                 else:
-                    log.info("%s: node name is %s", client.addr, client.node_name)
+                    log.info("%s: node name is %s node_id=%s", client.addr, client.node_name, client.node_id or "unknown")
                 continue
             client.packets_rx += 1
             now = time.time()
@@ -837,6 +1110,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             location_report = parse_mesh_location_payload(mesh_payload)
             if location_report is not None:
                 record_location(location_report, client)
+            node_advert = parse_node_advert_payload(mesh_payload)
+            if node_advert is not None and node_advert.get("advert_type") == ADV_TYPE_REPEATER:
+                client.learn_node_id(node_advert.get("node_id", ""), node_advert.get("name", ""))
             sensor_report = parse_sensor_advert_payload(mesh_payload)
             if sensor_report is not None:
                 record_sensor_advert(sensor_report, client)
@@ -845,16 +1121,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 envelope = parse_bridge_packet_envelope(payload)
                 if envelope is not None:
                     log.info(
-                        "%s: RX bridge-v2 mesh=%d bytes %s: %s",
-                        client.addr,
+                        "%s -> server: RX bridge-v2 mesh=%d bytes %s: %s",
+                        packet_log["source"],
                         envelope["packet_len"],
                         format_packet_description(packet_log),
                         packet_log["preview"],
                     )
                 else:
                     log.info(
-                        "%s: RX %d bytes %s: %s",
-                        client.addr,
+                        "%s -> server: RX %d bytes %s: %s",
+                        packet_log["source"],
                         len(payload),
                         format_packet_description(packet_log),
                         packet_log["preview"],
@@ -877,7 +1153,7 @@ def status_snapshot() -> dict:
     return {
         "generated_at": int(now),
         "connected_count": len(clients),
-        "clients": clients,
+        "clients": redact_public_value(clients),
     }
 
 
@@ -892,7 +1168,7 @@ def locations_snapshot() -> dict:
     return {
         "generated_at": now,
         "location_count": len(locations),
-        "locations": locations,
+        "locations": redact_public_value(locations),
     }
 
 
@@ -907,7 +1183,7 @@ def sensors_snapshot() -> dict:
     return {
         "generated_at": now,
         "sensor_count": len(sensors),
-        "sensors": sensors,
+        "sensors": redact_public_value(sensors),
     }
 
 
@@ -917,7 +1193,7 @@ def packets_snapshot() -> dict:
     for entry in recent_packets:
         item = dict(entry)
         item["age_seconds"] = max(0, now - item["time"])
-        packets.append(item)
+        packets.append(redact_public_value(item))
     return {
         "generated_at": now,
         "packet_count": len(packets),
@@ -925,207 +1201,561 @@ def packets_snapshot() -> dict:
     }
 
 
-def build_status_html() -> str:
-    snapshot = status_snapshot()
-    sensor_snapshot = sensors_snapshot()
-    packet_snapshot = packets_snapshot()
-    rows = []
-    for client in snapshot["clients"]:
-        hb_age = client["heartbeat_age_seconds"]
-        heartbeat = f"{hb_age}s ago" if hb_age is not None else "never"
-        rows.append(
-            "<tr>"
-            f"<td>{html.escape(client['display_name'])}</td>"
-            f"<td>{html.escape(client['firmware_version'] or 'unknown')}</td>"
-            f"<td>{'yes' if client['supports_bridge_v2'] else 'no'}</td>"
-            f"<td>{html.escape(client['connected_for'])}</td>"
-            f"<td>{client['idle_seconds']}s</td>"
-            f"<td>{heartbeat}</td>"
-            f"<td>{client['packets_rx_24h']}</td>"
-            f"<td>{client['packets_tx_24h']}</td>"
-            f"<td>{client['packets_rx']}</td>"
-            f"<td>{client['packets_tx']}</td>"
-            f"<td>{client['heartbeats_rx']}</td>"
-            "</tr>"
-        )
+def normalize_base_path(path: str) -> str:
+    path = (path or "").strip()
+    if not path or path == "/":
+        return ""
+    return "/" + path.strip("/")
 
-    rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="11" class="empty">No bridge nodes connected</td></tr>'
-    )
 
-    sensor_rows = []
-    for sensor in sensor_snapshot["sensors"]:
-        name = sensor["name"] or "unknown"
-        location = ""
-        if sensor["lat"] is not None and sensor["lon"] is not None:
-            location = f"{sensor['lat']:.6f}, {sensor['lon']:.6f}"
-        else:
-            location = "not shared"
-        sensor_rows.append(
-            "<tr>"
-            f"<td>{html.escape(name)}</td>"
-            f"<td><code>{html.escape(sensor['node_id'])}</code></td>"
-            f"<td>{sensor['age_seconds']}s ago</td>"
-            f"<td>{sensor['seen_count']}</td>"
-            f"<td>{sensor['hops']}</td>"
-            f"<td>{html.escape(sensor['source'])}</td>"
-            f"<td>{html.escape(location)}</td>"
-            "</tr>"
-        )
+def request_base_path(headers: dict[str, str]) -> str:
+    forwarded_prefix = headers.get("x-forwarded-prefix", "") or headers.get("x-script-name", "")
+    if forwarded_prefix:
+        return normalize_base_path(forwarded_prefix)
+    return STATUS_BASE_PATH
 
-    sensor_rows_html = "\n".join(sensor_rows) if sensor_rows else (
-        '<tr><td colspan="7" class="empty">No sensor node adverts seen yet</td></tr>'
-    )
 
-    packet_rows = []
-    for packet in packet_snapshot["packets"][:40]:
-        bridge = "yes" if packet["bridge_v2"] else "no"
-        ttl = packet["ttl"] if packet["ttl"] is not None else ""
-        hops = packet["hops"] if packet["hops"] is not None else ""
-        route = packet["route"] or ""
-        packet_rows.append(
-            "<tr>"
-            f"<td>{packet['age_seconds']}s ago</td>"
-            f"<td>{html.escape(packet['direction'])}</td>"
-            f"<td>{html.escape(packet['client'])}</td>"
-            f"<td>{html.escape(packet['type'])}</td>"
-            f"<td>{html.escape(route)}</td>"
-            f"<td>{hops}</td>"
-            f"<td>{packet['size']}</td>"
-            f"<td>{bridge}</td>"
-            f"<td>{ttl}</td>"
-            f"<td class=\"preview\"><code>{html.escape(packet['preview'])}</code></td>"
-            "</tr>"
-        )
+def prefixed_url(base_path: str, route: str) -> str:
+    base_path = normalize_base_path(base_path)
+    if route == "/":
+        return base_path or "/"
+    if not route.startswith("/"):
+        route = "/" + route
+    return f"{base_path}{route}"
 
-    packet_rows_html = "\n".join(packet_rows) if packet_rows else (
-        '<tr><td colspan="10" class="empty">No packets seen yet</td></tr>'
-    )
+
+def strip_base_path(path: str, base_path: str) -> str:
+    route = urlsplit(path or "/").path or "/"
+    base_path = normalize_base_path(base_path)
+    if base_path:
+        if route == base_path:
+            return "/"
+        if route.startswith(base_path + "/"):
+            return route[len(base_path):] or "/"
+    return route
+
+
+def build_status_html(base_path: str = "") -> str:
+    manage_url = prefixed_url(base_path, "/manage")
+    map_url = prefixed_url(base_path, "/map")
+    status_json_url = prefixed_url(base_path, "/status.json")
+    packets_json_url = prefixed_url(base_path, "/packets.json")
+    sensors_json_url = prefixed_url(base_path, "/sensors.json")
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="10">
   <title>MeshCoreNG TCP Bridge Status</title>
   <style>
-    :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-    body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
-    main {{ max-width: 1080px; margin: 0 auto; padding: 32px 20px; }}
-    h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
-    .summary {{ margin: 0 0 24px; color: #58606a; }}
-    section {{ margin-top: 28px; }}
-    h2 {{ margin: 0 0 12px; font-size: 1.15rem; }}
-    table {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d8dee4; border-radius: 8px; overflow: hidden; }}
-    th, td {{ padding: 12px 14px; text-align: left; border-bottom: 1px solid #d8dee4; white-space: nowrap; }}
-    th {{ background: #eef2f6; font-size: 0.8rem; text-transform: uppercase; color: #47515d; }}
-    code {{ font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }}
-    .preview {{ max-width: 420px; white-space: normal; overflow-wrap: anywhere; }}
-    tr:last-child td {{ border-bottom: 0; }}
-    .empty {{ text-align: center; color: #69737f; padding: 32px; }}
-    @media (max-width: 760px) {{
-      main {{ padding: 20px 12px; }}
-      .table-wrap {{ overflow-x: auto; }}
-      th, td {{ padding: 10px 12px; }}
+    :root {{
+      color-scheme: dark;
+      --bg: #050806;
+      --panel: rgba(8, 18, 12, .88);
+      --panel-2: rgba(13, 28, 19, .82);
+      --line: rgba(97, 255, 154, .28);
+      --line-strong: rgba(97, 255, 154, .55);
+      --green: #68ff9d;
+      --green-soft: #a1ffc4;
+      --amber: #ffd166;
+      --red: #ff5f6d;
+      --muted: #8fb99e;
+      --text: #dfffe9;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .45);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     }}
-    @media (prefers-color-scheme: dark) {{
-      body {{ background: #111418; color: #f0f3f6; }}
-      .summary {{ color: #9aa4af; }}
-      table {{ background: #171b20; border-color: #30363d; }}
-      th, td {{ border-color: #30363d; }}
-      th {{ background: #20262d; color: #c8d0d8; }}
-      .empty {{ color: #9aa4af; }}
+    * {{ box-sizing: border-box; }}
+    html {{ min-height: 100%; background: var(--bg); }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(104, 255, 157, .12), transparent 28%),
+        linear-gradient(180deg, rgba(2, 10, 6, .7), rgba(2, 5, 3, .98)),
+        var(--bg);
+      overflow-x: hidden;
+    }}
+    body::before {{
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(104, 255, 157, .04) 50%, rgba(0, 0, 0, .13) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, .025), rgba(0, 255, 95, .018), rgba(0, 120, 255, .025));
+      background-size: 100% 4px, 7px 100%;
+      mix-blend-mode: screen;
+      opacity: .42;
+      z-index: 3;
+    }}
+    main {{
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }}
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding: 18px 0 22px;
+      border-bottom: 1px solid var(--line);
+    }}
+    h1 {{
+      margin: 0;
+      color: var(--green);
+      font-size: clamp(1.5rem, 3vw, 2.8rem);
+      letter-spacing: 0;
+      text-transform: uppercase;
+      text-shadow: 0 0 16px rgba(104, 255, 157, .45);
+    }}
+    .subtitle {{ margin: 8px 0 0; color: var(--muted); max-width: 820px; line-height: 1.45; }}
+    nav {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }}
+    a {{
+      color: var(--green-soft);
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: rgba(104, 255, 157, .07);
+      padding: 9px 12px;
+      border-radius: 4px;
+    }}
+    a:hover {{ border-color: var(--green); box-shadow: 0 0 18px rgba(104, 255, 157, .22); }}
+    .status-strip {{
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }}
+    .metric, .panel {{
+      background: linear-gradient(180deg, var(--panel), rgba(3, 10, 6, .92));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow), inset 0 0 24px rgba(104, 255, 157, .035);
+      border-radius: 6px;
+    }}
+    .metric {{ padding: 14px; min-height: 96px; }}
+    .label {{ color: var(--muted); font-size: .76rem; text-transform: uppercase; }}
+    .value {{ margin-top: 8px; color: var(--green); font-size: clamp(1.4rem, 2.4vw, 2.2rem); font-weight: 800; }}
+    .value.small {{ font-size: 1rem; overflow-wrap: anywhere; }}
+    .grid {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+      gap: 16px;
+      align-items: start;
+    }}
+    .panel {{ overflow: hidden; }}
+    .panel-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(104, 255, 157, .06);
+    }}
+    h2 {{ margin: 0; font-size: .95rem; color: var(--green-soft); text-transform: uppercase; }}
+    .pulse {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .78rem;
+      white-space: nowrap;
+    }}
+    .pulse::before {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 14px var(--green);
+    }}
+    .pulse.warn::before {{ background: var(--amber); box-shadow: 0 0 14px var(--amber); }}
+    .pulse.error::before {{ background: var(--red); box-shadow: 0 0 14px var(--red); }}
+    .table-wrap {{ overflow-x: auto; }}
+    table {{ width: 100%; border-collapse: collapse; min-width: 840px; }}
+    th, td {{
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(97, 255, 154, .14);
+      white-space: nowrap;
+      vertical-align: top;
+      font-size: .84rem;
+    }}
+    th {{ color: var(--muted); background: rgba(0, 0, 0, .24); text-transform: uppercase; font-size: .68rem; }}
+    td {{ color: #dfffe9; }}
+    tr.hot td {{ color: var(--green-soft); background: rgba(104, 255, 157, .055); }}
+    .badge {{
+      display: inline-block;
+      min-width: 42px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      color: var(--green-soft);
+      background: rgba(104, 255, 157, .08);
+    }}
+    .badge.rx {{ color: #86c5ff; border-color: rgba(134, 197, 255, .45); }}
+    .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
+    .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
+    .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
+    .feed {{
+      padding: 12px 14px;
+      height: 430px;
+      overflow: auto;
+      background: rgba(0, 0, 0, .24);
+    }}
+    .feed-line {{
+      display: grid;
+      grid-template-columns: 72px 44px minmax(88px, 1fr);
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(97, 255, 154, .14);
+      font-size: .82rem;
+    }}
+    .feed-line .meta {{ color: var(--muted); }}
+    .feed-line .dir-rx {{ color: #86c5ff; }}
+    .feed-line .dir-tx {{ color: var(--amber); }}
+    .feed-line .packet {{ overflow-wrap: anywhere; }}
+    .stack {{ display: grid; gap: 16px; }}
+    .node-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }}
+    .node-card {{
+      border: 1px solid rgba(97, 255, 154, .22);
+      background: var(--panel-2);
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 148px;
+    }}
+    .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
+    .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }}
+    .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
+    .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
+    @media (max-width: 980px) {{
+      main {{ padding: 16px 12px; }}
+      .topbar {{ display: block; }}
+      nav {{ justify-content: flex-start; margin-top: 14px; }}
+      .status-strip {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .grid {{ grid-template-columns: 1fr; }}
+      .feed {{ height: 340px; }}
+    }}
+    @media (max-width: 560px) {{
+      .status-strip {{ grid-template-columns: 1fr; }}
+      .node-stats {{ grid-template-columns: 1fr; }}
+      table {{ min-width: 760px; }}
     }}
   </style>
 </head>
 <body>
   <main>
-    <h1>MeshCoreNG TCP Bridge Status</h1>
-    <p class="summary">{snapshot['connected_count']} connected node(s). Auto-refreshes every 10 seconds. <a href="/manage">Remote management</a> · <a href="/map">Tracker map</a></p>
-    <section>
-      <h2>Bridge nodes</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Node</th>
-              <th>Firmware</th>
-              <th>Bridge v2</th>
-              <th>Connected</th>
-              <th>Idle</th>
-              <th>Heartbeat</th>
-              <th>RX 24h</th>
-              <th>TX 24h</th>
-              <th>RX</th>
-              <th>TX</th>
-              <th>HB</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows_html}
-          </tbody>
-        </table>
+    <header class="topbar">
+      <div>
+        <h1>TCP Bridge Tactical Console</h1>
+        <p class="subtitle">MeshCoreNG live bridge telemetry, packet flow and nearby sensor adverts. Polling the bridge server every 2 seconds.</p>
       </div>
+      <nav>
+        <a href="{manage_url}">Remote management</a>
+        <a href="{map_url}">Tracker map</a>
+      </nav>
+    </header>
+
+    <section class="status-strip" aria-label="Live counters">
+      <div class="metric"><div class="label">Bridge nodes online</div><div id="metricConnected" class="value">--</div></div>
+      <div class="metric"><div class="label">Packets in buffer</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
+      <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
+      <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
     </section>
-    <section>
-      <h2>Recent packets</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Dir</th>
-              <th>Bridge node</th>
-              <th>Type</th>
-              <th>Route</th>
-              <th>Hops</th>
-              <th>Bytes</th>
-              <th>Bridge v2</th>
-              <th>TTL</th>
-              <th>Preview</th>
-            </tr>
-          </thead>
-          <tbody>
-            {packet_rows_html}
-          </tbody>
-        </table>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Bridge nodes</h2>
+        <span id="nodeStatus" class="pulse warn">connecting</span>
       </div>
+      <div id="nodeCards" class="node-grid"></div>
     </section>
-    <section>
-      <h2>Sensor nodes nearby</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Node ID</th>
-              <th>Last seen</th>
-              <th>Seen</th>
-              <th>Hops</th>
-              <th>Via bridge</th>
-              <th>Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sensor_rows_html}
-          </tbody>
-        </table>
+
+    <div class="grid" style="margin-top:16px">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Packet log</h2>
+          <span id="packetStatus" class="pulse warn">waiting</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Age</th>
+                <th>Dir</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Type</th>
+                <th>Route</th>
+                <th>Hops</th>
+                <th>Bytes</th>
+                <th>V2</th>
+                <th>TTL</th>
+                <th>Channel</th>
+                <th>Decoded</th>
+                <th>Preview</th>
+              </tr>
+            </thead>
+            <tbody id="packetRows">
+              <tr><td colspan="13" class="empty">Loading packet telemetry</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Live terminal feed</h2>
+            <span id="feedStatus" class="pulse warn">arming</span>
+          </div>
+          <div id="packetFeed" class="feed"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Sensor nodes nearby</h2>
+            <span id="sensorStatus" class="pulse warn">scanning</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Node ID</th>
+                  <th>Last seen</th>
+                  <th>Seen</th>
+                  <th>Hops</th>
+                  <th>Via bridge</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+              <tbody id="sensorRows">
+                <tr><td colspan="7" class="empty">Scanning for sensor adverts</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-    </section>
+    </div>
   </main>
+  <script>
+    const urls = {{
+      status: "{status_json_url}",
+      packets: "{packets_json_url}",
+      sensors: "{sensors_json_url}"
+    }};
+    const state = {{
+      seenPacketKeys: new Set(),
+      firstPacketLoad: true
+    }};
+
+    const text = (value, fallback = "") => value === null || value === undefined || value === "" ? fallback : String(value);
+    const age = (seconds) => seconds === null || seconds === undefined ? "never" : `${{seconds}}s`;
+    const yesNo = (value) => value ? "yes" : "no";
+
+    function escapeHtml(value) {{
+      return text(value).replace(/[&<>"']/g, (char) => ({{
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }}[char]));
+    }}
+
+    function setStatus(id, label, mode = "ok") {{
+      const el = document.getElementById(id);
+      el.textContent = label;
+      el.className = mode === "error" ? "pulse error" : mode === "warn" ? "pulse warn" : "pulse";
+    }}
+
+    async function getJson(url) {{
+      const response = await fetch(url, {{ cache: "no-store" }});
+      if (!response.ok) throw new Error(`${{response.status}} ${{response.statusText}}`);
+      return response.json();
+    }}
+
+    function renderMetrics(status, packets, sensors) {{
+      const rx24 = status.clients.reduce((sum, client) => sum + (client.packets_rx_24h || 0), 0);
+      const tx24 = status.clients.reduce((sum, client) => sum + (client.packets_tx_24h || 0), 0);
+      document.getElementById("metricConnected").textContent = status.connected_count;
+      document.getElementById("metricPackets").textContent = packets.packet_count;
+      document.getElementById("metricSensors").textContent = sensors.sensor_count;
+      document.getElementById("metricTraffic").textContent = `${{rx24}} / ${{tx24}}`;
+      document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
+    }}
+
+    function renderNodes(status) {{
+      const target = document.getElementById("nodeCards");
+      if (!status.clients.length) {{
+        target.innerHTML = '<div class="empty">No bridge nodes connected</div>';
+        setStatus("nodeStatus", "offline", "warn");
+        return;
+      }}
+      setStatus("nodeStatus", `${{status.clients.length}} active`, "ok");
+      target.innerHTML = status.clients.map((client) => {{
+        const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
+        return `
+          <article class="node-card">
+            <div class="node-title">
+              <span>${{escapeHtml(client.display_name)}}</span>
+              <span class="badge">${{client.supports_bridge_v2 ? "v2" : "v1"}}</span>
+            </div>
+            <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
+            <div class="node-stats">
+              <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
+              <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
+            </div>
+            <div class="node-meta">connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}</div>
+          </article>
+        `;
+      }}).join("");
+    }}
+
+    function packetKey(packet) {{
+      return [packet.time, packet.direction, packet.client, packet.size, packet.preview].join("|");
+    }}
+
+    function renderPackets(packetData) {{
+      const rows = document.getElementById("packetRows");
+      const packets = packetData.packets.slice(0, 50);
+      if (!packets.length) {{
+        rows.innerHTML = '<tr><td colspan="13" class="empty">No packets seen yet</td></tr>';
+        document.getElementById("packetFeed").innerHTML = '<div class="empty">Awaiting mesh traffic</div>';
+        setStatus("packetStatus", "no traffic", "warn");
+        setStatus("feedStatus", "quiet", "warn");
+        return;
+      }}
+      setStatus("packetStatus", `${{packets.length}} buffered`, "ok");
+      setStatus("feedStatus", "live", "ok");
+      rows.innerHTML = packets.map((packet, index) => {{
+        const dirClass = packet.direction === "RX" ? "rx" : "tx";
+        return `
+          <tr class="${{index < 3 ? "hot" : ""}}">
+            <td>${{age(packet.age_seconds)}} ago</td>
+            <td><span class="badge ${{dirClass}}">${{escapeHtml(packet.direction)}}</span></td>
+            <td>${{escapeHtml(packet.source || packet.client || "")}}</td>
+            <td>${{escapeHtml(packet.target || "")}}</td>
+            <td>${{escapeHtml(packet.type || "unknown")}}</td>
+            <td>${{escapeHtml(packet.route || "")}}</td>
+            <td>${{text(packet.hops, "")}}</td>
+            <td>${{packet.size}}</td>
+            <td>${{yesNo(packet.bridge_v2)}}</td>
+            <td>${{text(packet.ttl, "")}}</td>
+            <td>${{escapeHtml(packet.decoded_channel || "")}}</td>
+            <td class="preview">${{escapeHtml(packet.decoded_text || packet.decoded_status || "")}}</td>
+            <td class="preview">${{escapeHtml(packet.preview)}}</td>
+          </tr>
+        `;
+      }}).join("");
+
+      const feed = document.getElementById("packetFeed");
+      if (state.firstPacketLoad) {{
+        state.seenPacketKeys = new Set(packets.map(packetKey));
+        state.firstPacketLoad = false;
+      }} else {{
+        for (const packet of packets.slice().reverse()) {{
+          const key = packetKey(packet);
+          if (state.seenPacketKeys.has(key)) continue;
+          state.seenPacketKeys.add(key);
+          const line = document.createElement("div");
+          const dirClass = packet.direction === "RX" ? "dir-rx" : "dir-tx";
+          line.className = "feed-line";
+          line.innerHTML = `
+            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="${{dirClass}}">${{escapeHtml(packet.direction)}}</span>
+            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+          `;
+          feed.prepend(line);
+        }}
+      }}
+      if (!feed.children.length) {{
+        feed.innerHTML = packets.slice(0, 24).map((packet) => `
+          <div class="feed-line">
+            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="${{packet.direction === "RX" ? "dir-rx" : "dir-tx"}}">${{escapeHtml(packet.direction)}}</span>
+            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+          </div>
+        `).join("");
+      }}
+      while (feed.children.length > 80) feed.removeChild(feed.lastChild);
+    }}
+
+    function renderSensors(sensorData) {{
+      const rows = document.getElementById("sensorRows");
+      if (!sensorData.sensors.length) {{
+        rows.innerHTML = '<tr><td colspan="7" class="empty">No sensor node adverts seen yet</td></tr>';
+        setStatus("sensorStatus", "no adverts", "warn");
+        return;
+      }}
+      setStatus("sensorStatus", `${{sensorData.sensors.length}} detected`, "ok");
+      rows.innerHTML = sensorData.sensors.map((sensor) => {{
+        const location = sensor.lat !== null && sensor.lon !== null ? `${{Number(sensor.lat).toFixed(6)}}, ${{Number(sensor.lon).toFixed(6)}}` : "not shared";
+        return `
+          <tr>
+            <td>${{escapeHtml(sensor.name || "unknown")}}</td>
+            <td>${{escapeHtml(sensor.node_id)}}</td>
+            <td>${{age(sensor.age_seconds)}} ago</td>
+            <td>${{sensor.seen_count}}</td>
+            <td>${{text(sensor.hops, "")}}</td>
+            <td>${{escapeHtml(sensor.source)}}</td>
+            <td>${{escapeHtml(location)}}</td>
+          </tr>
+        `;
+      }}).join("");
+    }}
+
+    async function refresh() {{
+      try {{
+        const [status, packets, sensors] = await Promise.all([
+          getJson(urls.status),
+          getJson(urls.packets),
+          getJson(urls.sensors)
+        ]);
+        renderMetrics(status, packets, sensors);
+        renderNodes(status);
+        renderPackets(packets);
+        renderSensors(sensors);
+      }} catch (error) {{
+        document.getElementById("metricSync").textContent = "link error";
+        setStatus("nodeStatus", "link error", "error");
+        setStatus("packetStatus", "link error", "error");
+        setStatus("feedStatus", "link error", "error");
+        setStatus("sensorStatus", "link error", "error");
+        console.error(error);
+      }}
+    }}
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
 </body>
 </html>
 """
 
 
-def build_manage_html(command_result: str = "") -> str:
+def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     snapshot = status_snapshot()
     options = []
     for client in snapshot["clients"]:
         label = client["display_name"]
+        if client.get("node_id"):
+            label += f" [{client['node_id']}]"
         if client["firmware_version"]:
             label += f" ({client['firmware_version']})"
-        label += f" - {client['addr']}"
         options.append(
             f'<option value="{html.escape(client["id"], quote=True)}">{html.escape(label)}</option>'
         )
@@ -1140,11 +1770,13 @@ def build_manage_html(command_result: str = "") -> str:
         "Remote management enabled; enter the selected node's admin password"
     )
     result_html = (
-        f'<pre class="command-result">{html.escape(command_result)}</pre>'
+        f'<pre class="command-result">{html.escape(redact_public_text(command_result))}</pre>'
         if command_result else
         '<pre class="command-result empty">No command sent yet</pre>'
     )
 
+    status_url = prefixed_url(base_path, "/")
+    command_url = prefixed_url(base_path, "/command")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1180,9 +1812,9 @@ def build_manage_html(command_result: str = "") -> str:
 <body>
   <main>
     <h1>MeshCoreNG Remote Management</h1>
-    <p class="summary">{html.escape(admin_note)}. <a href="/">Bridge status</a></p>
+    <p class="summary">{html.escape(admin_note)}. <a href="{status_url}">Bridge status</a></p>
     <div class="panel">
-      <form method="post" action="/command">
+      <form method="post" action="{command_url}">
         <label for="target">Bridge node</label>
         <select id="target" name="target"{disabled}>
           {options_html}
@@ -1201,8 +1833,10 @@ def build_manage_html(command_result: str = "") -> str:
 """
 
 
-def build_location_map_html() -> str:
-    return """<!doctype html>
+def build_location_map_html(base_path: str = "") -> str:
+    status_url = prefixed_url(base_path, "/")
+    locations_url = prefixed_url(base_path, "/locations.json")
+    page = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -1227,7 +1861,7 @@ def build_location_map_html() -> str:
   <div class="topbar">
     <h1>MeshCoreNG Tracker Map</h1>
     <span class="muted" id="summary">Loading...</span>
-    <a href="/">Bridge status</a>
+    <a href="__STATUS_URL__">Bridge status</a>
   </div>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1246,7 +1880,7 @@ def build_location_map_html() -> str:
     }
 
     async function refresh() {
-      const res = await fetch('/locations.json', { cache: 'no-store' });
+      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
       const data = await res.json();
       document.getElementById('summary').textContent = `${data.location_count} tracker node(s)`;
       const seen = new Set();
@@ -1287,6 +1921,7 @@ def build_location_map_html() -> str:
 </body>
 </html>
 """
+    return page.replace("__STATUS_URL__", status_url).replace("__LOCATIONS_URL__", locations_url)
 
 
 def is_admin_authorized(headers: dict[str, str]) -> bool:
@@ -1334,11 +1969,13 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
 
         method = parts[0] if len(parts) >= 1 else ""
         path = parts[1] if len(parts) >= 2 else ""
+        base_path = request_base_path(headers)
+        route = strip_base_path(path, base_path)
         extra_headers: list[tuple[str, str]] = []
 
         if len(parts) < 2:
             status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif method == "POST" and path == "/command":
+        elif method == "POST" and route == "/command":
             if not is_admin_authorized(headers):
                 status, content_type, body, extra_headers = admin_auth_response()
             else:
@@ -1359,36 +1996,39 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                     try:
                         reply = await client.send_command(command, node_password)
                         result = f"{client.display_name}> {command}\n{reply}"
+                    except asyncio.TimeoutError:
+                        log.warning("%s: remote command timed out: %s", client.addr, command)
+                        result = "Error: command timed out waiting for bridge reply"
                     except Exception as exc:
                         result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(result).encode("utf-8")
+                body = build_manage_html(result, base_path).encode("utf-8")
         elif method != "GET":
             status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif path == "/status.json":
+        elif route == "/status.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(status_snapshot(), indent=2).encode("utf-8")
-        elif path == "/locations.json":
+        elif route == "/locations.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(locations_snapshot(), indent=2).encode("utf-8")
-        elif path == "/sensors.json":
+        elif route == "/sensors.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(sensors_snapshot(), indent=2).encode("utf-8")
-        elif path == "/packets.json":
+        elif route == "/packets.json":
             status, content_type = "200 OK", "application/json"
             body = json.dumps(packets_snapshot(), indent=2).encode("utf-8")
-        elif path == "/map":
+        elif route == "/map":
             status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_location_map_html().encode("utf-8")
-        elif path == "/manage":
+            body = build_location_map_html(base_path).encode("utf-8")
+        elif route == "/manage":
             if not is_admin_authorized(headers):
                 status, content_type, body, extra_headers = admin_auth_response()
             else:
                 status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html().encode("utf-8")
-        elif path in ("/", "/status"):
+                body = build_manage_html(base_path=base_path).encode("utf-8")
+        elif route in ("/", "/status"):
             status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_status_html().encode("utf-8")
+            body = build_status_html(base_path).encode("utf-8")
         else:
             status, content_type, body = "404 Not Found", "text/plain", b"Not found\n"
 
@@ -1460,6 +2100,10 @@ if __name__ == "__main__":
                         help="Bind address for the HTTP status page (default: 0.0.0.0)")
     parser.add_argument("--status-port", type=int, default=8080,
                         help="HTTP status page port (default: 8080, 0 disables)")
+    parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
+                        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
+    parser.add_argument("--public-channels-file", default="",
+                        help="JSON file with public channel names/secrets for optional group packet decoding")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
@@ -1479,6 +2123,9 @@ if __name__ == "__main__":
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
+    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
+    PUBLIC_CHANNELS_FILE = args.public_channels_file
+    load_public_channels(PUBLIC_CHANNELS_FILE)
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
