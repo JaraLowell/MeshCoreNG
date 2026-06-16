@@ -1662,8 +1662,9 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
 
 ---
 
-#### Apply a bridge profile
+#### View or apply a bridge profile
 **Usage:**
+- `get bridge.profile`
 - `set bridge.profile <profile>`
 
 **Parameters:**
@@ -1671,6 +1672,8 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
   - `default`: conservative defaults (`bridge.source logTx`, `bridge.rf off`, export all, unlimited hops, TCP TTL 2)
   - `island`: RF-island bridge preset (`bridge.source both`, `bridge.rf local`, export message packets up to 4 RF hops, TCP TTL 2)
   - `repeater`: transport-repeater preset (`bridge.source both`, `bridge.rf on`, export all packets, unlimited export hops, TCP TTL 2)
+
+`get bridge.profile` returns the name of the last profile applied (`default`, `island`, or `repeater`). It reflects what was set with `set bridge.profile`, not the current live values of the individual settings. If individual settings have been changed since the last `set bridge.profile`, `get bridge.profile` still returns the last profile name.
 
 The `island` profile is intended for controlled RF islands, for example one bridge node on SF7 and another on SF8. It exports eligible RF RX packets to TCP even when the local repeater policy decides not to retransmit them on RF, and injects packets from TCP once on the receiving RF island.
 
