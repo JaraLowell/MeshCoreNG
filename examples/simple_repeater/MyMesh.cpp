@@ -1363,7 +1363,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
   _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
   _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
-  StrHelper::strncpy(_prefs.ntp_server, "pool.ntp.org", sizeof(_prefs.ntp_server));
+  StrHelper::strncpy(_prefs.ntp_server, "nl.pool.ntp.org", sizeof(_prefs.ntp_server));
   _prefs.ntp_enabled = 1;
   _prefs.ntp_interval_secs = 3600;
 

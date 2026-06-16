@@ -775,7 +775,7 @@ set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.password <bridge password>
 set ntp.enabled on
-set ntp.server pool.ntp.org
+set ntp.server nl.pool.ntp.org
 set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on

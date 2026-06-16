@@ -446,12 +446,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->daily_reboot_enabled = constrain(_prefs->daily_reboot_enabled, 0, 1);
     if (_prefs->daily_reboot_interval_hours == 0) _prefs->daily_reboot_interval_hours = 24;
     _prefs->daily_reboot_interval_hours = constrain(_prefs->daily_reboot_interval_hours, 1, 168);
-    _prefs->ntp_enabled = constrain(_prefs->ntp_enabled, 0, 1);
-    if (_prefs->ntp_server[0] == '\0') {
-      StrHelper::strncpy(_prefs->ntp_server, "pool.ntp.org", sizeof(_prefs->ntp_server));
+    _prefs->ntp_enabled = 1;
+    if (_prefs->ntp_server[0] == '\0' || strcmp(_prefs->ntp_server, "pool.ntp.org") == 0) {
+      StrHelper::strncpy(_prefs->ntp_server, "nl.pool.ntp.org", sizeof(_prefs->ntp_server));
     }
-    if (_prefs->ntp_interval_secs == 0) _prefs->ntp_interval_secs = 3600;
-    _prefs->ntp_interval_secs = constrain(_prefs->ntp_interval_secs, 300UL, 86400UL);
+    _prefs->ntp_interval_secs = 3600;
 
     file.close();
   }
@@ -1551,10 +1550,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
     const char* value = &config[12];
-    if (parseOnOff(value, &_prefs->ntp_enabled)) {
+    uint8_t ignored = 0;
+    if (parseOnOff(value, &ignored)) {
+      _prefs->ntp_enabled = 1;
       _callbacks->restartBridge();
       savePrefs();
-      strcpy(reply, "OK");
+      strcpy(reply, "OK - NTP always enabled");
     } else {
       strcpy(reply, "Error: expected on or off");
     }
@@ -1566,10 +1567,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "ntp.interval ", 13) == 0) {
     uint32_t interval = _atoi(&config[13]);
     if (interval >= 300 && interval <= 86400) {
-      _prefs->ntp_interval_secs = interval;
+      _prefs->ntp_interval_secs = 3600;
       _callbacks->restartBridge();
       savePrefs();
-      strcpy(reply, "OK");
+      strcpy(reply, "OK - NTP sync interval fixed at 3600 seconds");
     } else {
       strcpy(reply, "Error: interval must be between 300-86400 seconds");
     }

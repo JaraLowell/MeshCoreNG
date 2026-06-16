@@ -15,6 +15,9 @@ static WiFiClient _client;
 
 namespace {
 
+constexpr uint32_t kNtpSyncIntervalMs = 3600UL * 1000UL;
+constexpr uint32_t kNtpRetryIntervalMs = 60UL * 1000UL;
+
 uint32_t fnv1a32(const uint8_t *data, size_t len) {
   uint32_t hash = 2166136261UL;
   for (size_t i = 0; i < len; i++) {
@@ -74,6 +77,7 @@ void TCPBridge::loop() {
   if (!_initialized) return;
 
   uint32_t now = millis();
+  refreshNTP(now);
 
   switch (_state) {
 
@@ -676,10 +680,10 @@ void TCPBridge::syncTimeWithNTP(bool force) {
   uint32_t now_ms = millis();
   if (!force && _last_ntp_sync_ms != 0 && (now_ms - _last_ntp_sync_ms) < 5000) return;
 
-  const char *server = _prefs->ntp_server[0] ? _prefs->ntp_server : "pool.ntp.org";
+  const char *server = _prefs->ntp_server[0] ? _prefs->ntp_server : "nl.pool.ntp.org";
   BRIDGE_DEBUG_PRINTLN("TCP bridge: syncing time with NTP server %s\n", server);
 
-  configTime(0, 0, server);
+  configTime(0, 0, server, "pool.ntp.org", "time.google.com");
 
   struct tm timeinfo;
   bool ntp_ok = false;
@@ -702,7 +706,9 @@ void TCPBridge::syncTimeWithNTP(bool force) {
   }
 
   if (!ntp_ok) {
-    _last_ntp_sync_ms = millis();
+    uint32_t retry_from = millis();
+    _last_ntp_sync_ms = retry_from - (kNtpSyncIntervalMs - kNtpRetryIntervalMs);
+    _ntp_synced = false;
     BRIDGE_DEBUG_PRINTLN("TCP bridge: NTP sync failed\n");
   }
 }
@@ -710,11 +716,7 @@ void TCPBridge::syncTimeWithNTP(bool force) {
 void TCPBridge::refreshNTP(uint32_t now_ms) {
   if (!_prefs->ntp_enabled || WiFi.status() != WL_CONNECTED) return;
 
-  uint32_t interval_ms = _prefs->ntp_interval_secs;
-  if (interval_ms == 0) interval_ms = 3600;
-  interval_ms *= 1000UL;
-
-  if (_last_ntp_sync_ms == 0 || (now_ms - _last_ntp_sync_ms) >= interval_ms) {
+  if (_last_ntp_sync_ms == 0 || (now_ms - _last_ntp_sync_ms) >= kNtpSyncIntervalMs) {
     syncTimeWithNTP(true);
   }
 }
