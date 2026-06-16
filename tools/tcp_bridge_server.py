@@ -1833,6 +1833,40 @@ def build_location_map_html(base_path: str = "") -> str:
     .topbar h1 { margin: 0; font-size: 1rem; }
     .topbar a { color: #0969da; text-decoration: none; }
     .muted { color: #57606a; font-size: .9rem; }
+    .tracker-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #0969da;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      position: relative;
+    }
+    .tracker-icon::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -11px;
+      transform: translateX(-50%);
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 14px solid #0969da;
+      filter: drop-shadow(0 -1px 1px rgba(0,0,0,.25));
+    }
+    .tracker-icon.stationary::before { display: none; }
+    .tracker-label {
+      margin-left: 32px;
+      margin-top: -28px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.9);
+      border: 1px solid #d8dee4;
+      color: #24292f;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 1px 4px rgba(0,0,0,.16);
+    }
   </style>
 </head>
 <body>
@@ -1857,6 +1891,47 @@ def build_location_map_html(base_path: str = "") -> str:
       return `${Math.floor(seconds / 3600)}h`;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function fmtNumber(value, decimals = 1) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num.toFixed(decimals) : '';
+    }
+
+    function fmtSpeed(value) {
+      const speed = fmtNumber(value, 1);
+      return speed ? `${speed} km/h` : 'unknown';
+    }
+
+    function fmtHeading(value) {
+      const heading = fmtNumber(value, 0);
+      return heading ? `${heading}&deg;` : 'unknown';
+    }
+
+    function trackerIcon(loc) {
+      const heading = Number(loc.heading_deg);
+      const speed = Number(loc.speed_kmh);
+      const moving = Number.isFinite(speed) && speed >= 1;
+      const rotation = Number.isFinite(heading) ? heading : 0;
+      const labelSpeed = Number.isFinite(speed) ? `${speed.toFixed(0)} km/h` : '';
+      return L.divIcon({
+        className: '',
+        iconSize: [110, 34],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -16],
+        html: `<div class="tracker-icon ${moving ? '' : 'stationary'}" style="transform: rotate(${rotation}deg)"></div>` +
+          `<div class="tracker-label">${escapeHtml(labelSpeed || '0 km/h')} ${Number.isFinite(heading) ? Math.round(heading) + '&deg;' : ''}</div>`
+      });
+    }
+
     async function refresh() {
       const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
       const data = await res.json();
@@ -1865,18 +1940,21 @@ def build_location_map_html(base_path: str = "") -> str:
       for (const loc of data.locations) {
         seen.add(loc.node_id);
         const label = loc.name || loc.node_id;
-        const popup = `<strong>${label}</strong><br>` +
-          `Node: ${loc.node_id}<br>` +
+        const popup = `<strong>${escapeHtml(label)}</strong><br>` +
+          `Node: ${escapeHtml(loc.node_id)}<br>` +
           `Age: ${fmtAge(loc.age_seconds)}<br>` +
+          `Speed: ${fmtSpeed(loc.speed_kmh)}<br>` +
+          `Heading: ${fmtHeading(loc.heading_deg)}<br>` +
           `Sats: ${loc.satellites}<br>` +
           `Battery: ${loc.battery_mv} mV<br>` +
           `Alt: ${loc.altitude_m} m`;
         let marker = markers.get(loc.node_id);
         if (!marker) {
-          marker = L.marker([loc.lat, loc.lon]).addTo(map);
+          marker = L.marker([loc.lat, loc.lon], { icon: trackerIcon(loc) }).addTo(map);
           markers.set(loc.node_id, marker);
         } else {
           marker.setLatLng([loc.lat, loc.lon]);
+          marker.setIcon(trackerIcon(loc));
         }
         marker.bindPopup(popup);
       }
