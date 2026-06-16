@@ -96,6 +96,7 @@ PUBLIC_CHANNELS_FILE = ""
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
+LOCATION_TRACK_MAX_POINTS = 500
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
@@ -106,6 +107,7 @@ next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
+latest_location_tracks: dict[str, deque[dict]] = {}
 latest_sensors: dict[str, dict] = {}
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
@@ -738,6 +740,17 @@ def record_location(report: dict, client: "BridgeClient") -> None:
     report["source"] = client.display_name
     client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_locations[report["node_id"]] = report
+    track = latest_location_tracks.setdefault(report["node_id"], deque(maxlen=LOCATION_TRACK_MAX_POINTS))
+    point = {
+        "lat": report["lat"],
+        "lon": report["lon"],
+        "speed_kmh": report.get("speed_kmh"),
+        "heading_deg": report.get("heading_deg"),
+        "timestamp": report.get("timestamp"),
+        "received_at": report["received_at"],
+    }
+    if not track or any(track[-1].get(key) != point.get(key) for key in ("lat", "lon", "timestamp")):
+        track.append(point)
 
 
 def record_sensor_advert(report: dict, client: "BridgeClient") -> None:
@@ -1141,6 +1154,7 @@ def locations_snapshot() -> dict:
     for report in latest_locations.values():
         item = dict(report)
         item["age_seconds"] = max(0, now - item["received_at"])
+        item["track"] = list(latest_location_tracks.get(item["node_id"], ()))
         locations.append(item)
     locations.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
     return {
@@ -1884,6 +1898,7 @@ def build_location_map_html(base_path: str = "") -> str:
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
     const markers = new Map();
+    const tracks = new Map();
 
     function fmtAge(seconds) {
       if (seconds < 60) return `${seconds}s`;
@@ -1932,6 +1947,21 @@ def build_location_map_html(base_path: str = "") -> str:
       });
     }
 
+    function trackLatLngs(loc) {
+      const points = Array.isArray(loc.track) ? loc.track : [];
+      return points
+        .map(point => [Number(point.lat), Number(point.lon)])
+        .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+    }
+
+    function routeDistanceKm(latlngs) {
+      let km = 0;
+      for (let i = 1; i < latlngs.length; i++) {
+        km += map.distance(latlngs[i - 1], latlngs[i]) / 1000;
+      }
+      return km;
+    }
+
     async function refresh() {
       const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
       const data = await res.json();
@@ -1940,14 +1970,34 @@ def build_location_map_html(base_path: str = "") -> str:
       for (const loc of data.locations) {
         seen.add(loc.node_id);
         const label = loc.name || loc.node_id;
+        const latlngs = trackLatLngs(loc);
+        const routeKm = routeDistanceKm(latlngs);
         const popup = `<strong>${escapeHtml(label)}</strong><br>` +
           `Node: ${escapeHtml(loc.node_id)}<br>` +
           `Age: ${fmtAge(loc.age_seconds)}<br>` +
           `Speed: ${fmtSpeed(loc.speed_kmh)}<br>` +
           `Heading: ${fmtHeading(loc.heading_deg)}<br>` +
+          `Track: ${latlngs.length} point(s), ${routeKm.toFixed(2)} km<br>` +
           `Sats: ${loc.satellites}<br>` +
           `Battery: ${loc.battery_mv} mV<br>` +
           `Alt: ${loc.altitude_m} m`;
+        let track = tracks.get(loc.node_id);
+        if (latlngs.length >= 2) {
+          if (!track) {
+            track = L.polyline(latlngs, {
+              color: '#0969da',
+              weight: 4,
+              opacity: 0.7,
+              lineJoin: 'round'
+            }).addTo(map);
+            tracks.set(loc.node_id, track);
+          } else {
+            track.setLatLngs(latlngs);
+          }
+        } else if (track) {
+          track.remove();
+          tracks.delete(loc.node_id);
+        }
         let marker = markers.get(loc.node_id);
         if (!marker) {
           marker = L.marker([loc.lat, loc.lon], { icon: trackerIcon(loc) }).addTo(map);
@@ -1964,8 +2014,17 @@ def build_location_map_html(base_path: str = "") -> str:
           markers.delete(nodeId);
         }
       }
+      for (const [nodeId, track] of tracks) {
+        if (!seen.has(nodeId)) {
+          track.remove();
+          tracks.delete(nodeId);
+        }
+      }
       if (data.locations.length && !refresh.didFit) {
-        const bounds = data.locations.map(loc => [loc.lat, loc.lon]);
+        const bounds = data.locations.flatMap(loc => {
+          const latlngs = trackLatLngs(loc);
+          return latlngs.length ? latlngs : [[loc.lat, loc.lon]];
+        });
         map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
         refresh.didFit = true;
       }

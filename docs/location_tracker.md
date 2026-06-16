@@ -30,6 +30,7 @@ Initial build targets:
 
 ```text
 Heltec_v3_gps_tracker
+Heltec_Wireless_Tracker_gps_tracker
 Generic_E22_sx1262_gps_tracker
 Generic_E22_sx1268_gps_tracker
 Tbeam_SX1262_gps_tracker
@@ -64,7 +65,7 @@ http://server:8080/map
 http://server:8080/locations.json
 ```
 
-The public JSON does not expose bridge-client IP addresses or ports.
+The map draws the latest position and the route each tracker has reported during the server process lifetime. The public JSON includes a bounded `track` array per tracker and does not expose bridge-client IP addresses or ports.
 
 ## Payload
 
