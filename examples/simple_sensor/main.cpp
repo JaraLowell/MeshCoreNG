@@ -12,6 +12,24 @@
 #ifndef LOCATION_TRACKER_INTERVAL_SECS
   #define LOCATION_TRACKER_INTERVAL_SECS 0
 #endif
+#ifndef LOCATION_TRACKER_ADAPTIVE_INTERVAL
+  #define LOCATION_TRACKER_ADAPTIVE_INTERVAL 0
+#endif
+#ifndef LOCATION_TRACKER_STATIONARY_INTERVAL_SECS
+  #define LOCATION_TRACKER_STATIONARY_INTERVAL_SECS 300
+#endif
+#ifndef LOCATION_TRACKER_SLOW_INTERVAL_SECS
+  #define LOCATION_TRACKER_SLOW_INTERVAL_SECS LOCATION_TRACKER_INTERVAL_SECS
+#endif
+#ifndef LOCATION_TRACKER_FAST_INTERVAL_SECS
+  #define LOCATION_TRACKER_FAST_INTERVAL_SECS 20
+#endif
+#ifndef LOCATION_TRACKER_STATIONARY_SPEED_CMS
+  #define LOCATION_TRACKER_STATIONARY_SPEED_CMS 50
+#endif
+#ifndef LOCATION_TRACKER_FAST_SPEED_CMS
+  #define LOCATION_TRACKER_FAST_SPEED_CMS 500
+#endif
 
 class MyMesh : public SensorMesh {
 public:
@@ -26,7 +44,7 @@ public:
 #if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
     if (next_location_report == 0 || millisHasNowPassed(next_location_report)) {
       sendLocationReport();
-      next_location_report = futureMillis(((uint32_t)LOCATION_TRACKER_INTERVAL_SECS) * 1000);
+      next_location_report = futureMillis(getLocationTrackerIntervalSecs() * 1000);
     }
 #endif
   }
@@ -38,6 +56,19 @@ protected:
   unsigned long next_location_report;
 
 #if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+  uint32_t getLocationTrackerIntervalSecs() {
+#if LOCATION_TRACKER_ADAPTIVE_INTERVAL
+    LocationProvider* location = sensors.getLocationProvider();
+    if (location && location->isEnabled() && location->isValid()) {
+      uint16_t speed_cms = location->getSpeedCmS();
+      if (speed_cms < LOCATION_TRACKER_STATIONARY_SPEED_CMS) return LOCATION_TRACKER_STATIONARY_INTERVAL_SECS;
+      if (speed_cms >= LOCATION_TRACKER_FAST_SPEED_CMS) return LOCATION_TRACKER_FAST_INTERVAL_SECS;
+      return LOCATION_TRACKER_SLOW_INTERVAL_SECS;
+    }
+#endif
+    return LOCATION_TRACKER_INTERVAL_SECS;
+  }
+
   void sendLocationReport() {
     LocationProvider* location = sensors.getLocationProvider();
     if (!location || !location->isEnabled() || !location->isValid()) return;
@@ -47,6 +78,8 @@ protected:
     report.lat_microdeg = (int32_t)location->getLatitude();
     report.lon_microdeg = (int32_t)location->getLongitude();
     report.altitude_m = (int16_t)(location->getAltitude() / 1000);
+    report.speed_cms = location->getSpeedCmS();
+    report.heading_cdeg = location->getHeadingCdeg();
     report.satellites = (uint8_t)min(255L, location->satellitesCount());
     report.battery_mv = (uint16_t)min(65535, (int)board.getBattMilliVolts());
     report.timestamp = (uint32_t)getRTCClock()->getCurrentTime();

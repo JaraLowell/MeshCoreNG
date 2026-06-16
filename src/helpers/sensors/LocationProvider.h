@@ -13,6 +13,8 @@ public:
     virtual long getLatitude() = 0;
     virtual long getLongitude() = 0;
     virtual long getAltitude() = 0;
+    virtual uint16_t getSpeedCmS() { return 0; }
+    virtual uint16_t getHeadingCdeg() { return 0; }
     virtual long satellitesCount() = 0;
     virtual bool isValid() = 0;
     virtual long getTimestamp() = 0;

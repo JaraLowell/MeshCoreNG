@@ -24,6 +24,19 @@ The board must also compile with GPS support:
 -D ENV_INCLUDE_GPS=1
 ```
 
+Tracker builds can optionally make the send interval speed-dependent:
+
+```text
+-D LOCATION_TRACKER_ADAPTIVE_INTERVAL=1
+-D LOCATION_TRACKER_STATIONARY_INTERVAL_SECS=300
+-D LOCATION_TRACKER_SLOW_INTERVAL_SECS=30
+-D LOCATION_TRACKER_FAST_INTERVAL_SECS=15
+-D LOCATION_TRACKER_STATIONARY_SPEED_CMS=50
+-D LOCATION_TRACKER_FAST_SPEED_CMS=500
+```
+
+With those values the tracker sends every 5 minutes below 0.5 m/s, every 30 seconds while moving normally, and every 15 seconds at or above 5 m/s.
+
 The tracker uses the existing `LocationProvider`, so board variants that already expose GPS through `target.cpp` do not need a second GPS driver.
 
 Initial build targets:
@@ -73,6 +86,8 @@ The map draws the latest position and the route each tracker has reported during
 
 The payload starts after the normal MeshCore packet header/path fields:
 
+All multi-byte integer fields in the location payload are big-endian.
+
 | Field | Size | Notes |
 |-------|------|-------|
 | magic | 4 | `MCL1` |
@@ -82,8 +97,8 @@ The payload starts after the normal MeshCore packet header/path fields:
 | lat | 4 | signed microdegrees |
 | lon | 4 | signed microdegrees |
 | altitude | 2 | signed metres |
-| speed | 2 | centimetres per second, currently `0` for the simple tracker |
-| heading | 2 | centidegrees, currently `0` for the simple tracker |
+| speed | 2 | centimetres per second |
+| heading | 2 | centidegrees |
 | satellites | 1 | GPS satellite count |
 | battery | 2 | millivolts |
 | timestamp | 4 | Unix time from node RTC |
