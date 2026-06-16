@@ -17,6 +17,7 @@ CLIENT_TIMEOUT="${TCP_BRIDGE_CLIENT_TIMEOUT:-180}"
 STATUS_INTERVAL="${TCP_BRIDGE_STATUS_INTERVAL:-60}"
 PASSWORD="${TCP_BRIDGE_PASSWORD:-}"
 PUBLIC_CHANNELS_FILE="${TCP_BRIDGE_PUBLIC_CHANNELS_FILE:-}"
+LOCATION_TRACKS_DIR="${TCP_BRIDGE_LOCATION_TRACKS_DIR:-${LOG_DIR}/location_tracks}"
 EXTRA_ARGS="${TCP_BRIDGE_EXTRA_ARGS:-}"
 
 is_running() {
@@ -44,6 +45,7 @@ start_server() {
     --status-base-path "${STATUS_BASE_PATH}"
     --client-timeout "${CLIENT_TIMEOUT}"
     --status-interval "${STATUS_INTERVAL}"
+    --location-tracks-dir "${LOCATION_TRACKS_DIR}"
   )
 
   if [[ -n "${PASSWORD}" ]]; then
@@ -126,6 +128,7 @@ Environment variables:
   TCP_BRIDGE_STATUS_BASE_PATH default: /meshbridgestatus, set empty for root
   TCP_BRIDGE_PASSWORD         optional
   TCP_BRIDGE_PUBLIC_CHANNELS_FILE optional JSON file with public channel keys
+  TCP_BRIDGE_LOCATION_TRACKS_DIR default: ./logs/location_tracks
   TCP_BRIDGE_CLIENT_TIMEOUT   default: 180
   TCP_BRIDGE_STATUS_INTERVAL  default: 60
   TCP_BRIDGE_LOG_FILE         default: ./logs/tcp_bridge_server.log

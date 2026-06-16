@@ -78,7 +78,9 @@ http://server:8080/map
 http://server:8080/locations.json
 ```
 
-The map draws the latest position and the route each tracker has reported during the server process lifetime. The public JSON includes a bounded `track` array per tracker and does not expose bridge-client IP addresses or ports.
+The map draws the latest position and the complete route each tracker has reported. The TCP bridge server persists tracker routes as one JSONL file per node in `logs/location_tracks` by default, reloads them on startup, and exposes the loaded route in the public `track` array for each tracker. Use `--location-tracks-dir <path>` or `TCP_BRIDGE_LOCATION_TRACKS_DIR=<path>` with `tools/tcp_bridge_server_ctl.sh` to store routes somewhere else.
+
+There is no fixed point limit in the server. The practical limit is available disk space and how much route data the browser can comfortably draw on the map.
 
 ## Payload
 

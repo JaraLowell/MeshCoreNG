@@ -10,6 +10,7 @@ Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
     open http://localhost:8080/manage for remote management
+    open http://localhost:8080/map for persisted tracker routes
     use --status-base-path /meshbridgestatus when reverse-proxying below a URL prefix
 
 Repeater firmware configuration (via CLI):
@@ -96,7 +97,7 @@ PUBLIC_CHANNELS_FILE = ""
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
-LOCATION_TRACK_MAX_POINTS = 500
+LOCATION_TRACKS_DIR = Path("logs/location_tracks")
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
@@ -107,7 +108,7 @@ next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
 latest_locations: dict[str, dict] = {}
-latest_location_tracks: dict[str, deque[dict]] = {}
+latest_location_tracks: dict[str, list[dict]] = {}
 latest_sensors: dict[str, dict] = {}
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
@@ -732,6 +733,84 @@ def parse_node_advert_payload(frame_payload: bytes) -> dict | None:
     }
 
 
+def location_track_path(node_id: str) -> Path:
+    safe = re.sub(r"[^0-9a-fA-F_-]", "_", node_id or "unknown")
+    return LOCATION_TRACKS_DIR / f"{safe}.jsonl"
+
+
+def location_track_point(report: dict) -> dict:
+    return {
+        "node_id": report.get("node_id"),
+        "name": report.get("name", ""),
+        "lat": report["lat"],
+        "lon": report["lon"],
+        "altitude_m": report.get("altitude_m"),
+        "speed_kmh": report.get("speed_kmh"),
+        "heading_deg": report.get("heading_deg"),
+        "satellites": report.get("satellites"),
+        "battery_mv": report.get("battery_mv"),
+        "timestamp": report.get("timestamp"),
+        "received_at": report.get("received_at"),
+    }
+
+
+def append_location_track_point(node_id: str, point: dict) -> None:
+    try:
+        LOCATION_TRACKS_DIR.mkdir(parents=True, exist_ok=True)
+        with location_track_path(node_id).open("a", encoding="utf-8") as file:
+            file.write(json.dumps(point, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        log.warning("Could not persist location track for %s: %s", node_id, exc)
+
+
+def load_location_tracks() -> None:
+    latest_location_tracks.clear()
+    latest_locations.clear()
+    if not LOCATION_TRACKS_DIR.exists():
+        return
+    loaded_points = 0
+    for path in sorted(LOCATION_TRACKS_DIR.glob("*.jsonl")):
+        node_id = path.stem
+        track: list[dict] = []
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                for lineno, line in enumerate(file, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        point = json.loads(line)
+                    except json.JSONDecodeError:
+                        log.warning("Skipping invalid location track line %s:%d", path, lineno)
+                        continue
+                    if not isinstance(point, dict):
+                        continue
+                    lat = point.get("lat")
+                    lon = point.get("lon")
+                    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+                        continue
+                    point.setdefault("node_id", node_id)
+                    track.append(point)
+        except OSError as exc:
+            log.warning("Could not load location track %s: %s", path, exc)
+            continue
+        if not track:
+            continue
+        latest = dict(track[-1])
+        actual_node_id = latest.get("node_id") or node_id
+        latest["node_id"] = actual_node_id
+        latest.setdefault("name", "")
+        latest.setdefault("received_at", int(latest.get("timestamp") or time.time()))
+        latest["age_seconds"] = 0
+        latest["source"] = "track-file"
+        latest_location_tracks[actual_node_id] = track
+        latest_locations[actual_node_id] = latest
+        loaded_points += len(track)
+    if loaded_points:
+        log.info("Loaded %d persisted location track point(s) for %d tracker node(s)",
+                 loaded_points, len(latest_location_tracks))
+
+
 def record_location(report: dict, client: "BridgeClient") -> None:
     now = time.time()
     report = dict(report)
@@ -740,17 +819,11 @@ def record_location(report: dict, client: "BridgeClient") -> None:
     report["source"] = client.display_name
     client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_locations[report["node_id"]] = report
-    track = latest_location_tracks.setdefault(report["node_id"], deque(maxlen=LOCATION_TRACK_MAX_POINTS))
-    point = {
-        "lat": report["lat"],
-        "lon": report["lon"],
-        "speed_kmh": report.get("speed_kmh"),
-        "heading_deg": report.get("heading_deg"),
-        "timestamp": report.get("timestamp"),
-        "received_at": report["received_at"],
-    }
+    track = latest_location_tracks.setdefault(report["node_id"], [])
+    point = location_track_point(report)
     if not track or any(track[-1].get(key) != point.get(key) for key in ("lat", "lon", "timestamp")):
         track.append(point)
+        append_location_track_point(report["node_id"], point)
 
 
 def record_sensor_advert(report: dict, client: "BridgeClient") -> None:
@@ -2219,6 +2292,8 @@ if __name__ == "__main__":
                         help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
     parser.add_argument("--public-channels-file", default="",
                         help="JSON file with public channel names/secrets for optional group packet decoding")
+    parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
+                        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
@@ -2240,7 +2315,9 @@ if __name__ == "__main__":
     ADMIN_PASSWORD = args.admin_password
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     PUBLIC_CHANNELS_FILE = args.public_channels_file
+    LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
     load_public_channels(PUBLIC_CHANNELS_FILE)
+    load_location_tracks()
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
