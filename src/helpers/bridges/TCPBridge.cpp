@@ -130,6 +130,7 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
         _last_heartbeat_ms = 0;
         _state = State::RUNNING;
+        _just_connected = true;
         sendAuth();
         sendNodeInfo();
         sendCaps();
@@ -199,13 +200,13 @@ void TCPBridge::readIncoming() {
               continue;
             }
             
-            // Selective flood protection by packet category
+            // Selective TCP rate limiting by packet category
             if (_prefs->tcp_flood_limit_enable) {
               uint32_t now_secs = _rtc->getCurrentTime();
               bool drop_packet = false;
               
               if (isTransportPacket(_rx_buffer + 4, len)) {
-                // Transport/message packets: strict rate limit
+                // Transport/message packets: strict TCP-side rate limit
                 if (!_transport_flood_limiter.allow(now_secs)) {
                   _transport_dropped_count++;
                   drop_packet = true;
@@ -213,7 +214,7 @@ void TCPBridge::readIncoming() {
                                        (unsigned long)_transport_dropped_count);
                 }
               } else if (isControlPacket(_rx_buffer + 4, len)) {
-                // Control/admin packets: higher limit or bypass
+                // Control/admin packets: higher TCP-side limit or bypass
                 if (_prefs->tcp_flood_control_max > 0) {  // 0 = bypass
                   if (!_control_flood_limiter.allow(now_secs)) {
                     _control_dropped_count++;
@@ -222,7 +223,7 @@ void TCPBridge::readIncoming() {
                                          (unsigned long)_control_dropped_count);
                   }
                 }
-                // else: control max = 0, bypass flood protection
+                // else: control max = 0, bypass TCP rate limiting
               }
               // Other packet types not explicitly classified default to no limit
               
@@ -657,9 +658,9 @@ void TCPBridge::getStatusStr(char *reply) const {
                         : "disconnected";
   const char *ntpStr = _prefs->ntp_enabled ? (_ntp_synced ? "synced" : "not synced") : "disabled";
   
-  // Show flood protection stats if enabled and packets were dropped
+  // Show TCP rate-limit stats if enabled and packets were dropped
   if (_prefs->tcp_flood_limit_enable && (_transport_dropped_count > 0 || _control_dropped_count > 0)) {
-    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s | Dropped: %lu transport, %lu control",
+    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s | Rate dropped: %lu transport, %lu control",
             ip, WiFi.RSSI(), serverStr, ntpStr,
             (unsigned long)_transport_dropped_count,
             (unsigned long)_control_dropped_count);

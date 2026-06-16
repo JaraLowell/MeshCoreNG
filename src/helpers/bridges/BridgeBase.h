@@ -29,6 +29,11 @@ public:
    */
   bool isRunning() const override;
 
+  void setSelfHash(const uint8_t *pub_key) {
+    memcpy(_self_hash, pub_key, sizeof(_self_hash));
+    _has_self_hash = true;
+  }
+
   /**
    * @brief Common magic number used by all bridge implementations for packet identification
    *
@@ -64,6 +69,9 @@ protected:
 
   /** Tracks seen packets to prevent loops in broadcast communications */
   SimpleMeshTables _seen_packets;
+
+  uint8_t _self_hash[3] = {0};
+  bool    _has_self_hash = false;
 
   /**
    * @brief Constructs a BridgeBase instance

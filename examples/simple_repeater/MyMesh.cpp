@@ -1810,8 +1810,10 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 void MyMesh::configureTcpBridgeNodeIds() {
 #if defined(WITH_BLE_BRIDGE)
   tcp_bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
+  tcp_bridge.setSelfHash(self_id.pub_key);
 #else
   bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
+  bridge.setSelfHash(self_id.pub_key);
 #endif
 }
 #endif
@@ -2028,8 +2030,10 @@ void MyMesh::loop() {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
   tcp_bridge.loop();
   ble_bridge.loop();
+  if (tcp_bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
 #else
   bridge.loop();
+  if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
 #endif
 #endif
 

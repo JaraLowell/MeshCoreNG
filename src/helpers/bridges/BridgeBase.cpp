@@ -12,12 +12,16 @@ uint8_t bridgeLocalInjectPriority(const mesh::Packet *packet) {
   return 0;
 }
 
-void prepareBridgeLocalInject(mesh::Packet *packet) {
+void prepareBridgeLocalInject(mesh::Packet *packet, const uint8_t *self_hash, bool has_self_hash) {
   if (packet->isRouteFlood()) {
     uint8_t hash_size = packet->getPathHashSize();
     if (hash_size == 0 || hash_size > 3) hash_size = 1;
     uint8_t max_count = MAX_PATH_SIZE / hash_size;
     uint8_t current_count = packet->getPathHashCount();
+    if (has_self_hash && current_count < max_count) {
+      memcpy(&packet->path[current_count * hash_size], self_hash, hash_size);
+      current_count++;
+    }
     while (current_count < max_count) {
       memset(&packet->path[current_count * hash_size], 0, hash_size);
       current_count++;
@@ -71,7 +75,7 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
     packet->markReceivedFromBridge();
     // local mode injects bridge traffic once on RF and prevents normal multi-hop forwarding.
     if (_prefs->bridge_rf == BRIDGE_RF_LOCAL) {
-      prepareBridgeLocalInject(packet);
+      prepareBridgeLocalInject(packet, _self_hash, _has_self_hash);
       _mgr->queueOutbound(packet, bridgeLocalInjectPriority(packet), millis() + _prefs->bridge_delay);
     } else {
       // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.

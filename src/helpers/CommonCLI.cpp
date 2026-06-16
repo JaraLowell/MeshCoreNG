@@ -380,17 +380,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->low_bat_runtime_valid_min_mv = constrain(_prefs->low_bat_runtime_valid_min_mv, 0, 6000);
     _prefs->low_bat_runtime_retry_secs = constrain(_prefs->low_bat_runtime_retry_secs, 5UL, 86400UL);
 
-    // sanitize TCP flood protection settings
+    // sanitize TCP bridge rate-limit settings
     _prefs->tcp_flood_limit_enable = constrain(_prefs->tcp_flood_limit_enable, 0, 1);
     if (_prefs->tcp_flood_max_packets == 0) _prefs->tcp_flood_max_packets = 100;  // default 100 packets
     if (_prefs->tcp_flood_window_secs == 0) _prefs->tcp_flood_window_secs = 600;  // default 10 minutes
     _prefs->tcp_flood_max_packets = constrain(_prefs->tcp_flood_max_packets, 1, 10000);
     _prefs->tcp_flood_window_secs = constrain(_prefs->tcp_flood_window_secs, 1, 3600);
     
-    // sanitize selective flood protection settings
+    // sanitize selective TCP rate-limit settings
     if (_prefs->tcp_flood_transport_max == 0) _prefs->tcp_flood_transport_max = 20;   // default 20 transport packets
     if (_prefs->tcp_flood_transport_window == 0) _prefs->tcp_flood_transport_window = 120; // default 2 minutes
-    if (_prefs->tcp_flood_control_max == 0) _prefs->tcp_flood_control_max = 20;      // default 20 control packets
     if (_prefs->tcp_flood_control_window == 0) _prefs->tcp_flood_control_window = 120; // default 2 minutes
     _prefs->tcp_flood_transport_max = constrain(_prefs->tcp_flood_transport_max, 1, 10000);
     _prefs->tcp_flood_transport_window = constrain(_prefs->tcp_flood_transport_window, 1, 3600);
@@ -1438,9 +1437,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->tcp_flood_limit_enable = 0;
+      _prefs->tcp_flood_transport_max = 1000;
+      _prefs->tcp_flood_transport_window = 120;
+      _prefs->tcp_flood_control_max = 0;
+      _prefs->tcp_flood_control_window = 120;
       _prefs->bridge_profile = 2;
       savePrefs();
-      strcpy(reply, "OK - bridge repeater profile applied");
+      strcpy(reply, "OK - bridge repeater profile applied, TCP rate limit off");
     } else if (memcmp(&config[15], "default", 7) == 0) {
       _prefs->bridge_pkt_src = 0;
       _prefs->bridge_rf = BRIDGE_RF_OFF;
@@ -1594,7 +1598,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _callbacks->restartBridge();
       savePrefs();
       if (max == 0) {
-        strcpy(reply, "OK - control packets bypass flood protection");
+        strcpy(reply, "OK - control packets bypass TCP rate limit");
       } else {
         strcpy(reply, "OK");
       }

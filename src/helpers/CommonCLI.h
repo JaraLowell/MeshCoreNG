@@ -96,11 +96,11 @@ struct NodePrefs { // persisted to file
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
   uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
-  // TCP flood protection settings
-  uint8_t tcp_flood_limit_enable; // enable TCP bridge flood protection
+  // TCP bridge rate-limit settings (CLI keeps tcp.flood.* names for compatibility)
+  uint8_t tcp_flood_limit_enable; // enable TCP bridge rate limiting
   uint16_t tcp_flood_max_packets; // max packets allowed in time window (general/legacy)
   uint16_t tcp_flood_window_secs; // time window in seconds (e.g., 600 = 10 min)
-  // Selective flood protection per packet category
+  // Selective rate limiting per packet category
   uint16_t tcp_flood_transport_max; // max transport/message packets (DMs, group msgs)
   uint16_t tcp_flood_transport_window; // transport time window in seconds
   uint16_t tcp_flood_control_max; // max control/admin packets (0 = bypass)
