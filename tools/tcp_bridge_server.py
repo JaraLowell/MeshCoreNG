@@ -2092,15 +2092,35 @@ def build_location_map_html(base_path: str = "") -> str:
     #map {
       background: #071009;
     }
-    .leaflet-tile {
+    #map.layout-tactical .leaflet-tile,
+    #map.layout-night .leaflet-tile {
       filter: invert(1) hue-rotate(95deg) saturate(.75) brightness(.58) contrast(1.25);
     }
+    #map.layout-standard .leaflet-tile,
+    #map.layout-humanitarian .leaflet-tile,
+    #map.layout-topo .leaflet-tile {
+      filter: none;
+    }
     .leaflet-control-attribution,
-    .leaflet-control-zoom a {
+    .leaflet-control-zoom a,
+    .leaflet-control-layers {
       background: rgba(8, 18, 12, .92) !important;
       border-color: var(--line) !important;
       color: var(--green-soft) !important;
       font-family: inherit;
+    }
+    .leaflet-control-layers-expanded {
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .leaflet-control-layers label {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.9;
+    }
+    .leaflet-control-layers-selector {
+      accent-color: var(--green);
     }
     .leaflet-control-zoom {
       border: 1px solid var(--line) !important;
@@ -2239,11 +2259,53 @@ def build_location_map_html(base_path: str = "") -> str:
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([52.2, 5.3], 8);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    const mapEl = document.getElementById('map');
+    const savedLayout = localStorage.getItem('meshcore_tracker_map_layout') || 'Tactical';
+    const map = L.map('map', { zoomControl: false }).setView([52.2, 5.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    const osmAttrib = '&copy; OpenStreetMap contributors';
+    const topoAttrib = '&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap';
+    const baseLayers = {
+      Tactical: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Night: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Standard: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Humanitarian: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: topoAttrib
+      })
+    };
+    const layoutClasses = {
+      Tactical: 'layout-tactical',
+      Night: 'layout-night',
+      Standard: 'layout-standard',
+      Humanitarian: 'layout-humanitarian',
+      Topo: 'layout-topo'
+    };
+
+    function setMapLayout(name) {
+      for (const cls of Object.values(layoutClasses)) mapEl.classList.remove(cls);
+      mapEl.classList.add(layoutClasses[name] || layoutClasses.Tactical);
+      localStorage.setItem('meshcore_tracker_map_layout', name);
+    }
+
+    const initialLayout = baseLayers[savedLayout] ? savedLayout : 'Tactical';
+    setMapLayout(initialLayout);
+    baseLayers[initialLayout].addTo(map);
+    L.control.layers(baseLayers, null, { position: 'bottomleft', collapsed: false }).addTo(map);
+    map.on('baselayerchange', (event) => setMapLayout(event.name));
     const markers = new Map();
     const tracks = new Map();
 
