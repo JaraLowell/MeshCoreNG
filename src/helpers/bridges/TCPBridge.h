@@ -125,7 +125,7 @@ private:
   uint8_t  _rx_buffer[MAX_TCP_PACKET_SIZE];
   uint16_t _rx_buffer_pos = 0;
   uint32_t _bridge_id = 0;
-  uint8_t  _node_id[4] = {0};
+  uint8_t  _node_id[PUB_KEY_SIZE] = {0};
   bool     _has_node_id = false;
   TCPBridgeCommandHandler *_command_handler = nullptr;
 

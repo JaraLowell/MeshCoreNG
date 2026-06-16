@@ -458,8 +458,8 @@ def parse_node_info(payload: bytes) -> tuple[str, str, str] | None:
     if len(payload) > node_id_pos:
         node_id_len = payload[node_id_pos]
         raw_node_id = payload[node_id_pos + 1:node_id_pos + 1 + node_id_len]
-        if node_id_len in (4, 8) and len(raw_node_id) == node_id_len:
-            node_id = binascii.hexlify(raw_node_id[:4]).decode("ascii")
+        if node_id_len in (4, 8, 32) and len(raw_node_id) == node_id_len:
+            node_id = binascii.hexlify(raw_node_id).decode("ascii")
 
     return name, firmware, node_id
 

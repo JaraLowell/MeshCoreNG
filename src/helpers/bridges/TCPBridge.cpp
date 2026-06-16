@@ -327,7 +327,7 @@ void TCPBridge::sendNodeInfo() {
   }
 
   if (sendPayloadFrame(payload, pos)) {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s' version '%s' node_id=%02x%02x%02x%02x\n",
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s' version '%s' node_id=%02x%02x%02x%02x...\n",
                          _prefs->node_name, version,
                          _node_id[0], _node_id[1], _node_id[2], _node_id[3]);
   }

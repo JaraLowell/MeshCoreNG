@@ -1809,9 +1809,9 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(WITH_TCP_BRIDGE)
 void MyMesh::configureTcpBridgeNodeIds() {
 #if defined(WITH_BLE_BRIDGE)
-  tcp_bridge.setNodeId(self_id.pub_key, 4);
+  tcp_bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
 #else
-  bridge.setNodeId(self_id.pub_key, 4);
+  bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
 #endif
 }
 #endif
