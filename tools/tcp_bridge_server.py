@@ -690,7 +690,7 @@ def parse_sensor_advert_payload(frame_payload: bytes) -> dict | None:
         return None
 
     return {
-        "node_id": binascii.hexlify(pub_key[:4]).decode("ascii"),
+        "node_id": binascii.hexlify(pub_key).decode("ascii"),
         "pubkey_prefix": binascii.hexlify(pub_key[:8]).decode("ascii"),
         "timestamp": timestamp,
         "name": advert["name"],
@@ -721,7 +721,7 @@ def parse_node_advert_payload(frame_payload: bytes) -> dict | None:
         return None
 
     return {
-        "node_id": binascii.hexlify(pub_key[:4]).decode("ascii"),
+        "node_id": binascii.hexlify(pub_key).decode("ascii"),
         "pubkey_prefix": binascii.hexlify(pub_key[:8]).decode("ascii"),
         "timestamp": timestamp,
         "name": advert["name"],
@@ -820,7 +820,7 @@ class BridgeClient:
         name = (name or "").strip()
         if self.node_name and name and name != self.node_name:
             return
-        if not self.node_id or name == self.node_name:
+        if not self.node_id or len(node_id) > len(self.node_id) or name == self.node_name:
             self.node_id = node_id
 
     def status_dict(self, now: float) -> dict:
