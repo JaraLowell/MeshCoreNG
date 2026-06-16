@@ -2050,24 +2050,147 @@ def build_location_map_html(base_path: str = "") -> str:
   <title>MeshCoreNG Tracker Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .topbar {
-      position: absolute; z-index: 1000; top: 12px; left: 12px; right: 12px;
-      display: flex; gap: 12px; align-items: center; justify-content: space-between;
-      background: rgba(255, 255, 255, 0.92); border: 1px solid #d8dee4;
-      border-radius: 8px; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    :root {
+      color-scheme: dark;
+      --bg: #050806;
+      --panel: rgba(8, 18, 12, .88);
+      --line: rgba(97, 255, 154, .32);
+      --line-strong: rgba(97, 255, 154, .58);
+      --green: #68ff9d;
+      --green-soft: #a1ffc4;
+      --amber: #ffd166;
+      --red: #ff5f6d;
+      --muted: #8fb99e;
+      --text: #dfffe9;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .48);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     }
-    .topbar h1 { margin: 0; font-size: 1rem; }
-    .topbar a { color: #0969da; text-decoration: none; }
-    .muted { color: #57606a; font-size: .9rem; }
+    * { box-sizing: border-box; }
+    html, body, #map { height: 100%; margin: 0; }
+    html { background: var(--bg); }
+    body {
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(104, 255, 157, .12), transparent 28%),
+        linear-gradient(180deg, rgba(2, 10, 6, .7), rgba(2, 5, 3, .98)),
+        var(--bg);
+      overflow: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(104, 255, 157, .04) 50%, rgba(0, 0, 0, .13) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, .025), rgba(0, 255, 95, .018), rgba(0, 120, 255, .025));
+      background-size: 100% 4px, 7px 100%;
+      mix-blend-mode: screen;
+      opacity: .42;
+      z-index: 1200;
+    }
+    #map {
+      background: #071009;
+    }
+    .leaflet-tile {
+      filter: invert(1) hue-rotate(95deg) saturate(.75) brightness(.58) contrast(1.25);
+    }
+    .leaflet-control-attribution,
+    .leaflet-control-zoom a {
+      background: rgba(8, 18, 12, .92) !important;
+      border-color: var(--line) !important;
+      color: var(--green-soft) !important;
+      font-family: inherit;
+    }
+    .leaflet-control-zoom {
+      border: 1px solid var(--line) !important;
+      box-shadow: var(--shadow);
+    }
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: rgba(5, 12, 8, .96);
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .leaflet-popup-content {
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .leaflet-popup-content strong {
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .leaflet-container a.leaflet-popup-close-button {
+      color: var(--green-soft);
+    }
+    .topbar {
+      position: absolute;
+      z-index: 1000;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 14px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(11, 26, 17, .94), rgba(5, 12, 8, .88));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .topbar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(104,255,157,.14), transparent 18%, transparent 82%, rgba(104,255,157,.12));
+    }
+    .topbar h1 {
+      margin: 0;
+      min-width: 0;
+      color: var(--green);
+      font-size: clamp(.9rem, 2.4vw, 1.08rem);
+      font-weight: 780;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      text-shadow: 0 0 18px rgba(104,255,157,.42);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .topbar a {
+      color: var(--green-soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      text-decoration: none;
+      text-transform: uppercase;
+      font-size: .78rem;
+      font-weight: 760;
+      background: rgba(104, 255, 157, .08);
+    }
+    .topbar a:hover { border-color: var(--line-strong); color: var(--green); }
+    .muted {
+      color: var(--muted);
+      font-size: .84rem;
+      white-space: nowrap;
+    }
     .tracker-icon {
       width: 28px;
       height: 28px;
       border-radius: 50%;
-      background: #0969da;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+      background: radial-gradient(circle, var(--green-soft), var(--green) 55%, #0c4f2a 100%);
+      border: 2px solid rgba(223,255,233,.9);
+      box-shadow:
+        0 0 0 3px rgba(104,255,157,.18),
+        0 0 22px rgba(104,255,157,.54),
+        0 3px 9px rgba(0,0,0,.5);
       position: relative;
     }
     .tracker-icon::before {
@@ -2078,28 +2201,38 @@ def build_location_map_html(base_path: str = "") -> str:
       transform: translateX(-50%);
       border-left: 7px solid transparent;
       border-right: 7px solid transparent;
-      border-bottom: 14px solid #0969da;
-      filter: drop-shadow(0 -1px 1px rgba(0,0,0,.25));
+      border-bottom: 14px solid var(--green);
+      filter: drop-shadow(0 -1px 5px rgba(104,255,157,.55));
     }
     .tracker-icon.stationary::before { display: none; }
     .tracker-label {
       margin-left: 32px;
       margin-top: -28px;
-      padding: 2px 5px;
+      padding: 3px 6px;
       border-radius: 4px;
-      background: rgba(255,255,255,.9);
-      border: 1px solid #d8dee4;
-      color: #24292f;
+      background: rgba(5,12,8,.9);
+      border: 1px solid var(--line);
+      color: var(--green-soft);
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
-      box-shadow: 0 1px 4px rgba(0,0,0,.16);
+      box-shadow: 0 0 12px rgba(104,255,157,.16), 0 1px 6px rgba(0,0,0,.42);
+    }
+    @media (max-width: 720px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+        gap: 8px;
+      }
+      .topbar h1 { white-space: normal; }
+      .muted { white-space: normal; }
+      .topbar a { width: max-content; }
     }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <h1>MeshCoreNG Tracker Map</h1>
+    <h1>MeshCoreNG Tracker Tactical Map</h1>
     <span class="muted" id="summary">Loading...</span>
     <a href="__STATUS_URL__">Bridge status</a>
   </div>
@@ -2199,9 +2332,9 @@ def build_location_map_html(base_path: str = "") -> str:
         if (latlngs.length >= 2) {
           if (!track) {
             track = L.polyline(latlngs, {
-              color: '#0969da',
+              color: '#68ff9d',
               weight: 4,
-              opacity: 0.7,
+              opacity: 0.82,
               lineJoin: 'round'
             }).addTo(map);
             tracks.set(loc.node_id, track);
