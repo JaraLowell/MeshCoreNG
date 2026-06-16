@@ -1418,11 +1418,13 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    configureTcpBridgeNodeIds();
     tcp_bridge.setCommandHandler(this);
     tcp_bridge.begin();
     ble_bridge.begin();
 #else
 #if defined(WITH_TCP_BRIDGE)
+    configureTcpBridgeNodeIds();
     bridge.setCommandHandler(this);
 #endif
     bridge.begin();
@@ -1803,6 +1805,16 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #endif
   store.save("_main", new_id);
 }
+
+#if defined(WITH_TCP_BRIDGE)
+void MyMesh::configureTcpBridgeNodeIds() {
+#if defined(WITH_BLE_BRIDGE)
+  tcp_bridge.setNodeId(self_id.pub_key, 4);
+#else
+  bridge.setNodeId(self_id.pub_key, 4);
+#endif
+}
+#endif
 
 void MyMesh::clearStats() {
   radio_driver.resetStats();

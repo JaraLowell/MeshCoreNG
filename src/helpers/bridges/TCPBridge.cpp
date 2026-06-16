@@ -31,6 +31,16 @@ TCPBridge::TCPBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock 
       _transport_flood_limiter(20, 120),   // default: 20 transport packets per 2 min
       _control_flood_limiter(20, 120) {}   // default: 20 control packets per 2 min
 
+void TCPBridge::setNodeId(const uint8_t *node_id, size_t len) {
+  if (node_id == nullptr || len < sizeof(_node_id)) {
+    _has_node_id = false;
+    memset(_node_id, 0, sizeof(_node_id));
+    return;
+  }
+  memcpy(_node_id, node_id, sizeof(_node_id));
+  _has_node_id = true;
+}
+
 void TCPBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("TCP bridge: starting...\n");
   _state = State::IDLE;
@@ -288,7 +298,7 @@ void TCPBridge::sendAuth() {
 }
 
 void TCPBridge::sendNodeInfo() {
-  uint8_t payload[7 + sizeof(_prefs->node_name) + 32];
+  uint8_t payload[8 + sizeof(_prefs->node_name) + 32 + sizeof(_node_id)];
   payload[0] = 'M';
   payload[1] = 'C';
   payload[2] = 'N';
@@ -309,10 +319,17 @@ void TCPBridge::sendNodeInfo() {
   }
   payload[6 + name_len] = (uint8_t)version_len;
   memcpy(payload + 7 + name_len, version, version_len);
+  size_t pos = 7 + name_len + version_len;
+  payload[pos++] = _has_node_id ? sizeof(_node_id) : 0;
+  if (_has_node_id) {
+    memcpy(payload + pos, _node_id, sizeof(_node_id));
+    pos += sizeof(_node_id);
+  }
 
-  if (sendPayloadFrame(payload, 7 + name_len + version_len)) {
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s' version '%s'\n",
-                         _prefs->node_name, version);
+  if (sendPayloadFrame(payload, pos)) {
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: sent node name '%s' version '%s' node_id=%02x%02x%02x%02x\n",
+                         _prefs->node_name, version,
+                         _node_id[0], _node_id[1], _node_id[2], _node_id[3]);
   }
 }
 

@@ -49,6 +49,7 @@ public:
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
   void getStatusStr(char *reply) const;
+  void setNodeId(const uint8_t *node_id, size_t len);
   
   /**
    * @brief Get the total number of packets dropped due to flood protection (all categories)
@@ -124,6 +125,8 @@ private:
   uint8_t  _rx_buffer[MAX_TCP_PACKET_SIZE];
   uint16_t _rx_buffer_pos = 0;
   uint32_t _bridge_id = 0;
+  uint8_t  _node_id[4] = {0};
+  bool     _has_node_id = false;
   TCPBridgeCommandHandler *_command_handler = nullptr;
 
   // Selective flood protection with separate limiters per packet category

@@ -34,6 +34,7 @@ import hmac
 import html
 import json
 import logging
+import re
 import struct
 import time
 from pathlib import Path
@@ -65,6 +66,10 @@ CONTROL_TYPE_COMMAND_REPLY = 0x11
 CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
 BRIDGE_V2_OVERHEAD = 14
+IP_ADDRESS_RE = re.compile(
+    r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\w.])"
+    r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
+)
 PAYLOAD_TYPE_ADVERT = 0x04
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
@@ -164,6 +169,20 @@ def packet_type_name(payload_type: int) -> str:
 
 def route_type_name(route_type: int) -> str:
     return ROUTE_TYPE_NAMES.get(route_type, f"unknown-0x{route_type:02x}")
+
+
+def redact_public_text(value: str) -> str:
+    return IP_ADDRESS_RE.sub("[hidden]", value)
+
+
+def redact_public_value(value):
+    if isinstance(value, str):
+        return redact_public_text(value)
+    if isinstance(value, list):
+        return [redact_public_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: redact_public_value(item) for key, item in value.items() if key != "addr"}
+    return value
 
 
 def derive_channel_secret(secret_hex: str) -> bytes | None:
@@ -411,7 +430,7 @@ def parse_heartbeat(payload: bytes) -> int | None:
     return 0
 
 
-def parse_node_info(payload: bytes) -> tuple[str, str] | None:
+def parse_node_info(payload: bytes) -> tuple[str, str, str] | None:
     if len(payload) < 6:
         return None
     if not payload.startswith(CONTROL_PREFIX):
@@ -427,14 +446,22 @@ def parse_node_info(payload: bytes) -> tuple[str, str] | None:
     name = raw_name.decode("utf-8", errors="replace").strip()[:32]
 
     firmware = ""
+    version_len = 0
     version_pos = 6 + name_len
     if len(payload) > version_pos:
         version_len = payload[version_pos]
         raw_version = payload[version_pos + 1:version_pos + 1 + version_len]
         if len(raw_version) == version_len:
             firmware = raw_version.decode("utf-8", errors="replace").strip()[:32]
+    node_id = ""
+    node_id_pos = version_pos + 1 + version_len
+    if len(payload) > node_id_pos:
+        node_id_len = payload[node_id_pos]
+        raw_node_id = payload[node_id_pos + 1:node_id_pos + 1 + node_id_len]
+        if node_id_len in (4, 8) and len(raw_node_id) == node_id_len:
+            node_id = binascii.hexlify(raw_node_id[:4]).decode("ascii")
 
-    return name, firmware
+    return name, firmware, node_id
 
 
 def parse_auth(payload: bytes) -> str | None:
@@ -1042,14 +1069,16 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 else:
                     log.debug("%s: stale command reply id=%d", client.addr, request_id)
                 continue
-            node_name = parse_node_info(payload)
-            if node_name is not None:
-                client.node_name, client.firmware_version = node_name
+            node_info = parse_node_info(payload)
+            if node_info is not None:
+                client.node_name, client.firmware_version, node_id = node_info
+                if node_id:
+                    client.node_id = node_id
                 if client.firmware_version:
-                    log.info("%s: node name is %s firmware=%s",
-                             client.addr, client.node_name, client.firmware_version)
+                    log.info("%s: node name is %s firmware=%s node_id=%s",
+                             client.addr, client.node_name, client.firmware_version, client.node_id or "unknown")
                 else:
-                    log.info("%s: node name is %s", client.addr, client.node_name)
+                    log.info("%s: node name is %s node_id=%s", client.addr, client.node_name, client.node_id or "unknown")
                 continue
             client.packets_rx += 1
             now = time.time()
@@ -1102,7 +1131,7 @@ def status_snapshot() -> dict:
     return {
         "generated_at": int(now),
         "connected_count": len(clients),
-        "clients": clients,
+        "clients": redact_public_value(clients),
     }
 
 
@@ -1117,7 +1146,7 @@ def locations_snapshot() -> dict:
     return {
         "generated_at": now,
         "location_count": len(locations),
-        "locations": locations,
+        "locations": redact_public_value(locations),
     }
 
 
@@ -1132,7 +1161,7 @@ def sensors_snapshot() -> dict:
     return {
         "generated_at": now,
         "sensor_count": len(sensors),
-        "sensors": sensors,
+        "sensors": redact_public_value(sensors),
     }
 
 
@@ -1142,7 +1171,7 @@ def packets_snapshot() -> dict:
     for entry in recent_packets:
         item = dict(entry)
         item["age_seconds"] = max(0, now - item["time"])
-        packets.append(item)
+        packets.append(redact_public_value(item))
     return {
         "generated_at": now,
         "packet_count": len(packets),
@@ -1719,7 +1748,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         "Remote management enabled; enter the selected node's admin password"
     )
     result_html = (
-        f'<pre class="command-result">{html.escape(command_result)}</pre>'
+        f'<pre class="command-result">{html.escape(redact_public_text(command_result))}</pre>'
         if command_result else
         '<pre class="command-result empty">No command sent yet</pre>'
     )
