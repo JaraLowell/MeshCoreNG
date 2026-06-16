@@ -2211,6 +2211,9 @@ def build_location_map_html(base_path: str = "") -> str:
       border: 1px solid var(--line) !important;
       box-shadow: var(--shadow);
     }
+    .leaflet-bottom {
+      bottom: 74px;
+    }
     .leaflet-popup-content-wrapper,
     .leaflet-popup-tip {
       background: rgba(5, 12, 8, .96);
@@ -2323,6 +2326,51 @@ def build_location_map_html(base_path: str = "") -> str:
       white-space: nowrap;
       box-shadow: 0 0 12px rgba(104,255,157,.16), 0 1px 6px rgba(0,0,0,.42);
     }
+    .replaybar {
+      position: absolute;
+      z-index: 1000;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: auto minmax(160px, 1fr) auto auto;
+      gap: 12px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(11, 26, 17, .94), rgba(5, 12, 8, .88));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .replaybar button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(104, 255, 157, .08);
+      color: var(--green-soft);
+      cursor: pointer;
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 760;
+      padding: 7px 10px;
+      text-transform: uppercase;
+    }
+    .replaybar button:hover { border-color: var(--line-strong); color: var(--green); }
+    .replaybar input[type="range"] {
+      width: 100%;
+      accent-color: var(--green);
+    }
+    .replaybar .time {
+      color: var(--green-soft);
+      font-size: .84rem;
+      white-space: nowrap;
+    }
+    .replaybar .hint {
+      color: var(--muted);
+      font-size: .76rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
     @media (max-width: 720px) {
       .topbar {
         grid-template-columns: 1fr;
@@ -2332,6 +2380,12 @@ def build_location_map_html(base_path: str = "") -> str:
       .topbar h1 { white-space: normal; }
       .muted { white-space: normal; }
       .topbar a { width: max-content; }
+      .replaybar {
+        grid-template-columns: 1fr;
+        bottom: 10px;
+      }
+      .leaflet-bottom { bottom: 150px; }
+      .replaybar .hint { white-space: normal; }
     }
   </style>
 </head>
@@ -2342,6 +2396,12 @@ def build_location_map_html(base_path: str = "") -> str:
     <a href="__STATUS_URL__">Bridge status</a>
   </div>
   <div id="map"></div>
+  <div class="replaybar">
+    <button id="replayToggle" type="button">Replay 24h</button>
+    <input id="replaySlider" type="range" min="0" max="1440" value="1440" step="1">
+    <span class="time" id="replayTime">live</span>
+    <span class="hint" id="replayHint">Live tracking</span>
+  </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const mapEl = document.getElementById('map');
@@ -2454,6 +2514,16 @@ def build_location_map_html(base_path: str = "") -> str:
     const markers = new Map();
     const tracks = new Map();
     const latestLocationByNode = new Map();
+    let latestData = null;
+    let replayMode = false;
+    let replayTimer = null;
+    let replayStart = 0;
+    let replayEnd = 0;
+    let replayCursor = 0;
+    const replayToggle = document.getElementById('replayToggle');
+    const replaySlider = document.getElementById('replaySlider');
+    const replayTimeLabel = document.getElementById('replayTime');
+    const replayHint = document.getElementById('replayHint');
     const initialLayout = baseLayers[savedLayout] ? savedLayout : 'Tactical';
     setMapLayout(initialLayout);
     baseLayers[initialLayout].addTo(map);
@@ -2464,6 +2534,16 @@ def build_location_map_html(base_path: str = "") -> str:
       if (seconds < 60) return `${seconds}s`;
       if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
       return `${Math.floor(seconds / 3600)}h`;
+    }
+
+    function fmtReplayTime(epochSeconds) {
+      if (!epochSeconds) return 'live';
+      return new Date(epochSeconds * 1000).toLocaleString();
+    }
+
+    function pointTime(point) {
+      const value = Number(point.timestamp || point.received_at || 0);
+      return Number.isFinite(value) ? value : 0;
     }
 
     function escapeHtml(value) {
@@ -2541,12 +2621,20 @@ def build_location_map_html(base_path: str = "") -> str:
       return km;
     }
 
-    async function refresh() {
-      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
-      const data = await res.json();
-      document.getElementById('summary').textContent = `${data.location_count} tracker node(s)`;
+    function fitRenderedLocations(locations) {
+      if (!locations.length || refresh.didFit) return;
+      const bounds = locations.flatMap(loc => {
+        const latlngs = trackLatLngs(loc);
+        return latlngs.length ? latlngs : [[loc.lat, loc.lon]];
+      });
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+      refresh.didFit = true;
+    }
+
+    function renderLocations(locations, labelPrefix = '') {
+      document.getElementById('summary').textContent = `${labelPrefix}${locations.length} tracker node(s)`;
       const seen = new Set();
-      for (const loc of data.locations) {
+      for (const loc of locations) {
         seen.add(loc.node_id);
         latestLocationByNode.set(loc.node_id, loc);
         const label = loc.name || loc.node_id;
@@ -2599,15 +2687,102 @@ def build_location_map_html(base_path: str = "") -> str:
           tracks.delete(nodeId);
         }
       }
-      if (data.locations.length && !refresh.didFit) {
-        const bounds = data.locations.flatMap(loc => {
-          const latlngs = trackLatLngs(loc);
-          return latlngs.length ? latlngs : [[loc.lat, loc.lon]];
-        });
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
-        refresh.didFit = true;
+      fitRenderedLocations(locations);
+    }
+
+    function updateReplayWindow(data) {
+      replayEnd = Number(data.generated_at || Math.floor(Date.now() / 1000));
+      replayStart = replayEnd - 24 * 60 * 60;
+      if (!replayMode) {
+        replayCursor = replayEnd;
+        replaySlider.value = replaySlider.max;
+        replayTimeLabel.textContent = 'live';
+        replayHint.textContent = 'Live tracking';
       }
     }
+
+    function replayLocationsAt(data, cursor) {
+      const locations = [];
+      for (const loc of data.locations || []) {
+        const points = (Array.isArray(loc.track) ? loc.track : [])
+          .filter(point => {
+            const t = pointTime(point);
+            return t >= replayStart && t <= cursor;
+          });
+        if (!points.length) continue;
+        const last = points[points.length - 1];
+        locations.push({
+          ...loc,
+          ...last,
+          age_seconds: Math.max(0, replayEnd - pointTime(last)),
+          track: points
+        });
+      }
+      return locations;
+    }
+
+    function renderReplay() {
+      if (!latestData) return;
+      const minutes = Number(replaySlider.value);
+      replayCursor = replayStart + minutes * 60;
+      const locations = replayLocationsAt(latestData, replayCursor);
+      renderLocations(locations, 'Replay: ');
+      replayTimeLabel.textContent = fmtReplayTime(replayCursor);
+      replayHint.textContent = `Last 24h replay | ${locations.length} active`;
+    }
+
+    function stopReplay() {
+      replayMode = false;
+      if (replayTimer) {
+        clearInterval(replayTimer);
+        replayTimer = null;
+      }
+      replayToggle.textContent = 'Replay 24h';
+      replaySlider.value = replaySlider.max;
+      replayTimeLabel.textContent = 'live';
+      replayHint.textContent = 'Live tracking';
+      if (latestData) renderLocations(latestData.locations || []);
+    }
+
+    function startReplay() {
+      if (!latestData) return;
+      replayMode = true;
+      replayToggle.textContent = 'Live';
+      replaySlider.value = 0;
+      renderReplay();
+      if (replayTimer) clearInterval(replayTimer);
+      replayTimer = setInterval(() => {
+        let next = Number(replaySlider.value) + 5;
+        if (next > Number(replaySlider.max)) next = 0;
+        replaySlider.value = next;
+        renderReplay();
+      }, 700);
+    }
+
+    async function refresh() {
+      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
+      const data = await res.json();
+      latestData = data;
+      updateReplayWindow(data);
+      if (replayMode) renderReplay();
+      else renderLocations(data.locations || []);
+    }
+
+    replayToggle.addEventListener('click', () => {
+      if (replayMode) stopReplay();
+      else startReplay();
+    });
+    replaySlider.addEventListener('input', () => {
+      if (!replayMode) {
+        replayMode = true;
+        replayToggle.textContent = 'Live';
+      }
+      if (replayTimer) {
+        clearInterval(replayTimer);
+        replayTimer = null;
+      }
+      renderReplay();
+    });
 
     refresh();
     setInterval(refresh, 10000);

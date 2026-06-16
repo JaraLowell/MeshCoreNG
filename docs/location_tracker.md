@@ -84,6 +84,8 @@ There is no fixed point limit in the server. The practical limit is available di
 
 When a tracker stays within roughly `30m` for `30 minutes`, the TCP bridge server marks that point as the end of the current route segment. If the tracker moves again later, the map starts a new segment instead of drawing one long line from the old stop location to the new movement.
 
+The tracker map includes a `Replay 24h` mode. It uses the persisted track data to replay tracker positions and route segments from the last 24 hours with a time slider and play loop, while live tracking continues to refresh in the background.
+
 ## Payload
 
 `PAYLOAD_TYPE_LOCATION` is `0x0D`.
