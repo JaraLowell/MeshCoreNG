@@ -2333,7 +2333,7 @@ def build_location_map_html(base_path: str = "") -> str:
       right: 14px;
       bottom: 14px;
       display: grid;
-      grid-template-columns: auto minmax(160px, 1fr) auto auto;
+      grid-template-columns: auto auto minmax(160px, 1fr) auto auto;
       gap: 12px;
       align-items: center;
       background: linear-gradient(180deg, rgba(11, 26, 17, .94), rgba(5, 12, 8, .88));
@@ -2398,6 +2398,7 @@ def build_location_map_html(base_path: str = "") -> str:
   <div id="map"></div>
   <div class="replaybar">
     <button id="replayToggle" type="button">Replay 24h</button>
+    <button id="replayPlay" type="button">Play</button>
     <input id="replaySlider" type="range" min="0" max="1440" value="1440" step="1">
     <span class="time" id="replayTime">live</span>
     <span class="hint" id="replayHint">Live tracking</span>
@@ -2521,6 +2522,7 @@ def build_location_map_html(base_path: str = "") -> str:
     let replayEnd = 0;
     let replayCursor = 0;
     const replayToggle = document.getElementById('replayToggle');
+    const replayPlay = document.getElementById('replayPlay');
     const replaySlider = document.getElementById('replaySlider');
     const replayTimeLabel = document.getElementById('replayTime');
     const replayHint = document.getElementById('replayHint');
@@ -2738,10 +2740,31 @@ def build_location_map_html(base_path: str = "") -> str:
         replayTimer = null;
       }
       replayToggle.textContent = 'Replay 24h';
+      replayPlay.textContent = 'Play';
       replaySlider.value = replaySlider.max;
       replayTimeLabel.textContent = 'live';
       replayHint.textContent = 'Live tracking';
       if (latestData) renderLocations(latestData.locations || []);
+    }
+
+    function pauseReplayPlayback() {
+      if (replayTimer) clearInterval(replayTimer);
+      replayTimer = null;
+      replayPlay.textContent = 'Play';
+    }
+
+    function playReplayFromCurrent() {
+      if (!latestData) return;
+      replayMode = true;
+      replayToggle.textContent = 'Live';
+      pauseReplayPlayback();
+      replayPlay.textContent = 'Pause';
+      replayTimer = setInterval(() => {
+        let next = Number(replaySlider.value) + 5;
+        if (next > Number(replaySlider.max)) next = 0;
+        replaySlider.value = next;
+        renderReplay();
+      }, 700);
     }
 
     function startReplay() {
@@ -2750,13 +2773,7 @@ def build_location_map_html(base_path: str = "") -> str:
       replayToggle.textContent = 'Live';
       replaySlider.value = 0;
       renderReplay();
-      if (replayTimer) clearInterval(replayTimer);
-      replayTimer = setInterval(() => {
-        let next = Number(replaySlider.value) + 5;
-        if (next > Number(replaySlider.max)) next = 0;
-        replaySlider.value = next;
-        renderReplay();
-      }, 700);
+      playReplayFromCurrent();
     }
 
     async function refresh() {
@@ -2772,15 +2789,21 @@ def build_location_map_html(base_path: str = "") -> str:
       if (replayMode) stopReplay();
       else startReplay();
     });
+    replayPlay.addEventListener('click', () => {
+      if (!replayMode) {
+        replayMode = true;
+        replayToggle.textContent = 'Live';
+        renderReplay();
+      }
+      if (replayTimer) pauseReplayPlayback();
+      else playReplayFromCurrent();
+    });
     replaySlider.addEventListener('input', () => {
       if (!replayMode) {
         replayMode = true;
         replayToggle.textContent = 'Live';
       }
-      if (replayTimer) {
-        clearInterval(replayTimer);
-        replayTimer = null;
-      }
+      pauseReplayPlayback();
       renderReplay();
     });
 
