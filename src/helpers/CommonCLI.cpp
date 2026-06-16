@@ -63,6 +63,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     uint8_t pad[8];
     size_t prefs_size = file.size();
     bool legacy_meshcoreng_v109_tail = prefs_size == 529 + sizeof(AtlasConfig);
+    bool bridge_profile_loaded = false;
 
     file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
     file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
@@ -338,7 +339,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&bridge_tcp_ttl, sizeof(bridge_tcp_ttl)) == sizeof(bridge_tcp_ttl)) {
         _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                   // 669 + sizeof(AtlasConfig)
       }
-      // next: 670 + sizeof(AtlasConfig)
+      uint8_t bridge_profile = _prefs->bridge_profile;
+      if (file.read((uint8_t *)&bridge_profile, sizeof(bridge_profile)) == sizeof(bridge_profile)) {
+        _prefs->bridge_profile = bridge_profile;                                                   // 670 + sizeof(AtlasConfig)
+        bridge_profile_loaded = true;
+      }
+      // next: 671 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -363,6 +369,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_export_filter = constrain(_prefs->bridge_export_filter, 0, 3);
     _prefs->bridge_export_max_hops = constrain(_prefs->bridge_export_max_hops, 0, 63);
     _prefs->bridge_tcp_ttl = constrain(_prefs->bridge_tcp_ttl, 1, 8);
+    _prefs->bridge_profile = constrain(_prefs->bridge_profile, 0, 2);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -395,6 +402,29 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->tcp_flood_transport_window = constrain(_prefs->tcp_flood_transport_window, 1, 3600);
     _prefs->tcp_flood_control_max = constrain(_prefs->tcp_flood_control_max, 0, 10000); // 0 = bypass
     _prefs->tcp_flood_control_window = constrain(_prefs->tcp_flood_control_window, 1, 3600);
+
+    if (!bridge_profile_loaded) {
+      if (_prefs->bridge_pkt_src == 2
+          && _prefs->bridge_rf == BRIDGE_RF_LOCAL
+          && _prefs->bridge_export_filter == BRIDGE_EXPORT_MESSAGES
+          && _prefs->bridge_export_max_hops == 4
+          && _prefs->bridge_tcp_ttl == 2) {
+        _prefs->bridge_profile = 1;
+      } else if (_prefs->bridge_pkt_src == 2
+          && _prefs->bridge_rf == BRIDGE_RF_FLOOD
+          && _prefs->bridge_export_filter == BRIDGE_EXPORT_ALL
+          && _prefs->bridge_export_max_hops == 0
+          && _prefs->bridge_tcp_ttl == 2
+          && _prefs->tcp_flood_limit_enable == 0
+          && _prefs->tcp_flood_transport_max == 1000
+          && _prefs->tcp_flood_transport_window == 120
+          && _prefs->tcp_flood_control_max == 0
+          && _prefs->tcp_flood_control_window == 120) {
+        _prefs->bridge_profile = 2;
+      } else {
+        _prefs->bridge_profile = 0;
+      }
+    }
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -530,7 +560,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 667 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 668 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 669 + sizeof(AtlasConfig)
-    // next: 670 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_profile, sizeof(_prefs->bridge_profile));                // 670 + sizeof(AtlasConfig)
+    // next: 671 + sizeof(AtlasConfig)
 
     file.close();
   }
