@@ -2294,20 +2294,39 @@ def build_location_map_html(base_path: str = "") -> str:
       Humanitarian: 'layout-humanitarian',
       Topo: 'layout-topo'
     };
+    const routeStyles = {
+      Tactical: { color: '#68ff9d', weight: 4, opacity: 0.82 },
+      Night: { color: '#ffd166', weight: 4, opacity: 0.88 },
+      Standard: { color: '#d0006f', weight: 5, opacity: 0.92 },
+      Humanitarian: { color: '#0057ff', weight: 5, opacity: 0.9 },
+      Topo: { color: '#d0006f', weight: 5, opacity: 0.92 }
+    };
+    let currentLayout = 'Tactical';
 
-    function setMapLayout(name) {
-      for (const cls of Object.values(layoutClasses)) mapEl.classList.remove(cls);
-      mapEl.classList.add(layoutClasses[name] || layoutClasses.Tactical);
-      localStorage.setItem('meshcore_tracker_map_layout', name);
+    function routeStyle() {
+      return {
+        ...(routeStyles[currentLayout] || routeStyles.Tactical),
+        lineJoin: 'round'
+      };
     }
 
+    function setMapLayout(name) {
+      currentLayout = baseLayers[name] ? name : 'Tactical';
+      for (const cls of Object.values(layoutClasses)) mapEl.classList.remove(cls);
+      mapEl.classList.add(layoutClasses[currentLayout] || layoutClasses.Tactical);
+      localStorage.setItem('meshcore_tracker_map_layout', currentLayout);
+      for (const track of tracks.values()) {
+        track.setStyle(routeStyle());
+      }
+    }
+
+    const markers = new Map();
+    const tracks = new Map();
     const initialLayout = baseLayers[savedLayout] ? savedLayout : 'Tactical';
     setMapLayout(initialLayout);
     baseLayers[initialLayout].addTo(map);
     L.control.layers(baseLayers, null, { position: 'bottomleft', collapsed: false }).addTo(map);
     map.on('baselayerchange', (event) => setMapLayout(event.name));
-    const markers = new Map();
-    const tracks = new Map();
 
     function fmtAge(seconds) {
       if (seconds < 60) return `${seconds}s`;
@@ -2393,15 +2412,11 @@ def build_location_map_html(base_path: str = "") -> str:
         let track = tracks.get(loc.node_id);
         if (latlngs.length >= 2) {
           if (!track) {
-            track = L.polyline(latlngs, {
-              color: '#68ff9d',
-              weight: 4,
-              opacity: 0.82,
-              lineJoin: 'round'
-            }).addTo(map);
+            track = L.polyline(latlngs, routeStyle()).addTo(map);
             tracks.set(loc.node_id, track);
           } else {
             track.setLatLngs(latlngs);
+            track.setStyle(routeStyle());
           }
         } else if (track) {
           track.remove();
