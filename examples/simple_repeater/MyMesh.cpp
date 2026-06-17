@@ -680,6 +680,10 @@ const char *MyMesh::getLogDateTime() {
 }
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
+#ifdef WITH_MQTT_BRIDGE
+  // Capture raw radio bytes + real SNR/RSSI for the MQTT bridge (packets/raw uplink).
+  if (mqtt_bridge) mqtt_bridge->storeRawRadioData(raw, len, snr, rssi);
+#endif
 #if MESH_PACKET_LOGGING
   Serial.print(getLogDateTime());
   Serial.print(" RAW: ");
@@ -689,7 +693,11 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
-#ifdef WITH_BRIDGE
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed RX packets — the bridge decides based on mqtt.rx.
+  if (mqtt_bridge) mqtt_bridge->sendPacket(pkt);
+#endif
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_pkt_src == 1 || _prefs.bridge_pkt_src == 2) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.sendPacket(pkt);
@@ -720,7 +728,11 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 }
 
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
-#ifdef WITH_BRIDGE
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed TX packets — the bridge decides based on mqtt.tx (on/advert/off).
+  if (mqtt_bridge) mqtt_bridge->sendPacket(pkt);
+#endif
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_pkt_src == 0 || _prefs.bridge_pkt_src == 2) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.sendPacket(pkt);
@@ -1281,6 +1293,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 {
+#if defined(WITH_MQTT_BRIDGE) || defined(WITH_SNMP)
+  _board_ref = &board;
+#endif
   last_millis = 0;
   uptime_millis = 0;
   next_daily_reboot_uptime_ms = 0;
@@ -1367,6 +1382,30 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.ntp_enabled = 1;
   _prefs.ntp_interval_secs = 3600;
 
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT observer tuning. Slot/IATA/timezone defaults come from /mqtt_prefs (setMQTTPrefsDefaults);
+  // these are NodePrefs fallbacks until that file is loaded/synced.
+  _prefs.agc_reset_interval = 7;      // 28s (secs/4) — avoid AGC drift on long-running observers
+  _prefs.bridge_enabled = 1;          // MQTT bridge self-gates on WiFi/MQTT config
+  _prefs.bridge_pkt_src = 1;          // logRx
+  _prefs.mqtt_origin[0] = '\0';
+  _prefs.mqtt_status_enabled = 1;
+  _prefs.mqtt_packets_enabled = 1;
+  _prefs.mqtt_raw_enabled = 0;
+  _prefs.mqtt_tx_enabled = 2;         // advert only
+  _prefs.mqtt_rx_enabled = 1;
+  _prefs.mqtt_status_interval = 300000;
+  _prefs.wifi_power_save = 1;         // none
+  StrHelper::strncpy(_prefs.timezone_string, "Europe/Amsterdam", sizeof(_prefs.timezone_string));
+  _prefs.timezone_offset = 1;
+  StrHelper::strncpy(_prefs.mqtt_slot_preset[0], "dutchmeshcore-1", sizeof(_prefs.mqtt_slot_preset[0]));
+  StrHelper::strncpy(_prefs.mqtt_slot_preset[1], "dutchmeshcore-2", sizeof(_prefs.mqtt_slot_preset[1]));
+  for (int i = 2; i < MAX_MQTT_SLOTS; i++)
+    StrHelper::strncpy(_prefs.mqtt_slot_preset[i], "none", sizeof(_prefs.mqtt_slot_preset[i]));
+  _prefs.snmp_enabled = 0;
+  StrHelper::strncpy(_prefs.snmp_community, "public", sizeof(_prefs.snmp_community));
+#endif
+
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
@@ -1415,7 +1454,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
     }
   }
 
-#if defined(WITH_BRIDGE)
+  // Start the primary (non-MQTT) bridge first so it can bring up WiFi before MQTT piggybacks.
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_enabled) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     configureTcpBridgeNodeIds();
@@ -1430,6 +1470,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
     bridge.begin();
 #endif
   }
+#endif
+#if defined(WITH_MQTT_BRIDGE)
+  // The MQTT bridge always starts (it self-gates on WiFi/MQTT config); construction is deferred
+  // to startMqttBridge() which heap-allocates it and wires metadata. When a TCP bridge is also
+  // present it owns WiFi and MQTT runs in external-WiFi mode.
+  startMqttBridge();
 #endif
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -2026,14 +2072,34 @@ void MyMesh::checkDailyReboot() {
 }
 
 void MyMesh::loop() {
-#ifdef WITH_BRIDGE
+  // Primary (non-MQTT) bridge needs pumping from the main loop.
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
   tcp_bridge.loop();
   ble_bridge.loop();
   if (tcp_bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
-#else
+#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   bridge.loop();
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge runs in its own FreeRTOS task; nothing to pump from here.
+#ifdef WITH_SNMP
+  if (_snmp_agent.isRunning()) {
+    static unsigned long last_snmp_stats = 0;
+    unsigned long now_ms = millis();
+    if (now_ms - last_snmp_stats >= 2000) {
+      last_snmp_stats = now_ms;
+      _snmp_agent.updateRadioStats(
+        radio_driver.getPacketsRecv(), radio_driver.getPacketsSent(),
+        radio_driver.getPacketsRecvErrors(),
+        (int16_t)_radio->getNoiseFloor(),
+        (int16_t)radio_driver.getLastRSSI(),
+        (int16_t)(radio_driver.getLastSNR() * 4),
+        getNumSentFlood(), getNumSentDirect(),
+        getNumRecvFlood(), getNumRecvDirect(),
+        getTotalAirTime() / 1000, uptime_millis / 1000);
+    }
+  }
 #endif
 #endif
 
@@ -2080,15 +2146,16 @@ void MyMesh::loop() {
 }
 
 bool MyMesh::isBridgeActive() const {
-#if defined(WITH_BRIDGE)
+  bool active = false;
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
-  return tcp_bridge.isRunning() || ble_bridge.isRunning();
-#else
-  return bridge.isRunning();
+  active = active || tcp_bridge.isRunning() || ble_bridge.isRunning();
+#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+  active = active || bridge.isRunning();
 #endif
-#else
-  return false;
+#ifdef WITH_MQTT_BRIDGE
+  active = active || (mqtt_bridge && mqtt_bridge->isRunning());
 #endif
+  return active;
 }
 
 bool MyMesh::hasOutboundWork() const {

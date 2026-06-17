@@ -33,6 +33,15 @@
 #define WITH_BRIDGE
 #endif
 
+#ifdef WITH_MQTT_BRIDGE
+#include "helpers/bridges/MQTTBridge.h"
+#define WITH_BRIDGE
+#endif
+
+#ifdef WITH_SNMP
+#include "helpers/SNMPAgent.h"
+#endif
+
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
@@ -142,6 +151,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
 #endif
 {
   FILESYSTEM* _fs;
+#if defined(WITH_MQTT_BRIDGE) || defined(WITH_SNMP)
+  mesh::MainBoard* _board_ref = nullptr;  // saved for MQTT/SNMP stats sources
+#endif
   uint32_t last_millis;
   uint64_t uptime_millis;
   unsigned long next_local_advert, next_flood_advert;
@@ -192,6 +204,14 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   TCPBridge bridge;
 #elif defined(WITH_BLE_BRIDGE)
   BLEBridge bridge;
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT runs as an additional bridge alongside any of the above (or standalone).
+  // Heap-allocated in setBridgeState() to avoid ESP32 static-init crashes.
+  MQTTBridge* mqtt_bridge = nullptr;
+#endif
+#ifdef WITH_SNMP
+  MeshSNMPAgent _snmp_agent;
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
@@ -337,56 +357,105 @@ public:
   void loop();
   void formatDailyRebootReply(char* reply) const;
 
+#ifdef WITH_MQTT_BRIDGE
+  // Construct (deferred), configure and start the MQTT bridge. Idempotent.
+  void startMqttBridge() {
+    if (!mqtt_bridge) {
+      mqtt_bridge = new MQTTBridge(&_prefs, _mgr, getRTCClock(), &self_id);
+      if (!mqtt_bridge) return;
+    }
+    if (mqtt_bridge->isRunning()) return;
+    char device_id[65];
+    mesh::Utils::toHex(device_id, self_id.pub_key, PUB_KEY_SIZE);
+    mqtt_bridge->setDeviceID(device_id);
+    mqtt_bridge->setFirmwareVersion(getFirmwareVer());
+    if (_board_ref) mqtt_bridge->setBoardModel(_board_ref->getManufacturerName());
+    mqtt_bridge->setBuildDate(getBuildDate());
+    mqtt_bridge->setStatsSources(this, _radio, _board_ref, _ms);
+#if defined(WITH_TCP_BRIDGE)
+    // The TCP bridge owns the WiFi STA connection; MQTT piggybacks on it.
+    mqtt_bridge->setExternalWiFiManagement(true);
+#endif
+#ifdef WITH_SNMP
+    if (_prefs.snmp_enabled) {
+      _snmp_agent.setNodeName(_prefs.node_name);
+      _snmp_agent.setFirmwareVersion(getFirmwareVer());
+      mqtt_bridge->setSNMPAgent(&_snmp_agent);
+      _snmp_agent.begin(_prefs.snmp_community);
+    }
+#endif
+    mqtt_bridge->begin();
+  }
+#endif
+
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
-    if (enable == (tcp_bridge.isRunning() && ble_bridge.isRunning())) return;
-    if (enable) {
+    if (enable != (tcp_bridge.isRunning() && ble_bridge.isRunning())) {
+      if (enable) {
+        configureTcpBridgeNodeIds();
+        tcp_bridge.setCommandHandler(this);
+        tcp_bridge.begin();
+        ble_bridge.begin();
+      } else {
+        tcp_bridge.end();
+        ble_bridge.end();
+      }
+    }
+#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+    if (enable != bridge.isRunning()) {
+      if (enable) {
+#if defined(WITH_TCP_BRIDGE)
+        configureTcpBridgeNodeIds();
+        bridge.setCommandHandler(this);
+#endif
+        bridge.begin();
+      } else {
+        bridge.end();
+      }
+    }
+#endif
+#ifdef WITH_MQTT_BRIDGE
+    if (enable) startMqttBridge();
+    else if (mqtt_bridge) mqtt_bridge->end();
+#endif
+  }
+
+  void restartBridge() override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    if (tcp_bridge.isRunning() || ble_bridge.isRunning()) {
+      tcp_bridge.end();
+      ble_bridge.end();
       configureTcpBridgeNodeIds();
       tcp_bridge.setCommandHandler(this);
       tcp_bridge.begin();
       ble_bridge.begin();
-    } else {
-      tcp_bridge.end();
-      ble_bridge.end();
     }
-#else
-    if (enable == bridge.isRunning()) return;
-    if (enable)
-    {
+#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+    if (bridge.isRunning()) {
+      bridge.end();
 #if defined(WITH_TCP_BRIDGE)
       configureTcpBridgeNodeIds();
       bridge.setCommandHandler(this);
 #endif
       bridge.begin();
     }
-    else 
-    {
-      bridge.end();
+#endif
+#ifdef WITH_MQTT_BRIDGE
+    if (mqtt_bridge && mqtt_bridge->isRunning()) {
+      mqtt_bridge->end();
+      startMqttBridge();
     }
 #endif
   }
 
-  void restartBridge() override {
-#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
-    if (!tcp_bridge.isRunning() && !ble_bridge.isRunning()) return;
-    tcp_bridge.end();
-    ble_bridge.end();
-    configureTcpBridgeNodeIds();
-    tcp_bridge.setCommandHandler(this);
-    tcp_bridge.begin();
-    ble_bridge.begin();
-#else
-    if (!bridge.isRunning()) return;
-    bridge.end();
-#if defined(WITH_TCP_BRIDGE)
-    configureTcpBridgeNodeIds();
-    bridge.setCommandHandler(this);
-#endif
-    bridge.begin();
-#endif
+#ifdef WITH_MQTT_BRIDGE
+  void restartBridgeSlot(int slot) override {
+    if (!mqtt_bridge || !mqtt_bridge->isRunning()) return;
+    mqtt_bridge->setSlotPreset(slot, _prefs.mqtt_slot_preset[slot]);
   }
 #endif
+#endif // WITH_BRIDGE
 
 #if defined(WITH_TCP_BRIDGE)
   void formatTcpBridgeStatusReply(char *reply) override {
