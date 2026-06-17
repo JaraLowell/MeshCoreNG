@@ -583,6 +583,222 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
   return n >= max_counters[hash_size];
 }
 
+static bool parseDurationSeconds(const char* text, uint32_t* seconds) {
+  if (text == NULL || *text == 0) {
+    *seconds = 3600;
+    return true;
+  }
+
+  char* end = NULL;
+  unsigned long value = strtoul(text, &end, 10);
+  if (end == text || value == 0) return false;
+
+  if (*end == 'm' && end[1] == 0) value *= 60UL;
+  else if (*end == 'h' && end[1] == 0) value *= 3600UL;
+  else if (*end == 'd' && end[1] == 0) value *= 86400UL;
+  else if (*end != 0) return false;
+
+  if (value > 86400UL * 7UL) value = 86400UL * 7UL;
+  *seconds = (uint32_t)value;
+  return true;
+}
+
+void MyMesh::clearExpiredPathBlocks() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+    if (path_blocks[i].hop_count > 0 && path_blocks[i].expires_at != 0 && path_blocks[i].expires_at <= now) {
+      memset(&path_blocks[i], 0, sizeof(path_blocks[i]));
+    }
+  }
+}
+
+bool MyMesh::parsePathBlockSpec(const char* spec, PathBlockEntry* entry) const {
+  memset(entry, 0, sizeof(*entry));
+  if (spec == NULL || *spec == 0) return false;
+
+  uint8_t hash_size = 0;
+  uint8_t hop_count = 0;
+  const char* pos = spec;
+
+  while (*pos != 0) {
+    if (hop_count >= PATH_BLOCK_MAX_HOPS) return false;
+
+    const char* slash = strchr(pos, '/');
+    size_t hex_len = slash ? (size_t)(slash - pos) : strlen(pos);
+    if (hex_len != 2 && hex_len != 4 && hex_len != 6) return false;
+
+    uint8_t this_hash_size = hex_len / 2;
+    if (hash_size == 0) {
+      hash_size = this_hash_size;
+    } else if (this_hash_size != hash_size) {
+      return false;
+    }
+
+    char hex[7];
+    memcpy(hex, pos, hex_len);
+    hex[hex_len] = 0;
+    for (size_t i = 0; i < hex_len; i++) {
+      if (!mesh::Utils::isHexChar(hex[i])) return false;
+    }
+    if (!mesh::Utils::fromHex(&entry->path[hop_count * PATH_BLOCK_MAX_HASH_SIZE], hash_size, hex)) return false;
+
+    hop_count++;
+    if (!slash) break;
+    pos = slash + 1;
+    if (*pos == 0) return false;
+  }
+
+  entry->hash_size = hash_size;
+  entry->hop_count = hop_count;
+  return hop_count > 0;
+}
+
+bool MyMesh::pathBlockMatches(const mesh::Packet* packet, const PathBlockEntry& entry) const {
+  if (entry.hop_count == 0) return false;
+  if (!packet->isRouteFlood()) return false;
+  if (packet->getPathHashSize() != entry.hash_size) return false;
+  if (packet->getPathHashCount() < entry.hop_count) return false;
+
+  uint8_t packet_hops = packet->getPathHashCount();
+  uint8_t hash_size = packet->getPathHashSize();
+  for (uint8_t start = 0; start + entry.hop_count <= packet_hops; start++) {
+    bool match = true;
+    for (uint8_t hop = 0; hop < entry.hop_count; hop++) {
+      const uint8_t* packet_hash = &packet->path[(start + hop) * hash_size];
+      const uint8_t* block_hash = &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE];
+      if (memcmp(packet_hash, block_hash, hash_size) != 0) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+bool MyMesh::shouldBlockPath(const mesh::Packet* packet) {
+  clearExpiredPathBlocks();
+  for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+    if (pathBlockMatches(packet, path_blocks[i])) {
+      path_blocks[i].drops++;
+      MESH_DEBUG_PRINTLN("allowPacketForward: path.block matched entry=%d", i);
+      return true;
+    }
+  }
+  return false;
+}
+
+void MyMesh::formatPathBlocksReply(char* reply) {
+  clearExpiredPathBlocks();
+  uint32_t now = getRTCClock()->getCurrentTime();
+  strcpy(reply, "> ");
+  size_t used = 2;
+  bool any = false;
+
+  for (int i = 0; i < MAX_PATH_BLOCKS && used < 150; i++) {
+    const PathBlockEntry& entry = path_blocks[i];
+    if (entry.hop_count == 0) continue;
+
+    if (any && used < 158) reply[used++] = ';';
+    if (any && used < 158) reply[used++] = ' ';
+    any = true;
+
+    for (uint8_t hop = 0; hop < entry.hop_count && used < 150; hop++) {
+      if (hop > 0 && used < 158) reply[used++] = '/';
+      mesh::Utils::toHex(&reply[used], &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE], entry.hash_size);
+      used += entry.hash_size * 2;
+    }
+
+    uint32_t ttl = entry.expires_at > now ? entry.expires_at - now : 0;
+    used += snprintf(&reply[used], 160 - used, " %lus %lu", (unsigned long)ttl, (unsigned long)entry.drops);
+  }
+
+  if (!any) {
+    strcpy(reply, "> empty");
+  } else {
+    if (used > 159) used = 159;
+    reply[used] = 0;
+  }
+}
+
+void MyMesh::handlePathBlockCommand(char* command, char* reply) {
+  clearExpiredPathBlocks();
+
+  if (strcmp(command, "get path.block") == 0) {
+    formatPathBlocksReply(reply);
+    return;
+  }
+
+  if (strcmp(command, "clear path.block") == 0 || strcmp(command, "set path.block clear") == 0) {
+    memset(path_blocks, 0, sizeof(path_blocks));
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set path.block add ", 19) == 0) {
+    char* spec = &command[19];
+    char* ttl_text = strchr(spec, ' ');
+    if (ttl_text) {
+      *ttl_text++ = 0;
+      while (*ttl_text == ' ') ttl_text++;
+    }
+
+    PathBlockEntry entry;
+    uint32_t ttl_secs;
+    if (!parsePathBlockSpec(spec, &entry)) {
+      strcpy(reply, "Error: expected aa, aa/bb, or aa/bb/cc");
+      return;
+    }
+    if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
+      strcpy(reply, "Error: duration must be seconds, Nm, Nh, or Nd");
+      return;
+    }
+
+    int slot = -1;
+    for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+      if (path_blocks[i].hop_count == 0 && slot < 0) slot = i;
+      if (path_blocks[i].hop_count == entry.hop_count
+          && path_blocks[i].hash_size == entry.hash_size
+          && memcmp(path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+        slot = i;
+        break;
+      }
+    }
+
+    if (slot < 0) {
+      strcpy(reply, "Error: path.block list full");
+      return;
+    }
+
+    entry.expires_at = getRTCClock()->getCurrentTime() + ttl_secs;
+    path_blocks[slot] = entry;
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set path.block del ", 19) == 0) {
+    PathBlockEntry entry;
+    if (!parsePathBlockSpec(&command[19], &entry)) {
+      strcpy(reply, "Error: expected aa, aa/bb, or aa/bb/cc");
+      return;
+    }
+
+    for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+      if (path_blocks[i].hop_count == entry.hop_count
+          && path_blocks[i].hash_size == entry.hash_size
+          && memcmp(path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+        memset(&path_blocks[i], 0, sizeof(path_blocks[i]));
+        strcpy(reply, "OK");
+        return;
+      }
+    }
+    strcpy(reply, "Error: not found");
+    return;
+  }
+
+  strcpy(reply, "Error: use get path.block, clear path.block, set path.block add/del");
+}
+
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
   if (recv_pkt_region && !recv_pkt_region->isWildcard()) {  // if _request_ packet scope is known, send reply with same scope
     TransportKey scope;
@@ -605,10 +821,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       MESH_DEBUG_PRINTLN("allowPacketForward: bridge RF forwarding is off");
       return false;
     }
-    if (_prefs.bridge_rf == BRIDGE_RF_FLOOD) {
-      if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
-      return true;
-    }
+  }
+
+  if (shouldBlockPath(packet)) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    recordDenseSuppressedTx();
+    return false;
+  }
+
+  if (is_bridge_flood && _prefs.bridge_rf == BRIDGE_RF_FLOOD) {
+    if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
+    return true;
   }
 
   if (_prefs.disable_fwd) {
@@ -1305,6 +1528,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  memset(path_blocks, 0, sizeof(path_blocks));
   clearDenseStatsLocked();
   clearSpamStatsLocked();
   clearPowerStats();
@@ -1933,6 +2157,15 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     memcpy(reply, command, 3);                    // reflect the prefix back
     reply += 3;
     command += 3;
+  }
+
+  if (strcmp(command, "get path.block") == 0
+      || strcmp(command, "clear path.block") == 0
+      || strcmp(command, "set path.block clear") == 0
+      || memcmp(command, "set path.block add ", 19) == 0
+      || memcmp(command, "set path.block del ", 19) == 0) {
+    handlePathBlockCommand(command, reply);
+    return;
   }
 
   // handle ACL related commands

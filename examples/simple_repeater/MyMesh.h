@@ -102,6 +102,18 @@ struct SpamStats {
   char last_reason[18];
 };
 
+#define MAX_PATH_BLOCKS          8
+#define PATH_BLOCK_MAX_HOPS      3
+#define PATH_BLOCK_MAX_HASH_SIZE 3
+
+struct PathBlockEntry {
+  uint8_t hash_size;
+  uint8_t hop_count;
+  uint8_t path[PATH_BLOCK_MAX_HOPS * PATH_BLOCK_MAX_HASH_SIZE];
+  uint32_t expires_at;
+  uint32_t drops;
+};
+
 typedef struct {
   uint16_t neighbors;
   uint16_t dup_rx;
@@ -172,6 +184,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   DenseMeshStats dense_stats;
   PowerSavingStats power_stats;
   SpamStats spam_stats;
+  PathBlockEntry path_blocks[MAX_PATH_BLOCKS];
   dense_mesh_stats_t dense_buckets[DENSE_MESH_BUCKETS];
   uint8_t dense_bucket_idx;
   unsigned long dense_bucket_started;
@@ -236,6 +249,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   void clearSpamStatsLocked();
   void recordSpamDrop(const char* reason, uint8_t score, uint8_t entropy);
   bool shouldDropMalformedGroupText(mesh::Packet* pkt);
+  void clearExpiredPathBlocks();
+  bool parsePathBlockSpec(const char* spec, PathBlockEntry* entry) const;
+  bool pathBlockMatches(const mesh::Packet* packet, const PathBlockEntry& entry) const;
+  bool shouldBlockPath(const mesh::Packet* packet);
+  void formatPathBlocksReply(char* reply);
+  void handlePathBlockCommand(char* command, char* reply);
   void scheduleDailyReboot();
   void checkDailyReboot();
 protected:

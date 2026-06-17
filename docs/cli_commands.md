@@ -731,6 +731,35 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 ---
 
+#### Temporarily block flood forwarding by packet path
+**Usage:**
+- `get path.block`
+- `set path.block add <path> [duration]`
+- `set path.block del <path>`
+- `clear path.block`
+- `set path.block clear`
+
+**Parameters:**
+- `path`: one, two, or three consecutive path hops, separated by `/`
+  - `aa`: match any flood packet whose path contains hop `aa`
+  - `aa/bb`: match any flood packet whose path contains hop `aa` followed by `bb`
+  - `aa/bb/cc`: match any flood packet whose path contains that three-hop sequence
+- `duration`: optional temporary block duration. Use seconds, `Nm`, `Nh`, or `Nd`. Default is `1h`; maximum is 7 days.
+
+**Examples:**
+```text
+set path.block add aa 15m
+set path.block add aa/bb 1h
+set path.block add aa/bb/cc 6h
+set path.block del aa/bb
+get path.block
+clear path.block
+```
+
+**Note:** This is a runtime quarantine list for repeaters. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+
+---
+
 #### View or change this node's loop detection
 **Usage:**
 - `get loop.detect`
