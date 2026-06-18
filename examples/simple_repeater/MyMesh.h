@@ -483,11 +483,11 @@ public:
     uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
     tcp_bridge.getStatusStr(reply);
 #else
     bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
     bridge.getStatusStr(reply);
 #endif
   }

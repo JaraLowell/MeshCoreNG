@@ -2321,7 +2321,7 @@ void MyMesh::loop() {
     uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
     uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
     tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
   }
   tcp_bridge.loop();
   ble_bridge.loop();
@@ -2332,7 +2332,7 @@ void MyMesh::loop() {
     uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
     uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
     bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
   }
   bridge.loop();
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);

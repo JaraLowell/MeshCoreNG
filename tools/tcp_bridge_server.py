@@ -127,8 +127,10 @@ COMMAND_TIMEOUT_SECS = 8
 FIRMWARE_UPDATE_REPO = "MichTronics/MeshCoreNG"
 FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = 60 * 60
 FIRMWARE_UPDATE_TIMEOUT_SECS = 5
+CLIENT_TX_QUEUE_MAX = 250
 next_command_id = 1
 next_client_id = 1
+SERVER_STARTED_AT = time.time()
 
 connected_clients: set["BridgeClient"] = set()
 node_traffic_stats: dict[str, dict] = {}
@@ -650,7 +652,7 @@ def parse_heartbeat(payload: bytes) -> dict | None:
     heartbeat = {
         "uptime_ms": struct.unpack(">I", payload[5:9])[0] if len(payload) >= 9 else 0,
     }
-    if len(payload) >= 28 and payload[9:11] == b"RF" and payload[11] == 1:
+    if len(payload) >= 28 and payload[9:11] == b"RF" and payload[11] in (1, 2):
         used_ms = struct.unpack(">I", payload[12:16])[0]
         max_ms = struct.unpack(">I", payload[16:20])[0]
         window_ms = struct.unpack(">I", payload[20:24])[0]
@@ -663,6 +665,8 @@ def parse_heartbeat(payload: bytes) -> dict | None:
             "duty_limit_pct": duty_limit_centi_pct / 100.0,
             "tx_used_pct": min(100.0, used_centi_pct / 100.0),
         }
+        if payload[11] >= 2 and len(payload) >= 32:
+            heartbeat["rf_duty"]["tx_total_ms"] = struct.unpack(">I", payload[28:32])[0]
         if window_ms > 0:
             heartbeat["rf_duty"]["actual_window_pct"] = (used_ms * 100.0) / window_ms
     return heartbeat
@@ -1250,6 +1254,8 @@ def new_node_stats(key: str) -> dict:
         "last_heartbeat": 0.0,
         "last_heartbeat_uptime_ms": 0,
         "rf_duty": {},
+        "rf_tx_total_baseline_ms": None,
+        "rf_tx_total_baseline_at": 0.0,
         "node_name": "",
         "node_id": "",
         "firmware_version": "",
@@ -1271,6 +1277,9 @@ def merge_node_stats(target: dict, source: dict) -> None:
     target["first_seen"] = min(target.get("first_seen", time.time()), source.get("first_seen", time.time()))
     for field in ("last_seen", "last_connected", "last_disconnect", "last_heartbeat"):
         target[field] = max(target.get(field, 0.0), source.get(field, 0.0))
+    for field in ("rf_tx_total_baseline_ms", "rf_tx_total_baseline_at"):
+        if target.get(field) is None or not target.get(field):
+            target[field] = source.get(field)
     for field in ("last_heartbeat_uptime_ms",):
         if source.get(field):
             target[field] = source[field]
@@ -1332,7 +1341,27 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
     stats["last_heartbeat"] = now
     stats["last_heartbeat_uptime_ms"] = int(heartbeat.get("uptime_ms") or 0)
     if "rf_duty" in heartbeat:
-        stats["rf_duty"] = heartbeat["rf_duty"]
+        rf = dict(heartbeat["rf_duty"])
+        total_ms = rf.get("tx_total_ms")
+        if isinstance(total_ms, int):
+            baseline = stats.get("rf_tx_total_baseline_ms")
+            if baseline is None or total_ms < baseline:
+                baseline = total_ms
+                stats["rf_tx_total_baseline_ms"] = baseline
+                stats["rf_tx_total_baseline_at"] = now
+            measured_used_ms = max(0, total_ms - baseline)
+            max_ms = int(rf.get("tx_max_ms") or 0)
+            window_ms = int(rf.get("window_ms") or 0)
+            measured_used_ms = min(measured_used_ms, max_ms) if max_ms > 0 else measured_used_ms
+            rf["tx_used_ms"] = measured_used_ms
+            rf["tx_left_ms"] = max(0, max_ms - measured_used_ms) if max_ms > 0 else 0
+            rf["tx_used_pct"] = min(100.0, (measured_used_ms * 100.0) / max_ms) if max_ms > 0 else 0.0
+            rf["actual_window_pct"] = (measured_used_ms * 100.0) / window_ms if window_ms > 0 else 0.0
+            rf["measured_from_server_start"] = True
+        else:
+            rf["tx_left_ms"] = max(0, int(rf.get("tx_max_ms") or 0) - int(rf.get("tx_used_ms") or 0))
+            rf["measured_from_server_start"] = False
+        stats["rf_duty"] = rf
 
 
 def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
@@ -1369,6 +1398,16 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "packets_tx_24h": len(stats["tx_times"]),
         "transport_rx_window": 0,
         "transport_rate_dropped": 0,
+        "tx_queue_depth": 0,
+        "tx_queue_max": CLIENT_TX_QUEUE_MAX,
+        "tx_queue_high_water": 0,
+        "tx_queued": 0,
+        "tx_queue_dropped": 0,
+        "tx_send_errors": 0,
+        "tx_skipped_duplicates": 0,
+        "last_tx_age_seconds": None,
+        "last_tx_queue_drop_age_seconds": None,
+        "last_tx_error": "",
         "heartbeats_rx": stats.get("heartbeats_rx", 0),
         "authenticated": connected,
         "supports_bridge_v2": stats.get("supports_bridge_v2", False),
@@ -1419,6 +1458,16 @@ class BridgeClient:
         self.authenticated = not BRIDGE_PASSWORD
         self._seen_hash_set: set[bytes] = set()
         self._seen_hash_deque: deque[bytes] = deque(maxlen=256)
+        self.tx_queue: asyncio.Queue[tuple[bytes, str]] = asyncio.Queue(maxsize=CLIENT_TX_QUEUE_MAX)
+        self.tx_queue_task: asyncio.Task | None = None
+        self.tx_queued = 0
+        self.tx_queue_dropped = 0
+        self.tx_queue_high_water = 0
+        self.tx_send_errors = 0
+        self.tx_skipped_duplicates = 0
+        self.last_tx_queue_drop = 0.0
+        self.last_tx_send = 0.0
+        self.last_tx_error = ""
 
     @property
     def display_name(self) -> str:
@@ -1479,6 +1528,16 @@ class BridgeClient:
             "packets_tx_24h": len(stats["tx_times"]),
             "transport_rx_window": len(self.transport_rx_times),
             "transport_rate_dropped": self.transport_rate_dropped,
+            "tx_queue_depth": self.tx_queue.qsize(),
+            "tx_queue_max": CLIENT_TX_QUEUE_MAX,
+            "tx_queue_high_water": self.tx_queue_high_water,
+            "tx_queued": self.tx_queued,
+            "tx_queue_dropped": self.tx_queue_dropped,
+            "tx_send_errors": self.tx_send_errors,
+            "tx_skipped_duplicates": self.tx_skipped_duplicates,
+            "last_tx_age_seconds": int(now - self.last_tx_send) if self.last_tx_send else None,
+            "last_tx_queue_drop_age_seconds": int(now - self.last_tx_queue_drop) if self.last_tx_queue_drop else None,
+            "last_tx_error": self.last_tx_error,
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
             "supports_bridge_v2": self.supports_bridge_v2,
@@ -1533,12 +1592,59 @@ class BridgeClient:
             + struct.pack(">H", csum)
         )
 
+    def start_writer(self) -> None:
+        if self.tx_queue_task is None or self.tx_queue_task.done():
+            self.tx_queue_task = asyncio.create_task(self._tx_writer_loop())
+
+    def enqueue_payload(self, payload: bytes, source: str = "") -> bool:
+        if self.writer.is_closing():
+            self.tx_send_errors += 1
+            self.last_tx_error = "writer closing"
+            return False
+        item = (bytes(payload), source)
+        if self.tx_queue.full():
+            try:
+                self.tx_queue.get_nowait()
+                self.tx_queue.task_done()
+            except asyncio.QueueEmpty:
+                pass
+            self.tx_queue_dropped += 1
+            self.last_tx_queue_drop = time.time()
+        try:
+            self.tx_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            self.tx_queue_dropped += 1
+            self.last_tx_queue_drop = time.time()
+            return False
+        self.tx_queued += 1
+        self.tx_queue_high_water = max(self.tx_queue_high_water, self.tx_queue.qsize())
+        return True
+
+    async def _tx_writer_loop(self) -> None:
+        try:
+            while True:
+                payload, source = await self.tx_queue.get()
+                try:
+                    ok = await self._send_payload_now(payload, source=source)
+                    if not ok:
+                        await disconnect(self, reason="send error")
+                        return
+                finally:
+                    self.tx_queue.task_done()
+        except asyncio.CancelledError:
+            return
+
     async def send_payload(self, payload: bytes, source: str = "") -> bool:
+        return self.enqueue_payload(payload, source=source)
+
+    async def _send_payload_now(self, payload: bytes, source: str = "") -> bool:
         try:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
             self.packets_tx += 1
             now = time.time()
+            self.last_tx_send = now
+            self.last_tx_error = ""
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
             record_node_packet(self, "TX", now)
@@ -1553,7 +1659,9 @@ class BridgeClient:
                     packet_log["preview"],
                 )
             return True
-        except Exception:
+        except Exception as exc:
+            self.tx_send_errors += 1
+            self.last_tx_error = str(exc)
             return False
 
     async def send_command(self, command: str, password: str) -> str:
@@ -1591,6 +1699,8 @@ class BridgeClient:
             pending_commands.pop(request_id, None)
 
     def close(self):
+        if self.tx_queue_task and not self.tx_queue_task.done() and self.tx_queue_task is not asyncio.current_task():
+            self.tx_queue_task.cancel()
         try:
             self.writer.close()
         except Exception:
@@ -1608,23 +1718,19 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     # and the same packet arrives again before the deque ages out.
     sender.has_seen_payload(forwarded_payload)
 
-    dead = set()
     envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
         if client is sender:
             continue
         if client.has_seen_payload(forwarded_payload):
+            client.tx_skipped_duplicates += 1
             log.debug("%s: skipping duplicate payload to %s", sender.addr, client.addr)
             continue
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:
             client_payload = envelope["mesh_payload"]
-        ok = await client.send_payload(client_payload, source=sender.display_name)
-        if not ok:
-            dead.add(client)
-
-    for client in dead:
-        await disconnect(client, reason="send error")
+        if not client.enqueue_payload(client_payload, source=sender.display_name):
+            log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
 
 
 async def disconnect(client: "BridgeClient", reason: str = "EOF"):
@@ -1660,7 +1766,9 @@ async def status_task():
                     f"idle={int(now - client.last_seen)}s "
                     f"hb_age={str(int(now - client.last_heartbeat)) + 's' if client.last_heartbeat else 'never'} "
                     f"rx24h={len(client.packet_rx_times)} tx24h={len(client.packet_tx_times)} "
-                    f"rx={client.packets_rx} tx={client.packets_tx} hb={client.heartbeats_rx}"
+                    f"rx={client.packets_rx} tx={client.packets_tx} "
+                    f"q={client.tx_queue.qsize()}/{CLIENT_TX_QUEUE_MAX} qdrop={client.tx_queue_dropped} "
+                    f"qskip={client.tx_skipped_duplicates} serr={client.tx_send_errors} hb={client.heartbeats_rx}"
                 )
             summary = ", ".join(summaries)
             log.info("Connected clients (%d): %s", len(connected_clients), summary)
@@ -1676,6 +1784,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 await disconnect(existing, reason=f"replaced by new connection from {client.addr}")
 
     connected_clients.add(client)
+    client.start_writer()
     touch_node_stats(client)
     log.info("Connected %s (total=%d)", client.addr, len(connected_clients))
 
@@ -1711,9 +1820,9 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 now = time.time()
                 client.last_heartbeat = now
                 client.last_heartbeat_uptime_ms = int(heartbeat.get("uptime_ms") or 0)
-                if "rf_duty" in heartbeat:
-                    client.rf_duty = heartbeat["rf_duty"]
                 record_node_heartbeat(client, heartbeat, now)
+                if "rf_duty" in heartbeat:
+                    client.rf_duty = dict(get_node_stats(client).get("rf_duty") or {})
                 log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
@@ -2120,7 +2229,7 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
-    .node-stats {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 12px; }}
     .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
     .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
     @media (max-width: 980px) {{
@@ -2322,12 +2431,14 @@ def build_status_html(base_path: str = "") -> str:
         const rfMaxMs = Number.isFinite(rf.tx_max_ms) ? rf.tx_max_ms : NaN;
         const rfLeftMs = Number.isFinite(rfUsedMs) && Number.isFinite(rfMaxMs) ? Math.max(0, rfMaxMs - rfUsedMs) : NaN;
         const rfTitle = Number.isFinite(rf.tx_used_pct)
-          ? `${{pct(rf.tx_used_pct)}} dutycycle used this hour. Used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total).`
+          ? `Measured RF TX since this server saw the node. Used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total).`
           : "firmware update needed";
         const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
+        const lastTx = client.last_tx_age_seconds === null || client.last_tx_age_seconds === undefined ? "never" : `${{client.last_tx_age_seconds}}s ago`;
+        const queueTitle = `queued total ${{client.tx_queued || 0}}, high water ${{client.tx_queue_high_water || 0}}, skipped duplicates ${{client.tx_skipped_duplicates || 0}}, send errors ${{client.tx_send_errors || 0}}${{client.last_tx_error ? ", last error: " + client.last_tx_error : ""}}`;
         return `
           <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
@@ -2340,9 +2451,11 @@ def build_status_html(base_path: str = "") -> str:
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
+              <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Queue</span><b>${{client.tx_queue_depth || 0}}/${{client.tx_queue_max || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Q drops</span><b>${{client.tx_queue_dropped || 0}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
-            <div class="node-meta">${{footer}}</div>
+            <div class="node-meta">${{footer}} · last tx ${{lastTx}} · skipped dup ${{client.tx_skipped_duplicates || 0}}</div>
           </article>
         `;
       }}).join("");
@@ -3522,6 +3635,8 @@ if __name__ == "__main__":
                         help="Number of payload bytes to show in packet logs (default: 32)")
     parser.add_argument("--client-timeout", type=int, default=180,
                         help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)")
+    parser.add_argument("--client-tx-queue-max", type=int, default=CLIENT_TX_QUEUE_MAX,
+                        help="Max queued outbound TCP packets per bridge client (default: 250)")
     parser.add_argument("--status-interval", type=int, default=60,
                         help="Log connected clients every N seconds (default: 60, 0 disables)")
     parser.add_argument("--status-host", default="0.0.0.0",
@@ -3567,6 +3682,7 @@ if __name__ == "__main__":
     LOG_PACKETS = args.log_packets
     LOG_HEX_BYTES = max(0, args.log_hex_bytes)
     CLIENT_TIMEOUT_SECS = max(0, args.client_timeout)
+    CLIENT_TX_QUEUE_MAX = max(1, args.client_tx_queue_max)
     STATUS_INTERVAL_SECS = max(0, args.status_interval)
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password

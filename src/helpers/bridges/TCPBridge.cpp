@@ -339,7 +339,7 @@ void TCPBridge::sendNodeInfo() {
 }
 
 void TCPBridge::sendHeartbeat() {
-  uint8_t payload[28];
+  uint8_t payload[32];
   payload[0] = 'M';
   payload[1] = 'C';
   payload[2] = 'N';
@@ -352,7 +352,7 @@ void TCPBridge::sendHeartbeat() {
   payload[8] = uptime & 0xFF;
   payload[9] = 'R';
   payload[10] = 'F';
-  payload[11] = 1;
+  payload[11] = 2;
   payload[12] = (_rf_tx_used_ms >> 24) & 0xFF;
   payload[13] = (_rf_tx_used_ms >> 16) & 0xFF;
   payload[14] = (_rf_tx_used_ms >> 8) & 0xFF;
@@ -369,6 +369,10 @@ void TCPBridge::sendHeartbeat() {
   payload[25] = _rf_duty_limit_centi_pct & 0xFF;
   payload[26] = (_rf_tx_used_centi_pct >> 8) & 0xFF;
   payload[27] = _rf_tx_used_centi_pct & 0xFF;
+  payload[28] = (_rf_tx_total_ms >> 24) & 0xFF;
+  payload[29] = (_rf_tx_total_ms >> 16) & 0xFF;
+  payload[30] = (_rf_tx_total_ms >> 8) & 0xFF;
+  payload[31] = _rf_tx_total_ms & 0xFF;
 
   if (sendPayloadFrame(payload, sizeof(payload))) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: heartbeat\n");
@@ -696,12 +700,13 @@ void TCPBridge::onPacketReceived(mesh::Packet *packet) {
   handleReceivedPacket(packet);
 }
 
-void TCPBridge::setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct) {
+void TCPBridge::setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms) {
   _rf_tx_used_ms = used_ms;
   _rf_tx_max_ms = max_ms;
   _rf_tx_window_ms = window_ms;
   _rf_duty_limit_centi_pct = limit_centi_pct;
   _rf_tx_used_centi_pct = used_centi_pct;
+  _rf_tx_total_ms = total_tx_ms;
 }
 
 void TCPBridge::getStatusStr(char *reply) const {
