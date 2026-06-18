@@ -260,7 +260,7 @@ get bridge.export.maxhops
 get bridge.tcp.ttl
 ```
 
-TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Die MeshCore Route/Path im Packet wird nicht veraendert.
+TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Beim Export von RF-Flood-Packets zur TCP bridge fuegt der exportierende Bridge-Repeater seinen eigenen Node-Hash zum MeshCore Path hinzu, wenn er dort noch nicht vorhanden ist und im Path noch Platz ist.
 
 Alle 38 ESP32-Repeater-Varianten haben jetzt eine passende `_bridge_tcp` Firmware. Siehe [docs/cli_commands.md](./docs/cli_commands.md) fuer alle Einstellmoeglichkeiten.
 

@@ -273,7 +273,7 @@ Operators should bridge only what is needed for the deployment. Keep local traff
 Multi-bridge environments need additional safeguards because the same packet may be able to return through a different bridge path.
 
 Implemented protections:
-- TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; the MeshCore route/path inside the packet is not modified.
+- TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; RF flood packets exported to TCP also get the exporting bridge-repeater's node hash added to the MeshCore path when it is not already present.
 - Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
 
 Planned or under consideration:
@@ -342,7 +342,7 @@ get bridge.export.maxhops
 get bridge.tcp.ttl
 ```
 
-TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. The MeshCore route/path inside the packet is not modified.
+TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. When RF flood packets are exported to TCP, the exporting bridge-repeater adds its own node hash to the MeshCore path when it is not already present and the path still has room.
 
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 

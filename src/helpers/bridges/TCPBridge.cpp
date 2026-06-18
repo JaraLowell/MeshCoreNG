@@ -541,8 +541,11 @@ void TCPBridge::sendPacket(mesh::Packet *packet) {
 }
 
 bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
+  mesh::Packet export_packet = *packet;
+  appendSelfToTcpExportPath(&export_packet);
+
   uint8_t payload[MAX_TCP_PAYLOAD_SIZE];
-  uint16_t mesh_len = packet->writeTo(payload + BRIDGE_V2_OVERHEAD);
+  uint16_t mesh_len = export_packet.writeTo(payload + BRIDGE_V2_OVERHEAD);
 
   if (mesh_len > (MAX_TRANS_UNIT + 1)) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: TX packet too large (len=%d)\n", mesh_len);
@@ -564,7 +567,7 @@ bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
   payload[8] = (id >> 16) & 0xFF;
   payload[9] = (id >> 8) & 0xFF;
   payload[10] = id & 0xFF;
-  payload[11] = packet->wasReceivedFromBridge() ? 0 : BRIDGE_PACKET_FLAG_RF_RX;
+  payload[11] = export_packet.wasReceivedFromBridge() ? 0 : BRIDGE_PACKET_FLAG_RF_RX;
   payload[12] = (mesh_len >> 8) & 0xFF;
   payload[13] = mesh_len & 0xFF;
 
@@ -573,6 +576,36 @@ bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: TX bridge packet ttl=%d origin=0x%08lx len=%d\n",
                          ttl, (unsigned long)id, mesh_len);
     return true;
+  }
+  return false;
+}
+
+bool TCPBridge::appendSelfToTcpExportPath(mesh::Packet *packet) const {
+  if (!packet || !packet->isRouteFlood() || !_has_self_hash) return false;
+  if (pathContainsSelf(packet)) return false;
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > sizeof(_self_hash)) return false;
+
+  uint8_t hash_count = packet->getPathHashCount();
+  if ((hash_count + 1) * hash_size > MAX_PATH_SIZE) return false;
+
+  memcpy(&packet->path[hash_count * hash_size], _self_hash, hash_size);
+  packet->setPathHashCount(hash_count + 1);
+  return true;
+}
+
+bool TCPBridge::pathContainsSelf(const mesh::Packet *packet) const {
+  if (!packet || !_has_self_hash) return false;
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > sizeof(_self_hash)) return false;
+
+  uint8_t hash_count = packet->getPathHashCount();
+  for (uint8_t i = 0; i < hash_count; i++) {
+    if (memcmp(&packet->path[i * hash_size], _self_hash, hash_size) == 0) {
+      return true;
+    }
   }
   return false;
 }

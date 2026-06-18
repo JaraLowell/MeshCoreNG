@@ -144,6 +144,8 @@ private:
   uint32_t    _last_ntp_sync_ms = 0;
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
+  bool appendSelfToTcpExportPath(mesh::Packet *packet) const;
+  bool pathContainsSelf(const mesh::Packet *packet) const;
   bool shouldExportPacket(const mesh::Packet *packet) const;
   bool isChannelPacket(const mesh::Packet *packet) const;
   bool isMessagePacket(const mesh::Packet *packet) const;

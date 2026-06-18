@@ -1667,7 +1667,7 @@ In `local`/`ttl1` mode, packets received from the bridge are transmitted once by
   - `channels`: export only channel/group flood packets selected by `bridge.source`
   - `messages`: export DM/chat-related packets and channel/group packets selected by `bridge.source`
 
-`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision without adding a TCP bridge hop to the MeshCore packet path.
+`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision. When a flood packet is exported over the TCP bridge, the exporting bridge-repeater adds its own node hash to the MeshCore packet path if it is not already present and the path still has room.
 
 **Default:** `all`
 
@@ -1695,7 +1695,7 @@ This is useful for RF island bridges where channel packets heard from several RF
 **Parameters:**
 - `ttl`: TCP bridge envelope TTL, from `1` to `8`.
 
-The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. The MeshCore route/path is not modified.
+The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. RF flood packets exported to TCP also carry the exporting bridge-repeater in the MeshCore path, using the packet's existing path hash size and avoiding duplicate entries.
 
 **Default:** `2`
 
