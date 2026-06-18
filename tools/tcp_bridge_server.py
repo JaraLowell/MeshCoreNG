@@ -2120,7 +2120,7 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
-    .node-stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }}
     .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
     .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
     @media (max-width: 980px) {{
@@ -2290,6 +2290,14 @@ def build_status_html(base_path: str = "") -> str:
       return Number.isFinite(ms) ? `${{Math.round(ms / 1000)}}s` : "--";
     }}
 
+    function duration(ms) {{
+      if (!Number.isFinite(ms)) return "--";
+      const total = Math.max(0, Math.round(ms / 1000));
+      const minutes = Math.floor(total / 60);
+      const seconds = total % 60;
+      return minutes > 0 ? `${{minutes}}m ${{String(seconds).padStart(2, "0")}}s` : `${{seconds}}s`;
+    }}
+
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
@@ -2310,8 +2318,11 @@ def build_status_html(base_path: str = "") -> str:
           ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`
           : "";
         const rf = client.rf_duty || {{}};
+        const rfUsedMs = Number.isFinite(rf.tx_used_ms) ? rf.tx_used_ms : NaN;
+        const rfMaxMs = Number.isFinite(rf.tx_max_ms) ? rf.tx_max_ms : NaN;
+        const rfLeftMs = Number.isFinite(rfUsedMs) && Number.isFinite(rfMaxMs) ? Math.max(0, rfMaxMs - rfUsedMs) : NaN;
         const rfTitle = Number.isFinite(rf.tx_used_pct)
-          ? `${{pct(rf.tx_used_pct)}} dutycycle used this hour. 0% = no RF TX budget used, 100% = full ${{pct(rf.duty_limit_pct)}} hourly dutycycle used (${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}}).`
+          ? `${{pct(rf.tx_used_pct)}} dutycycle used this hour. Used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total).`
           : "firmware update needed";
         const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
         const footer = isOnline
@@ -2327,7 +2338,8 @@ def build_status_html(base_path: str = "") -> str:
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
-              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty this hour</span><b>${{pct(rf.tx_used_pct)}}</b></div>
+              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
+              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
             <div class="node-meta">${{footer}}</div>
