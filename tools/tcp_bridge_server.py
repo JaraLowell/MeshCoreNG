@@ -2165,14 +2165,15 @@ def build_status_html(base_path: str = "") -> str:
     .table-wrap {{ overflow-x: auto; }}
     table {{ width: 100%; border-collapse: collapse; min-width: 840px; }}
     th, td {{
-      padding: 10px 12px;
+      padding: 6px 8px;
       text-align: left;
       border-bottom: 1px solid rgba(97, 255, 154, .14);
       white-space: nowrap;
       vertical-align: top;
-      font-size: .84rem;
+      font-size: .78rem;
+      line-height: 1.25;
     }}
-    th {{ color: var(--muted); background: rgba(0, 0, 0, .24); text-transform: uppercase; font-size: .68rem; }}
+    th {{ color: var(--muted); background: rgba(0, 0, 0, .24); text-transform: uppercase; font-size: .64rem; }}
     td {{ color: #dfffe9; }}
     tr.hot td {{ color: var(--green-soft); background: rgba(104, 255, 157, .055); }}
     .badge {{
@@ -2181,7 +2182,8 @@ def build_status_html(base_path: str = "") -> str:
       text-align: center;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 2px 8px;
+      padding: 1px 6px;
+      font-size: .7rem;
       color: var(--green-soft);
       background: rgba(104, 255, 157, .08);
     }}
@@ -2192,54 +2194,55 @@ def build_status_html(base_path: str = "") -> str:
     .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
     .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
     .feed {{
-      padding: 12px 14px;
+      padding: 8px 10px;
       height: 430px;
       overflow: auto;
       background: rgba(0, 0, 0, .24);
     }}
     .feed-line {{
       display: grid;
-      grid-template-columns: 72px 44px minmax(88px, 1fr);
-      gap: 10px;
-      padding: 6px 0;
+      grid-template-columns: 48px 28px minmax(88px, 1fr);
+      gap: 7px;
+      padding: 3px 0;
       border-bottom: 1px dashed rgba(97, 255, 154, .14);
-      font-size: .82rem;
+      font-size: .74rem;
+      line-height: 1.25;
     }}
-    .feed-line .meta {{ color: var(--muted); }}
-    .feed-line .dir-rx {{ color: #86c5ff; }}
-    .feed-line .dir-tx {{ color: var(--amber); }}
+    .feed-line .meta {{ color: var(--muted); font-variant-numeric: tabular-nums; }}
+    .feed-line .dir-rx {{ color: #86c5ff; font-weight: 800; }}
+    .feed-line .dir-tx {{ color: var(--amber); font-weight: 800; }}
     .feed-line .packet {{ overflow-wrap: anywhere; }}
     .stack {{ display: grid; gap: 16px; }}
     .node-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
-      padding: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 8px;
+      padding: 10px;
     }}
     .node-card {{
       border: 1px solid rgba(97, 255, 154, .22);
       background: var(--panel-2);
       border-radius: 6px;
-      padding: 12px;
-      min-height: 148px;
+      padding: 9px;
+      min-height: 0;
     }}
     .node-card.offline {{
       border-color: rgba(255, 209, 102, .2);
       background: rgba(15, 18, 18, .7);
     }}
-    .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
-    .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
+    .node-title {{ color: var(--green-soft); font-size: .92rem; font-weight: 800; overflow-wrap: anywhere; }}
+    .node-meta {{ margin-top: 5px; color: var(--muted); font-size: .72rem; line-height: 1.25; overflow-wrap: anywhere; }}
     .node-stats {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
-      gap: 8px;
-      margin-top: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+      gap: 5px;
+      margin-top: 8px;
     }}
     .mini {{
       min-width: 0;
       border: 1px solid rgba(97, 255, 154, .14);
       background: rgba(0, 0, 0, .16);
-      padding: 8px;
+      padding: 5px 6px;
       border-radius: 4px;
       overflow: hidden;
     }}
@@ -2248,10 +2251,10 @@ def build_status_html(base_path: str = "") -> str:
       display: block;
       min-width: 0;
       color: var(--green);
-      font-size: .95rem;
+      font-size: .82rem;
       font-variant-numeric: tabular-nums;
       line-height: 1.15;
-      margin-top: 4px;
+      margin-top: 2px;
       overflow-wrap: anywhere;
     }}
     @media (max-width: 980px) {{
@@ -2456,7 +2459,6 @@ def build_status_html(base_path: str = "") -> str:
         const rfTitle = Number.isFinite(rf.tx_used_pct)
           ? `Measured RF TX since this server saw the node. Used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total).`
           : "firmware update needed";
-        const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
@@ -2466,7 +2468,6 @@ def build_status_html(base_path: str = "") -> str:
           <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
               <span>${{escapeHtml(client.display_name)}}</span>
-              <span class="badge${{isOnline ? "" : " offline"}}">${{badge}}</span>
             </div>
             <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}} ${{updateBadge}}</div>
             <div class="node-stats">
@@ -2486,6 +2487,15 @@ def build_status_html(base_path: str = "") -> str:
 
     function packetKey(packet) {{
       return [packet.time, packet.direction, packet.client, packet.size, packet.preview].join("|");
+    }}
+
+    function packetFeedText(packet) {{
+      const flow = escapeHtml(packet.flow || packet.client || "");
+      const typeRoute = `${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}}`;
+      const decoded = packet.decoded_channel
+        ? ` | ${{escapeHtml(packet.decoded_channel)}} ${{escapeHtml(packet.decoded_text || packet.decoded_status || "")}}`
+        : "";
+      return `${{flow}} | ${{typeRoute}} | ${{packet.size}}B${{decoded}} | ${{escapeHtml(packet.preview)}}`;
     }}
 
     function renderPackets(packetData) {{
@@ -2534,9 +2544,9 @@ def build_status_html(base_path: str = "") -> str:
           const dirClass = packet.direction === "RX" ? "dir-rx" : "dir-tx";
           line.className = "feed-line";
           line.innerHTML = `
-            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="meta">${{age(packet.age_seconds)}}</span>
             <span class="${{dirClass}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{packetFeedText(packet)}}</span>
           `;
           feed.prepend(line);
         }}
@@ -2544,9 +2554,9 @@ def build_status_html(base_path: str = "") -> str:
       if (!feed.children.length) {{
         feed.innerHTML = packets.slice(0, 24).map((packet) => `
           <div class="feed-line">
-            <span class="meta">${{age(packet.age_seconds)}} ago</span>
+            <span class="meta">${{age(packet.age_seconds)}}</span>
             <span class="${{packet.direction === "RX" ? "dir-rx" : "dir-tx"}}">${{escapeHtml(packet.direction)}}</span>
-            <span class="packet">${{escapeHtml(packet.flow || packet.client)}} :: ${{escapeHtml(packet.type || "unknown")}}/${{escapeHtml(packet.route || "-")}} ${{packet.size}}B${{packet.decoded_channel ? " :: " + escapeHtml(packet.decoded_channel) + " :: " + escapeHtml(packet.decoded_text || packet.decoded_status || "") : ""}} :: ${{escapeHtml(packet.preview)}}</span>
+            <span class="packet">${{packetFeedText(packet)}}</span>
           </div>
         `).join("");
       }}
