@@ -11,6 +11,7 @@ Usage:
     open http://localhost:8080/ for connected node status
     open http://localhost:8080/manage for remote management
     open http://localhost:8080/map for persisted tracker routes
+    add --admin-password <secret> --allow-path-block-admin for web-admin path quarantine
     use --status-base-path /meshbridgestatus when reverse-proxying below a URL prefix
 
 Repeater firmware configuration (via CLI):
@@ -118,6 +119,7 @@ TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = 120
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
+ALLOW_PATH_BLOCK_ADMIN = False
 STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
@@ -2055,10 +2057,17 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         '<option value="">No bridge nodes connected</option>'
     )
     disabled = " disabled" if not options else ""
+    path_block_enabled = ALLOW_PATH_BLOCK_ADMIN and bool(ADMIN_PASSWORD)
+    path_disabled = "" if options and path_block_enabled else " disabled"
     admin_note = (
         "Remote management protected by server admin password; node password still required"
         if ADMIN_PASSWORD else
         "Remote management enabled; enter the selected node's admin password"
+    )
+    path_note = (
+        "Path quarantine is enabled for bridge admins and does not require the node password"
+        if path_block_enabled else
+        "Path quarantine is disabled; start the server with --admin-password and --allow-path-block-admin"
     )
     result_html = (
         f'<pre class="command-result">{html.escape(redact_public_text(command_result))}</pre>'
@@ -2077,10 +2086,12 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
   <style>
     :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
     body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
-    main {{ max-width: 760px; margin: 0 auto; padding: 32px 20px; }}
+    main {{ max-width: 860px; margin: 0 auto; padding: 32px 20px; }}
     h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
     .summary {{ margin: 0 0 24px; color: #58606a; }}
-    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; }}
+    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; margin-bottom: 18px; }}
+    .panel h2 {{ margin: 0 0 6px; font-size: 1.1rem; }}
+    .panel p {{ margin: 0 0 12px; color: #58606a; }}
     label {{ display: block; font-weight: 650; margin: 14px 0 6px; }}
     select, input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c7ced6; border-radius: 6px; font: inherit; background: #fff; color: inherit; }}
     button {{ margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 6px; background: #0969da; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }}
@@ -2094,6 +2105,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     @media (prefers-color-scheme: dark) {{
       body {{ background: #111418; color: #f0f3f6; }}
       .summary {{ color: #9aa4af; }}
+      .panel p {{ color: #9aa4af; }}
       .panel {{ background: #171b20; border-color: #30363d; }}
       select, input {{ background: #111418; border-color: #3b434d; }}
       a {{ color: #7cb7ff; }}
@@ -2105,6 +2117,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     <h1>MeshCoreNG Remote Management</h1>
     <p class="summary">{html.escape(admin_note)}. <a href="{status_url}">Bridge status</a></p>
     <div class="panel">
+      <h2>Remote CLI</h2>
       <form method="post" action="{command_url}">
         <label for="target">Bridge node</label>
         <select id="target" name="target"{disabled}>
@@ -2117,6 +2130,29 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         <button type="submit"{disabled}>Send command</button>
       </form>
       {result_html}
+    </div>
+    <div class="panel">
+      <h2>Path quarantine</h2>
+      <p>{html.escape(path_note)}</p>
+      <form method="post" action="{command_url}">
+        <input type="hidden" name="mode" value="path_block">
+        <label for="path_target">Bridge node</label>
+        <select id="path_target" name="target"{path_disabled}>
+          {options_html}
+        </select>
+        <label for="path_action">Action</label>
+        <select id="path_action" name="path_action"{path_disabled}>
+          <option value="add">Add block</option>
+          <option value="del">Remove block</option>
+          <option value="get">Show blocks</option>
+          <option value="clear">Clear all</option>
+        </select>
+        <label for="path_block">Path</label>
+        <input id="path_block" name="path_block" placeholder="aa/bb/cc" maxlength="20"{path_disabled}>
+        <label for="path_duration">Duration</label>
+        <input id="path_duration" name="path_duration" placeholder="1h" maxlength="8"{path_disabled}>
+        <button type="submit"{path_disabled}>Apply quarantine</button>
+      </form>
     </div>
   </main>
 </body>
@@ -2846,6 +2882,30 @@ def find_client(client_id: str) -> BridgeClient | None:
     return None
 
 
+PATH_BLOCK_RE = re.compile(r"^[0-9a-fA-F]{2}(?:/[0-9a-fA-F]{2}){0,2}$|^[0-9a-fA-F]{4}(?:/[0-9a-fA-F]{4}){0,2}$|^[0-9a-fA-F]{6}(?:/[0-9a-fA-F]{6}){0,2}$")
+PATH_BLOCK_DURATION_RE = re.compile(r"^[1-9][0-9]*(?:[mhd])?$")
+
+
+def build_path_block_command(form: dict[str, list[str]]) -> str:
+    action = (form.get("path_action") or [""])[0].strip().lower()
+    path = (form.get("path_block") or [""])[0].strip()
+    duration = (form.get("path_duration") or [""])[0].strip().lower()
+
+    if action == "get":
+        return "get path.block"
+    if action == "clear":
+        return "clear path.block"
+    if action not in ("add", "del"):
+        raise ValueError("invalid path.block action")
+    if not PATH_BLOCK_RE.fullmatch(path):
+        raise ValueError("path must be aa, aa/bb, aa/bb/cc, or same-width 2/3-byte hops")
+    if action == "del":
+        return f"set path.block del {path}"
+    if duration and not PATH_BLOCK_DURATION_RE.fullmatch(duration):
+        raise ValueError("duration must be seconds, Nm, Nh, or Nd")
+    return f"set path.block add {path}" + (f" {duration}" if duration else "")
+
+
 async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
         request_line = await reader.readline()
@@ -2877,22 +2937,38 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                 target = (form.get("target") or [""])[0]
                 node_password = (form.get("node_password") or [""])[0]
                 command = (form.get("command") or [""])[0].strip()
+                mode = (form.get("mode") or [""])[0].strip()
                 client = find_client(target)
                 if client is None:
                     result = "Error: selected bridge node is no longer connected"
-                elif not command:
-                    result = "Error: empty command"
-                elif not node_password:
-                    result = "Error: node admin password required"
+                elif mode == "path_block":
+                    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
+                        result = "Error: path quarantine admin is disabled"
+                    else:
+                        try:
+                            command = build_path_block_command(form)
+                            reply = await client.send_command(command, "")
+                            result = f"{client.display_name}> {command}\n{reply}"
+                            log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
+                        except asyncio.TimeoutError:
+                            log.warning("%s: path quarantine command timed out", client.addr)
+                            result = "Error: command timed out waiting for bridge reply"
+                        except Exception as exc:
+                            result = f"Error: {exc}"
                 else:
-                    try:
-                        reply = await client.send_command(command, node_password)
-                        result = f"{client.display_name}> {command}\n{reply}"
-                    except asyncio.TimeoutError:
-                        log.warning("%s: remote command timed out: %s", client.addr, command)
-                        result = "Error: command timed out waiting for bridge reply"
-                    except Exception as exc:
-                        result = f"Error: {exc}"
+                    if not command:
+                        result = "Error: empty command"
+                    elif not node_password:
+                        result = "Error: node admin password required"
+                    else:
+                        try:
+                            reply = await client.send_command(command, node_password)
+                            result = f"{client.display_name}> {command}\n{reply}"
+                        except asyncio.TimeoutError:
+                            log.warning("%s: remote command timed out: %s", client.addr, command)
+                            result = "Error: command timed out waiting for bridge reply"
+                        except Exception as exc:
+                            result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
                 body = build_manage_html(result, base_path).encode("utf-8")
         elif method != "GET":
@@ -3014,6 +3090,8 @@ if __name__ == "__main__":
                         help="Optional TCP bridge password required from clients")
     parser.add_argument("--admin-password", default="",
                         help="Optional Basic auth password protecting the HTTP remote management page")
+    parser.add_argument("--allow-path-block-admin", action="store_true",
+                        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
     args = parser.parse_args()
@@ -3027,6 +3105,7 @@ if __name__ == "__main__":
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
+    ALLOW_PATH_BLOCK_ADMIN = args.allow_path_block_admin
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     PUBLIC_CHANNELS_FILE = args.public_channels_file
     LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)

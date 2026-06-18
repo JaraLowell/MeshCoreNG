@@ -2246,11 +2246,20 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 }
 
 #if defined(WITH_TCP_BRIDGE)
+static bool isPasswordlessTcpPathBlockCommand(const char *command) {
+  return strcmp(command, "get path.block") == 0
+      || strcmp(command, "clear path.block") == 0
+      || strcmp(command, "set path.block clear") == 0
+      || memcmp(command, "set path.block add ", 19) == 0
+      || memcmp(command, "set path.block del ", 19) == 0;
+}
+
 void MyMesh::handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) {
   char local_command[96];
   char local_reply[768];
 
-  if (strcmp(password, _prefs.password) != 0) {
+  bool passwordless_path_block = (password == NULL || password[0] == 0) && isPasswordlessTcpPathBlockCommand(command);
+  if (!passwordless_path_block && (password == NULL || strcmp(password, _prefs.password) != 0)) {
     if (reply_size > 0) {
       strncpy(reply, "Error: invalid node admin password", reply_size);
       reply[reply_size - 1] = 0;

@@ -1556,6 +1556,16 @@ The TCP bridge connects bridge-capable repeaters to a selected bridge server. Us
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+Optional web-admin path quarantine on `/manage`:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 \
+  --admin-password webAdminSecret \
+  --allow-path-block-admin
+```
+
+This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. Normal remote CLI commands still require the selected repeater's node admin password.
+
 **2. Configure each intended bridge repeater via CLI:**
 ```
 set wifi.ssid     YourWiFi
