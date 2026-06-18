@@ -49,7 +49,7 @@ Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds koennen das per CLI mit 
 
 Repeater-, GPS-Tracker / Sensor- und Room-Server-Builds haben ausserdem einen Runtime Low-Battery Guard. Waehrend der Node laeuft, prueft die Firmware periodisch die Batteriespannung. Wenn der Node nicht extern versorgt wird und die Batterie unter die Runtime-Schwelle faellt, geht er schlafen, bevor WiFi, Bridge, GPS, Display oder Radio die Batterie weiter entladen. Einstellen kann man das mit `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` und `set runtime.lowbat.retry`. Siehe [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS-Tracker-Varianten mit Display lassen das Display jetzt eingeschaltet und zeigen Tracker-Informationen wie GPS-Fix-Status, Satelliten, Position oder Waiting-Status, TX-Intervall und Batteriespannung. Siehe [docs/location_tracker.md](./docs/location_tracker.md).
+GPS-Tracker-Varianten mit Display lassen das Display jetzt eingeschaltet und zeigen Tracker-Informationen wie GPS-Fix-Status, Satelliten, Position oder Waiting-Status, TX-Intervall und Batteriespannung. Native Tracker-Packets enthalten auch Geschwindigkeit und Heading, wenn der GPS-Provider diese Werte liefert, und die TCP-Bridge-Karte kann die gefahrene Route anzeigen. Siehe [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## Was haben wir jetzt gemacht?
 
@@ -254,12 +254,15 @@ Fuer kontrollierte RF-Inseln oder Backbone-Links nutze die Bridge-Export- und Pr
 ```text
 set bridge.profile island    # RF-Insel-Bridge: source both, RF local, messages bis 4 RF hops
 set bridge.profile repeater  # kontrollierter Backhaul: source both, RF on, export all
+get bridge.profile           # zeigt das zuletzt angewendete Profil: default, island oder repeater
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
 ```
 
-TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Die MeshCore Route/Path im Packet wird nicht veraendert.
+TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Beim Export von RF-Flood-Packets zur TCP bridge fuegt der exportierende Bridge-Repeater seinen eigenen Node-Hash zum MeshCore Path hinzu, wenn er dort noch nicht vorhanden ist und im Path noch Platz ist.
+
+Der Python TCP-Bridge-Server stellt standardmaessig eine Status-Webseite auf Port `8080` bereit. Sie zeigt online und kuerzlich gesehene Bridge-Nodes, RX/TX-Packet-Zahlen pro Node fuer die letzten 24 Stunden, Heartbeat-Status, Firmware-Version, Bridge-v1/v2-Support und den RF-Dutycycle-Budgetverbrauch. Disconnected Nodes bleiben sichtbar, solange sie noch Packet-History im 24-Stunden-Fenster haben. Der Wert `Duty this hour` ist der prozentuale Anteil des erlaubten stuendlichen RF-TX-Dutycycle-Budgets, der bereits genutzt wurde: bei 10% Dutycycle bedeutet `100%`, dass die vollen sechs Minuten pro Stunde genutzt wurden, und `50%` bedeutet drei Minuten.
 
 Alle 38 ESP32-Repeater-Varianten haben jetzt eine passende `_bridge_tcp` Firmware. Siehe [docs/cli_commands.md](./docs/cli_commands.md) fuer alle Einstellmoeglichkeiten.
 
@@ -275,7 +278,7 @@ MeshCoreNG hat mehrere Bridge-Routen:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32-Bridge-Experimente, bei denen WiFi-Infrastruktur nicht der Haupttransport ist. |
 | `_bridge_ble` | BLE UART Bridge | nRF52- und ESP32-BLE-Repeater koennen eine Kurzstrecken-Bridge ohne WiFi, USB oder zusaetzliche UART-Verkabelung bilden. |
 
-Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit. Die Python TCP-Bridge-Server-Statusseite zeigt verbundene Nodes, aktuelle Packet-Type/Route/Hop-Logs, Sensor-Adverts, Tracker-Positionen und JSON Endpoints wie `/status.json`, `/packets.json`, `/sensors.json` und `/locations.json`.
+Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit. Die Python TCP-Bridge-Server-Statusseite zeigt verbundene Nodes, aktuelle Packet-Type/Route/Hop-Logs, verschluesselte Peer/DM-Metadaten, Sensor-Adverts, Tracker-Positionen und JSON Endpoints wie `/status.json`, `/packets.json`, `/sensors.json` und `/locations.json`. Der Server begrenzt uebermaessige DM/group/transport Packets vor dem Bridge-Broadcast, basierend auf TCP-Client und Packet-Kategorie statt Node-Name oder Advert-Identitaet. Die Tracker-Karte unter `/map` zeigt die letzte Tracker-Position, Geschwindigkeit, Heading und die gespeicherte Routenhistorie pro Tracker.
 
 Die BLE Bridge ist fuer nRF52-BLE-Varianten mit Bluefruit und ESP32-Varianten mit BLE-Support verfuegbar. Sie laeuft gleichzeitig als Central und Peripheral, sodass beide Repeater den BLE-Link starten koennen. Flash dieselbe `_bridge_ble` Firmware auf beide Repeater, setze optional auf beiden Seiten dieselbe `bridge.secret` fuer ein privates Bridge-Paar, und aktiviere danach `set bridge.enabled on`. Kombinierte `_bridge_tcp_ble` Builds sind fuer ESP32-Boards mit genug Flash enthalten; 4MB ESP32-Boards bleiben Board-fuer-Board-Testkandidaten, weil TCP+BLE dort knapp werden kann.
 
@@ -802,7 +805,7 @@ set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.password <bridge passwort>
 set ntp.enabled on
-set ntp.server pool.ntp.org
+set ntp.server nl.pool.ntp.org
 set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on

@@ -50,21 +50,22 @@ public:
   void onPacketReceived(mesh::Packet *packet) override;
   void getStatusStr(char *reply) const;
   void setNodeId(const uint8_t *node_id, size_t len);
+  void setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct);
   
   /**
-   * @brief Get the total number of packets dropped due to flood protection (all categories)
+   * @brief Get the total number of packets dropped by TCP rate limiting (all categories)
    * @return Total number of dropped packets
    */
   uint32_t getFloodDroppedCount() const { return _transport_dropped_count + _control_dropped_count; }
   
   /**
-   * @brief Get the number of transport packets dropped due to flood protection
+   * @brief Get the number of transport packets dropped by TCP rate limiting
    * @return Number of transport packets dropped
    */
   uint32_t getTransportDroppedCount() const { return _transport_dropped_count; }
   
   /**
-   * @brief Get the number of control packets dropped due to flood protection
+   * @brief Get the number of control packets dropped by TCP rate limiting
    * @return Number of control packets dropped
    */
   uint32_t getControlDroppedCount() const { return _control_dropped_count; }
@@ -87,6 +88,11 @@ public:
    */
   uint16_t getControlCurrentCount() const { return _control_flood_limiter.getCount(); }
   void setCommandHandler(TCPBridgeCommandHandler *handler) { _command_handler = handler; }
+
+  bool pollJustConnected() {
+    if (_just_connected) { _just_connected = false; return true; }
+    return false;
+  }
 
 private:
   static constexpr uint16_t TCP_OVERHEAD =
@@ -129,15 +135,23 @@ private:
   bool     _has_node_id = false;
   TCPBridgeCommandHandler *_command_handler = nullptr;
 
-  // Selective flood protection with separate limiters per packet category
+  // Selective TCP rate limiting with separate limiters per packet category
   RateLimiter _transport_flood_limiter;  // for transport/message packets
   RateLimiter _control_flood_limiter;    // for control/admin packets  
   uint32_t    _transport_dropped_count = 0;
   uint32_t    _control_dropped_count = 0;
+  bool        _just_connected = false;
   bool        _ntp_synced = false;
   uint32_t    _last_ntp_sync_ms = 0;
+  uint32_t    _rf_tx_used_ms = 0;
+  uint32_t    _rf_tx_max_ms = 0;
+  uint32_t    _rf_tx_window_ms = 0;
+  uint16_t    _rf_duty_limit_centi_pct = 0;
+  uint16_t    _rf_tx_used_centi_pct = 0;
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
+  bool appendSelfToTcpExportPath(mesh::Packet *packet) const;
+  bool pathContainsSelf(const mesh::Packet *packet) const;
   bool shouldExportPacket(const mesh::Packet *packet) const;
   bool isChannelPacket(const mesh::Packet *packet) const;
   bool isMessagePacket(const mesh::Packet *packet) const;

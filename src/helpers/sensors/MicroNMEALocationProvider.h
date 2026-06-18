@@ -119,6 +119,17 @@ public :
         nmea.getAltitude(alt);
         return alt;
     }
+    uint16_t getSpeedCmS() override {
+        long speed_mknots = nmea.getSpeed();
+        if (speed_mknots <= 0) return 0;
+        uint32_t speed_cms = ((uint32_t)speed_mknots * 51444UL + 500000UL) / 1000000UL;
+        return speed_cms > 65535UL ? 65535 : (uint16_t)speed_cms;
+    }
+    uint16_t getHeadingCdeg() override {
+        long course_mdeg = nmea.getCourse();
+        if (course_mdeg < 0) return 0;
+        return (uint16_t)((course_mdeg / 10) % 36000);
+    }
     long satellitesCount() override { return nmea.getNumSatellites(); }
     bool isValid() override { return nmea.isValid(); }
 

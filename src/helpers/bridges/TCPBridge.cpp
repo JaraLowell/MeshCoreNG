@@ -15,6 +15,9 @@ static WiFiClient _client;
 
 namespace {
 
+constexpr uint32_t kNtpSyncIntervalMs = 3600UL * 1000UL;
+constexpr uint32_t kNtpRetryIntervalMs = 60UL * 1000UL;
+
 uint32_t fnv1a32(const uint8_t *data, size_t len) {
   uint32_t hash = 2166136261UL;
   for (size_t i = 0; i < len; i++) {
@@ -74,6 +77,7 @@ void TCPBridge::loop() {
   if (!_initialized) return;
 
   uint32_t now = millis();
+  refreshNTP(now);
 
   switch (_state) {
 
@@ -130,6 +134,7 @@ void TCPBridge::loop() {
         BRIDGE_DEBUG_PRINTLN("TCP bridge: connected to server\n");
         _last_heartbeat_ms = 0;
         _state = State::RUNNING;
+        _just_connected = true;
         sendAuth();
         sendNodeInfo();
         sendCaps();
@@ -199,13 +204,13 @@ void TCPBridge::readIncoming() {
               continue;
             }
             
-            // Selective flood protection by packet category
+            // Selective TCP rate limiting by packet category
             if (_prefs->tcp_flood_limit_enable) {
               uint32_t now_secs = _rtc->getCurrentTime();
               bool drop_packet = false;
               
               if (isTransportPacket(_rx_buffer + 4, len)) {
-                // Transport/message packets: strict rate limit
+                // Transport/message packets: strict TCP-side rate limit
                 if (!_transport_flood_limiter.allow(now_secs)) {
                   _transport_dropped_count++;
                   drop_packet = true;
@@ -213,7 +218,7 @@ void TCPBridge::readIncoming() {
                                        (unsigned long)_transport_dropped_count);
                 }
               } else if (isControlPacket(_rx_buffer + 4, len)) {
-                // Control/admin packets: higher limit or bypass
+                // Control/admin packets: higher TCP-side limit or bypass
                 if (_prefs->tcp_flood_control_max > 0) {  // 0 = bypass
                   if (!_control_flood_limiter.allow(now_secs)) {
                     _control_dropped_count++;
@@ -222,7 +227,7 @@ void TCPBridge::readIncoming() {
                                          (unsigned long)_control_dropped_count);
                   }
                 }
-                // else: control max = 0, bypass flood protection
+                // else: control max = 0, bypass TCP rate limiting
               }
               // Other packet types not explicitly classified default to no limit
               
@@ -334,7 +339,7 @@ void TCPBridge::sendNodeInfo() {
 }
 
 void TCPBridge::sendHeartbeat() {
-  uint8_t payload[9];
+  uint8_t payload[28];
   payload[0] = 'M';
   payload[1] = 'C';
   payload[2] = 'N';
@@ -345,6 +350,25 @@ void TCPBridge::sendHeartbeat() {
   payload[6] = (uptime >> 16) & 0xFF;
   payload[7] = (uptime >> 8) & 0xFF;
   payload[8] = uptime & 0xFF;
+  payload[9] = 'R';
+  payload[10] = 'F';
+  payload[11] = 1;
+  payload[12] = (_rf_tx_used_ms >> 24) & 0xFF;
+  payload[13] = (_rf_tx_used_ms >> 16) & 0xFF;
+  payload[14] = (_rf_tx_used_ms >> 8) & 0xFF;
+  payload[15] = _rf_tx_used_ms & 0xFF;
+  payload[16] = (_rf_tx_max_ms >> 24) & 0xFF;
+  payload[17] = (_rf_tx_max_ms >> 16) & 0xFF;
+  payload[18] = (_rf_tx_max_ms >> 8) & 0xFF;
+  payload[19] = _rf_tx_max_ms & 0xFF;
+  payload[20] = (_rf_tx_window_ms >> 24) & 0xFF;
+  payload[21] = (_rf_tx_window_ms >> 16) & 0xFF;
+  payload[22] = (_rf_tx_window_ms >> 8) & 0xFF;
+  payload[23] = _rf_tx_window_ms & 0xFF;
+  payload[24] = (_rf_duty_limit_centi_pct >> 8) & 0xFF;
+  payload[25] = _rf_duty_limit_centi_pct & 0xFF;
+  payload[26] = (_rf_tx_used_centi_pct >> 8) & 0xFF;
+  payload[27] = _rf_tx_used_centi_pct & 0xFF;
 
   if (sendPayloadFrame(payload, sizeof(payload))) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: heartbeat\n");
@@ -536,8 +560,11 @@ void TCPBridge::sendPacket(mesh::Packet *packet) {
 }
 
 bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
+  mesh::Packet export_packet = *packet;
+  appendSelfToTcpExportPath(&export_packet);
+
   uint8_t payload[MAX_TCP_PAYLOAD_SIZE];
-  uint16_t mesh_len = packet->writeTo(payload + BRIDGE_V2_OVERHEAD);
+  uint16_t mesh_len = export_packet.writeTo(payload + BRIDGE_V2_OVERHEAD);
 
   if (mesh_len > (MAX_TRANS_UNIT + 1)) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: TX packet too large (len=%d)\n", mesh_len);
@@ -559,7 +586,7 @@ bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
   payload[8] = (id >> 16) & 0xFF;
   payload[9] = (id >> 8) & 0xFF;
   payload[10] = id & 0xFF;
-  payload[11] = packet->wasReceivedFromBridge() ? 0 : BRIDGE_PACKET_FLAG_RF_RX;
+  payload[11] = export_packet.wasReceivedFromBridge() ? 0 : BRIDGE_PACKET_FLAG_RF_RX;
   payload[12] = (mesh_len >> 8) & 0xFF;
   payload[13] = mesh_len & 0xFF;
 
@@ -568,6 +595,36 @@ bool TCPBridge::sendBridgePacket(mesh::Packet *packet) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: TX bridge packet ttl=%d origin=0x%08lx len=%d\n",
                          ttl, (unsigned long)id, mesh_len);
     return true;
+  }
+  return false;
+}
+
+bool TCPBridge::appendSelfToTcpExportPath(mesh::Packet *packet) const {
+  if (!packet || !packet->isRouteFlood() || !_has_self_hash) return false;
+  if (pathContainsSelf(packet)) return false;
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > sizeof(_self_hash)) return false;
+
+  uint8_t hash_count = packet->getPathHashCount();
+  if ((hash_count + 1) * hash_size > MAX_PATH_SIZE) return false;
+
+  memcpy(&packet->path[hash_count * hash_size], _self_hash, hash_size);
+  packet->setPathHashCount(hash_count + 1);
+  return true;
+}
+
+bool TCPBridge::pathContainsSelf(const mesh::Packet *packet) const {
+  if (!packet || !_has_self_hash) return false;
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > sizeof(_self_hash)) return false;
+
+  uint8_t hash_count = packet->getPathHashCount();
+  for (uint8_t i = 0; i < hash_count; i++) {
+    if (memcmp(&packet->path[i * hash_size], _self_hash, hash_size) == 0) {
+      return true;
+    }
   }
   return false;
 }
@@ -639,6 +696,14 @@ void TCPBridge::onPacketReceived(mesh::Packet *packet) {
   handleReceivedPacket(packet);
 }
 
+void TCPBridge::setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct) {
+  _rf_tx_used_ms = used_ms;
+  _rf_tx_max_ms = max_ms;
+  _rf_tx_window_ms = window_ms;
+  _rf_duty_limit_centi_pct = limit_centi_pct;
+  _rf_tx_used_centi_pct = used_centi_pct;
+}
+
 void TCPBridge::getStatusStr(char *reply) const {
   bool wifiOk = (WiFi.status() == WL_CONNECTED);
   bool serverOk = (_state == State::RUNNING);
@@ -657,15 +722,25 @@ void TCPBridge::getStatusStr(char *reply) const {
                         : "disconnected";
   const char *ntpStr = _prefs->ntp_enabled ? (_ntp_synced ? "synced" : "not synced") : "disabled";
   
-  // Show flood protection stats if enabled and packets were dropped
+  char dutyStr[80] = "";
+  if (_rf_tx_max_ms > 0) {
+    snprintf(dutyStr, sizeof(dutyStr), " | RF duty used: %u.%02u%% of %u.%02u%%/h",
+             (uint32_t)(_rf_tx_used_centi_pct / 100),
+             (uint32_t)(_rf_tx_used_centi_pct % 100),
+             (uint32_t)(_rf_duty_limit_centi_pct / 100),
+             (uint32_t)(_rf_duty_limit_centi_pct % 100));
+  }
+
+  // Show TCP rate-limit stats if enabled and packets were dropped
   if (_prefs->tcp_flood_limit_enable && (_transport_dropped_count > 0 || _control_dropped_count > 0)) {
-    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s | Dropped: %lu transport, %lu control",
+    snprintf(reply, 160, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s%s | Rate dropped: %lu transport, %lu control",
             ip, WiFi.RSSI(), serverStr, ntpStr,
+            dutyStr,
             (unsigned long)_transport_dropped_count,
             (unsigned long)_control_dropped_count);
   } else {
-    sprintf(reply, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s",
-            ip, WiFi.RSSI(), serverStr, ntpStr);
+    snprintf(reply, 160, "> WiFi: connected | IP: %s | RSSI: %d dBm | Server: %s | NTP: %s%s",
+             ip, WiFi.RSSI(), serverStr, ntpStr, dutyStr);
   }
 }
 
@@ -675,10 +750,10 @@ void TCPBridge::syncTimeWithNTP(bool force) {
   uint32_t now_ms = millis();
   if (!force && _last_ntp_sync_ms != 0 && (now_ms - _last_ntp_sync_ms) < 5000) return;
 
-  const char *server = _prefs->ntp_server[0] ? _prefs->ntp_server : "pool.ntp.org";
+  const char *server = _prefs->ntp_server[0] ? _prefs->ntp_server : "nl.pool.ntp.org";
   BRIDGE_DEBUG_PRINTLN("TCP bridge: syncing time with NTP server %s\n", server);
 
-  configTime(0, 0, server);
+  configTime(0, 0, server, "pool.ntp.org", "time.google.com");
 
   struct tm timeinfo;
   bool ntp_ok = false;
@@ -701,7 +776,9 @@ void TCPBridge::syncTimeWithNTP(bool force) {
   }
 
   if (!ntp_ok) {
-    _last_ntp_sync_ms = millis();
+    uint32_t retry_from = millis();
+    _last_ntp_sync_ms = retry_from - (kNtpSyncIntervalMs - kNtpRetryIntervalMs);
+    _ntp_synced = false;
     BRIDGE_DEBUG_PRINTLN("TCP bridge: NTP sync failed\n");
   }
 }
@@ -709,11 +786,7 @@ void TCPBridge::syncTimeWithNTP(bool force) {
 void TCPBridge::refreshNTP(uint32_t now_ms) {
   if (!_prefs->ntp_enabled || WiFi.status() != WL_CONNECTED) return;
 
-  uint32_t interval_ms = _prefs->ntp_interval_secs;
-  if (interval_ms == 0) interval_ms = 3600;
-  interval_ms *= 1000UL;
-
-  if (_last_ntp_sync_ms == 0 || (now_ms - _last_ntp_sync_ms) >= interval_ms) {
+  if (_last_ntp_sync_ms == 0 || (now_ms - _last_ntp_sync_ms) >= kNtpSyncIntervalMs) {
     syncTimeWithNTP(true);
   }
 }

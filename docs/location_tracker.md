@@ -24,12 +24,26 @@ The board must also compile with GPS support:
 -D ENV_INCLUDE_GPS=1
 ```
 
+Tracker builds can optionally make the send interval speed-dependent:
+
+```text
+-D LOCATION_TRACKER_ADAPTIVE_INTERVAL=1
+-D LOCATION_TRACKER_STATIONARY_INTERVAL_SECS=300
+-D LOCATION_TRACKER_SLOW_INTERVAL_SECS=30
+-D LOCATION_TRACKER_FAST_INTERVAL_SECS=15
+-D LOCATION_TRACKER_STATIONARY_SPEED_CMS=50
+-D LOCATION_TRACKER_FAST_SPEED_CMS=500
+```
+
+With those values the tracker sends every 5 minutes below 0.5 m/s, every 30 seconds while moving normally, and every 15 seconds at or above 5 m/s.
+
 The tracker uses the existing `LocationProvider`, so board variants that already expose GPS through `target.cpp` do not need a second GPS driver.
 
 Initial build targets:
 
 ```text
 Heltec_v3_gps_tracker
+Heltec_Wireless_Tracker_gps_tracker
 Generic_E22_sx1262_gps_tracker
 Generic_E22_sx1268_gps_tracker
 Tbeam_SX1262_gps_tracker
@@ -64,13 +78,21 @@ http://server:8080/map
 http://server:8080/locations.json
 ```
 
-The public JSON does not expose bridge-client IP addresses or ports.
+The map draws the latest position and the complete route each tracker has reported. The TCP bridge server persists tracker routes as one JSONL file per node in `logs/location_tracks` by default, reloads them on startup, and exposes the loaded route in the public `track` array for each tracker. Use `--location-tracks-dir <path>` or `TCP_BRIDGE_LOCATION_TRACKS_DIR=<path>` with `tools/tcp_bridge_server_ctl.sh` to store routes somewhere else.
+
+There is no fixed point limit in the server. The practical limit is available disk space and how much route data the browser can comfortably draw on the map.
+
+When a tracker stays within roughly `30m` for `30 minutes`, the TCP bridge server marks that point as the end of the current route segment. If the tracker moves again later, the map starts a new segment instead of drawing one long line from the old stop location to the new movement.
+
+The tracker map includes a `Replay 24h` mode. It uses the persisted track data to replay tracker positions and route segments from the last 24 hours with a time slider and play loop, while live tracking continues to refresh in the background.
 
 ## Payload
 
 `PAYLOAD_TYPE_LOCATION` is `0x0D`.
 
 The payload starts after the normal MeshCore packet header/path fields:
+
+All multi-byte integer fields in the location payload are big-endian.
 
 | Field | Size | Notes |
 |-------|------|-------|
@@ -81,8 +103,8 @@ The payload starts after the normal MeshCore packet header/path fields:
 | lat | 4 | signed microdegrees |
 | lon | 4 | signed microdegrees |
 | altitude | 2 | signed metres |
-| speed | 2 | centimetres per second, currently `0` for the simple tracker |
-| heading | 2 | centidegrees, currently `0` for the simple tracker |
+| speed | 2 | centimetres per second |
+| heading | 2 | centidegrees |
 | satellites | 1 | GPS satellite count |
 | battery | 2 | millivolts |
 | timestamp | 4 | Unix time from node RTC |

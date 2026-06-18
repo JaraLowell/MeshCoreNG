@@ -10,6 +10,8 @@ Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
     open http://localhost:8080/ for connected node status
     open http://localhost:8080/manage for remote management
+    open http://localhost:8080/map for persisted tracker routes
+    add --admin-password <secret> --allow-path-block-admin for web-admin path quarantine
     use --status-base-path /meshbridgestatus when reverse-proxying below a URL prefix
 
 Repeater firmware configuration (via CLI):
@@ -34,6 +36,7 @@ import hmac
 import html
 import json
 import logging
+import math
 import re
 import struct
 import time
@@ -71,12 +74,21 @@ IP_ADDRESS_RE = re.compile(
     r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
 )
 PAYLOAD_TYPE_ADVERT = 0x04
+PAYLOAD_TYPE_REQ = 0x00
+PAYLOAD_TYPE_RESPONSE = 0x01
+PAYLOAD_TYPE_TXT_MSG = 0x02
+PAYLOAD_TYPE_ACK = 0x03
+PAYLOAD_TYPE_PATH = 0x08
+PAYLOAD_TYPE_ANON_REQ = 0x07
+PAYLOAD_TYPE_MULTIPART = 0x0A
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
+ROUTE_TYPE_FLOOD = 0x01
+ROUTE_TYPE_DIRECT = 0x02
 ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
 ADV_TYPE_SENSOR = 0x04
 ADV_TYPE_REPEATER = 0x02
@@ -96,17 +108,31 @@ PUBLIC_CHANNELS_FILE = ""
 CLIENT_TIMEOUT_SECS = 180
 STATUS_INTERVAL_SECS = 60
 PACKET_COUNTER_WINDOW_SECS = 24 * 60 * 60
+LOCATION_TRACKS_DIR = Path("logs/location_tracks")
+LOCATION_ROUTE_STATIONARY_SECS = 30 * 60
+LOCATION_ROUTE_STATIONARY_METERS = 30
+TRANSPORT_RATE_LIMIT_ENABLE = True
+TRANSPORT_RATE_LIMIT_MAX = 20
+TRANSPORT_RATE_LIMIT_WINDOW_SECS = 120
+TRANSPORT_GLOBAL_RATE_LIMIT_MAX = 80
+TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = 120
 REPLACE_SAME_IP = False
 BRIDGE_PASSWORD = ""
 ADMIN_PASSWORD = ""
+ALLOW_PATH_BLOCK_ADMIN = False
 STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
 next_command_id = 1
 next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
+node_traffic_stats: dict[str, dict] = {}
 latest_locations: dict[str, dict] = {}
+latest_location_tracks: dict[str, list[dict]] = {}
+latest_location_stationary: dict[str, dict] = {}
 latest_sensors: dict[str, dict] = {}
+transport_rx_times: deque[float] = deque()
+transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 public_channels: list[dict] = []
@@ -320,6 +346,41 @@ def decode_public_channel_payload(parsed: dict) -> dict:
     return result
 
 
+def describe_peer_encrypted_payload(parsed: dict) -> dict:
+    payload_type = parsed["payload_type"]
+    app_payload = parsed["app_payload"]
+    result = {
+        "peer_dest_hash": "",
+        "peer_src_hash": "",
+        "peer_mac": "",
+        "peer_encrypted_len": None,
+        "peer_encrypted_preview": "",
+        "decoded_status": "",
+        "decoded_text": "",
+    }
+    if payload_type not in (PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE, PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_PATH):
+        return result
+    if len(app_payload) < 4:
+        result["decoded_status"] = "short-peer-payload"
+        result["decoded_text"] = f"encrypted peer payload too short ({len(app_payload)}B)"
+        return result
+
+    dest_hash = app_payload[0]
+    src_hash = app_payload[1]
+    encrypted = app_payload[4:]
+    result["peer_dest_hash"] = f"{dest_hash:02x}"
+    result["peer_src_hash"] = f"{src_hash:02x}"
+    result["peer_mac"] = binascii.hexlify(app_payload[2:4]).decode("ascii")
+    result["peer_encrypted_len"] = len(encrypted)
+    result["peer_encrypted_preview"] = payload_preview(encrypted)
+    result["decoded_status"] = "encrypted-peer-payload"
+    result["decoded_text"] = (
+        f"encrypted peer payload dest={dest_hash:02x} src={src_hash:02x} "
+        f"mac={result['peer_mac']} enc={len(encrypted)}B"
+    )
+    return result
+
+
 def describe_packet(payload: bytes) -> dict:
     envelope = parse_bridge_packet_envelope(payload)
     mesh_payload = envelope["mesh_payload"] if envelope is not None else payload
@@ -341,6 +402,11 @@ def describe_packet(payload: bytes) -> dict:
         "decoded_text": "",
         "decoded_data_type": None,
         "decoded_data_len": None,
+        "peer_dest_hash": "",
+        "peer_src_hash": "",
+        "peer_mac": "",
+        "peer_encrypted_len": None,
+        "peer_encrypted_preview": "",
     }
 
     if envelope is None and payload.startswith(CONTROL_PREFIX):
@@ -363,6 +429,8 @@ def describe_packet(payload: bytes) -> dict:
 
     payload_type = parsed["payload_type"]
     route_type = parsed["route_type"]
+    public_decode = decode_public_channel_payload(parsed)
+    peer_info = describe_peer_encrypted_payload(parsed)
     description.update({
         "type": packet_type_name(payload_type),
         "type_id": payload_type,
@@ -370,8 +438,18 @@ def describe_packet(payload: bytes) -> dict:
         "route_id": route_type,
         "hops": parsed["path_hash_count"],
         "app_len": len(parsed["app_payload"]),
-        **decode_public_channel_payload(parsed),
+        **public_decode,
     })
+    if not description.get("decoded_status"):
+        description.update(peer_info)
+    else:
+        description.update({
+            "peer_dest_hash": peer_info["peer_dest_hash"],
+            "peer_src_hash": peer_info["peer_src_hash"],
+            "peer_mac": peer_info["peer_mac"],
+            "peer_encrypted_len": peer_info["peer_encrypted_len"],
+            "peer_encrypted_preview": peer_info["peer_encrypted_preview"],
+        })
     return description
 
 
@@ -418,16 +496,32 @@ def record_packet_log(
     return entry
 
 
-def parse_heartbeat(payload: bytes) -> int | None:
+def parse_heartbeat(payload: bytes) -> dict | None:
     if len(payload) < 5:
         return None
     if not payload.startswith(CONTROL_PREFIX):
         return None
     if payload[4] != CONTROL_TYPE_HEARTBEAT:
         return None
-    if len(payload) >= 9:
-        return struct.unpack(">I", payload[5:9])[0]
-    return 0
+    heartbeat = {
+        "uptime_ms": struct.unpack(">I", payload[5:9])[0] if len(payload) >= 9 else 0,
+    }
+    if len(payload) >= 28 and payload[9:11] == b"RF" and payload[11] == 1:
+        used_ms = struct.unpack(">I", payload[12:16])[0]
+        max_ms = struct.unpack(">I", payload[16:20])[0]
+        window_ms = struct.unpack(">I", payload[20:24])[0]
+        duty_limit_centi_pct = struct.unpack(">H", payload[24:26])[0]
+        used_centi_pct = struct.unpack(">H", payload[26:28])[0]
+        heartbeat["rf_duty"] = {
+            "tx_used_ms": used_ms,
+            "tx_max_ms": max_ms,
+            "window_ms": window_ms,
+            "duty_limit_pct": duty_limit_centi_pct / 100.0,
+            "tx_used_pct": min(100.0, used_centi_pct / 100.0),
+        }
+        if window_ms > 0:
+            heartbeat["rf_duty"]["actual_window_pct"] = (used_ms * 100.0) / window_ms
+    return heartbeat
 
 
 def parse_node_info(payload: bytes) -> tuple[str, str, str] | None:
@@ -621,6 +715,51 @@ def parse_mesh_payload(frame_payload: bytes) -> dict | None:
     }
 
 
+def is_transport_or_message_packet(parsed: dict | None) -> bool:
+    if not parsed:
+        return False
+    if parsed["route_type"] in (ROUTE_TYPE_TRANSPORT_FLOOD, ROUTE_TYPE_TRANSPORT_DIRECT):
+        return True
+    return parsed["payload_type"] in (
+        PAYLOAD_TYPE_REQ,
+        PAYLOAD_TYPE_RESPONSE,
+        PAYLOAD_TYPE_TXT_MSG,
+        PAYLOAD_TYPE_GRP_TXT,
+        PAYLOAD_TYPE_GRP_DATA,
+        PAYLOAD_TYPE_ANON_REQ,
+        PAYLOAD_TYPE_MULTIPART,
+    )
+
+
+def prune_rate_window(times: deque[float], now: float, window_secs: int) -> None:
+    cutoff = now - max(1, window_secs)
+    while times and times[0] < cutoff:
+        times.popleft()
+
+
+def allow_transport_packet(client: "BridgeClient", parsed: dict | None, now: float) -> bool:
+    global transport_rate_dropped
+
+    if not TRANSPORT_RATE_LIMIT_ENABLE or not is_transport_or_message_packet(parsed):
+        return True
+
+    prune_rate_window(client.transport_rx_times, now, TRANSPORT_RATE_LIMIT_WINDOW_SECS)
+    prune_rate_window(transport_rx_times, now, TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS)
+
+    if TRANSPORT_RATE_LIMIT_MAX > 0 and len(client.transport_rx_times) >= TRANSPORT_RATE_LIMIT_MAX:
+        client.transport_rate_dropped += 1
+        transport_rate_dropped += 1
+        return False
+    if TRANSPORT_GLOBAL_RATE_LIMIT_MAX > 0 and len(transport_rx_times) >= TRANSPORT_GLOBAL_RATE_LIMIT_MAX:
+        client.transport_rate_dropped += 1
+        transport_rate_dropped += 1
+        return False
+
+    client.transport_rx_times.append(now)
+    transport_rx_times.append(now)
+    return True
+
+
 def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
     parsed = parse_mesh_payload(frame_payload)
     if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_LOCATION:
@@ -730,6 +869,164 @@ def parse_node_advert_payload(frame_payload: bytes) -> dict | None:
     }
 
 
+def location_track_path(node_id: str) -> Path:
+    safe = re.sub(r"[^0-9a-fA-F_-]", "_", node_id or "unknown")
+    return LOCATION_TRACKS_DIR / f"{safe}.jsonl"
+
+
+def location_track_point(report: dict) -> dict:
+    return {
+        "node_id": report.get("node_id"),
+        "name": report.get("name", ""),
+        "lat": report["lat"],
+        "lon": report["lon"],
+        "altitude_m": report.get("altitude_m"),
+        "speed_kmh": report.get("speed_kmh"),
+        "heading_deg": report.get("heading_deg"),
+        "satellites": report.get("satellites"),
+        "battery_mv": report.get("battery_mv"),
+        "timestamp": report.get("timestamp"),
+        "received_at": report.get("received_at"),
+    }
+
+
+def location_point_time(point: dict) -> int:
+    value = point.get("timestamp") or point.get("received_at") or int(time.time())
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return int(time.time())
+
+
+def location_distance_m(a: dict, b: dict) -> float:
+    lat1 = math.radians(float(a["lat"]))
+    lat2 = math.radians(float(b["lat"]))
+    dlat = lat2 - lat1
+    dlon = math.radians(float(b["lon"]) - float(a["lon"]))
+    hav = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6371000.0 * 2 * math.atan2(math.sqrt(hav), math.sqrt(max(0.0, 1.0 - hav)))
+
+
+def seed_stationary_state(node_id: str, track: list[dict]) -> None:
+    if not track:
+        return
+    anchor = track[-1]
+    latest_location_stationary[node_id] = {
+        "anchor": anchor,
+        "since": location_point_time(anchor),
+        "closed": bool(anchor.get("route_break_after")),
+    }
+
+
+def mark_route_breaks(track: list[dict]) -> None:
+    anchor = None
+    stationary_since = 0
+    closed = False
+    for point in track:
+        if anchor is None:
+            anchor = point
+            stationary_since = location_point_time(point)
+            closed = bool(point.get("route_break_after"))
+            continue
+
+        if location_distance_m(anchor, point) <= LOCATION_ROUTE_STATIONARY_METERS:
+            point_time = location_point_time(point)
+            if not closed and point_time - stationary_since >= LOCATION_ROUTE_STATIONARY_SECS:
+                point["route_break_after"] = True
+                closed = True
+            continue
+
+        anchor = point
+        stationary_since = location_point_time(point)
+        closed = False
+
+
+def update_stationary_route_state(node_id: str, track: list[dict], point: dict) -> None:
+    state = latest_location_stationary.get(node_id)
+    if state is None:
+        state = {"anchor": point, "since": location_point_time(point), "closed": False}
+        latest_location_stationary[node_id] = state
+        return
+
+    anchor = state["anchor"]
+    point_time = location_point_time(point)
+    if location_distance_m(anchor, point) <= LOCATION_ROUTE_STATIONARY_METERS:
+        if not state.get("closed") and point_time - int(state.get("since", point_time)) >= LOCATION_ROUTE_STATIONARY_SECS:
+            point["route_break_after"] = True
+            state["closed"] = True
+            log.info(
+                "Closed tracker route for %s after %d minutes within %dm",
+                node_id,
+                LOCATION_ROUTE_STATIONARY_SECS // 60,
+                LOCATION_ROUTE_STATIONARY_METERS,
+            )
+        return
+
+    state["anchor"] = point
+    state["since"] = point_time
+    state["closed"] = False
+
+
+def append_location_track_point(node_id: str, point: dict) -> None:
+    try:
+        LOCATION_TRACKS_DIR.mkdir(parents=True, exist_ok=True)
+        with location_track_path(node_id).open("a", encoding="utf-8") as file:
+            file.write(json.dumps(point, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        log.warning("Could not persist location track for %s: %s", node_id, exc)
+
+
+def load_location_tracks() -> None:
+    latest_location_tracks.clear()
+    latest_locations.clear()
+    latest_location_stationary.clear()
+    if not LOCATION_TRACKS_DIR.exists():
+        return
+    loaded_points = 0
+    for path in sorted(LOCATION_TRACKS_DIR.glob("*.jsonl")):
+        node_id = path.stem
+        track: list[dict] = []
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                for lineno, line in enumerate(file, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        point = json.loads(line)
+                    except json.JSONDecodeError:
+                        log.warning("Skipping invalid location track line %s:%d", path, lineno)
+                        continue
+                    if not isinstance(point, dict):
+                        continue
+                    lat = point.get("lat")
+                    lon = point.get("lon")
+                    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+                        continue
+                    point.setdefault("node_id", node_id)
+                    track.append(point)
+        except OSError as exc:
+            log.warning("Could not load location track %s: %s", path, exc)
+            continue
+        if not track:
+            continue
+        mark_route_breaks(track)
+        latest = dict(track[-1])
+        actual_node_id = latest.get("node_id") or node_id
+        latest["node_id"] = actual_node_id
+        latest.setdefault("name", "")
+        latest.setdefault("received_at", int(latest.get("timestamp") or time.time()))
+        latest["age_seconds"] = 0
+        latest["source"] = "track-file"
+        latest_location_tracks[actual_node_id] = track
+        latest_locations[actual_node_id] = latest
+        seed_stationary_state(actual_node_id, track)
+        loaded_points += len(track)
+    if loaded_points:
+        log.info("Loaded %d persisted location track point(s) for %d tracker node(s)",
+                 loaded_points, len(latest_location_tracks))
+
+
 def record_location(report: dict, client: "BridgeClient") -> None:
     now = time.time()
     report = dict(report)
@@ -738,6 +1035,12 @@ def record_location(report: dict, client: "BridgeClient") -> None:
     report["source"] = client.display_name
     client.learn_node_id(report.get("node_id", ""), report.get("name", ""))
     latest_locations[report["node_id"]] = report
+    track = latest_location_tracks.setdefault(report["node_id"], [])
+    point = location_track_point(report)
+    if not track or any(track[-1].get(key) != point.get(key) for key in ("lat", "lon", "timestamp")):
+        update_stationary_route_state(report["node_id"], track, point)
+        track.append(point)
+        append_location_track_point(report["node_id"], point)
 
 
 def record_sensor_advert(report: dict, client: "BridgeClient") -> None:
@@ -779,6 +1082,166 @@ def prune_packet_times(packet_times: deque[float], now: float) -> None:
         packet_times.popleft()
 
 
+def make_node_stats_key(client: "BridgeClient") -> str:
+    if client.node_id:
+        return f"node:{client.node_id.strip().lower()}"
+    if client.node_name:
+        return f"name:{client.node_name.strip().lower()}"
+    return f"host:{client.host}"
+
+
+def new_node_stats(key: str) -> dict:
+    now = time.time()
+    return {
+        "key": key,
+        "rx_times": deque(),
+        "tx_times": deque(),
+        "packets_rx": 0,
+        "packets_tx": 0,
+        "heartbeats_rx": 0,
+        "first_seen": now,
+        "last_seen": now,
+        "last_connected": now,
+        "last_disconnect": 0.0,
+        "last_heartbeat": 0.0,
+        "last_heartbeat_uptime_ms": 0,
+        "rf_duty": {},
+        "node_name": "",
+        "node_id": "",
+        "firmware_version": "",
+        "supports_bridge_v2": False,
+        "connected": False,
+        "client_id": "",
+        "addr": "",
+    }
+
+
+def merge_node_stats(target: dict, source: dict) -> None:
+    target["rx_times"].extend(source["rx_times"])
+    target["tx_times"].extend(source["tx_times"])
+    target["rx_times"] = deque(sorted(target["rx_times"]))
+    target["tx_times"] = deque(sorted(target["tx_times"]))
+    target["packets_rx"] += source.get("packets_rx", 0)
+    target["packets_tx"] += source.get("packets_tx", 0)
+    target["heartbeats_rx"] += source.get("heartbeats_rx", 0)
+    target["first_seen"] = min(target.get("first_seen", time.time()), source.get("first_seen", time.time()))
+    for field in ("last_seen", "last_connected", "last_disconnect", "last_heartbeat"):
+        target[field] = max(target.get(field, 0.0), source.get(field, 0.0))
+    for field in ("last_heartbeat_uptime_ms",):
+        if source.get(field):
+            target[field] = source[field]
+    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr"):
+        if source.get(field):
+            target[field] = source[field]
+    target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
+    target["connected"] = target.get("connected", False) or source.get("connected", False)
+
+
+def get_node_stats(client: "BridgeClient") -> dict:
+    key = make_node_stats_key(client)
+    old_key = getattr(client, "_stats_key", "")
+    if old_key and old_key != key and old_key in node_traffic_stats:
+        old_stats = node_traffic_stats.pop(old_key)
+        stats = node_traffic_stats.setdefault(key, new_node_stats(key))
+        merge_node_stats(stats, old_stats)
+    else:
+        stats = node_traffic_stats.setdefault(key, new_node_stats(key))
+    client._stats_key = key
+    stats.update({
+        "key": key,
+        "node_name": client.node_name,
+        "node_id": client.node_id,
+        "firmware_version": client.firmware_version,
+        "supports_bridge_v2": client.supports_bridge_v2,
+        "connected": client in connected_clients,
+        "client_id": client.client_id,
+        "addr": client.addr,
+        "last_connected": client._connect_time,
+    })
+    return stats
+
+
+def touch_node_stats(client: "BridgeClient", now: float | None = None) -> dict:
+    now = now or time.time()
+    stats = get_node_stats(client)
+    stats["last_seen"] = now
+    return stats
+
+
+def record_node_packet(client: "BridgeClient", direction: str, now: float | None = None) -> None:
+    now = now or time.time()
+    stats = touch_node_stats(client, now)
+    if direction == "RX":
+        stats["packets_rx"] += 1
+        stats["rx_times"].append(now)
+        prune_packet_times(stats["rx_times"], now)
+    elif direction == "TX":
+        stats["packets_tx"] += 1
+        stats["tx_times"].append(now)
+        prune_packet_times(stats["tx_times"], now)
+
+
+def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | None = None) -> None:
+    now = now or time.time()
+    stats = touch_node_stats(client, now)
+    stats["heartbeats_rx"] += 1
+    stats["last_heartbeat"] = now
+    stats["last_heartbeat_uptime_ms"] = int(heartbeat.get("uptime_ms") or 0)
+    if "rf_duty" in heartbeat:
+        stats["rf_duty"] = heartbeat["rf_duty"]
+
+
+def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
+    now = now or time.time()
+    stats = get_node_stats(client)
+    stats["connected"] = False
+    stats["last_disconnect"] = now
+    stats["last_seen"] = max(stats.get("last_seen", 0.0), client.last_seen)
+
+
+def node_stats_status_dict(stats: dict, now: float) -> dict:
+    prune_packet_times(stats["rx_times"], now)
+    prune_packet_times(stats["tx_times"], now)
+    display_name = stats.get("node_name") or "unnamed bridge node"
+    connected = bool(stats.get("connected"))
+    heartbeat_age = int(now - stats["last_heartbeat"]) if stats.get("last_heartbeat") else None
+    return {
+        "name": stats.get("node_name", ""),
+        "id": stats.get("client_id") or stats["key"],
+        "node_id": stats.get("node_id", ""),
+        "firmware_version": stats.get("firmware_version", ""),
+        "display_name": display_name,
+        "connected": connected,
+        "connected_seconds": int(now - stats["last_connected"]) if connected else 0,
+        "connected_for": format_duration(now - stats["last_connected"]) if connected else "offline",
+        "idle_seconds": int(now - stats["last_seen"]) if stats.get("last_seen") else None,
+        "heartbeat_age_seconds": heartbeat_age,
+        "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
+        "rf_duty": dict(stats.get("rf_duty") or {}),
+        "packets_rx": stats.get("packets_rx", 0),
+        "packets_tx": stats.get("packets_tx", 0),
+        "packets_rx_24h": len(stats["rx_times"]),
+        "packets_tx_24h": len(stats["tx_times"]),
+        "transport_rx_window": 0,
+        "transport_rate_dropped": 0,
+        "heartbeats_rx": stats.get("heartbeats_rx", 0),
+        "authenticated": connected,
+        "supports_bridge_v2": stats.get("supports_bridge_v2", False),
+        "last_seen_seconds": int(now - stats["last_seen"]) if stats.get("last_seen") else None,
+    }
+
+
+def prune_disconnected_node_stats(now: float) -> None:
+    for key, stats in list(node_traffic_stats.items()):
+        prune_packet_times(stats["rx_times"], now)
+        prune_packet_times(stats["tx_times"], now)
+        if stats.get("connected"):
+            continue
+        last_seen = stats.get("last_seen", 0.0)
+        if not stats["rx_times"] and not stats["tx_times"] and last_seen < now - PACKET_COUNTER_WINDOW_SECS:
+            node_traffic_stats.pop(key, None)
+
+
 class BridgeClient:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         global next_client_id
@@ -795,10 +1258,15 @@ class BridgeClient:
         self.packets_tx = 0
         self.packet_rx_times: deque[float] = deque()
         self.packet_tx_times: deque[float] = deque()
+        self.transport_rx_times: deque[float] = deque()
+        self.transport_rate_dropped = 0
+        self._stats_key = ""
         self.heartbeats_rx = 0
         self._connect_time = time.time()
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
+        self.last_heartbeat_uptime_ms = 0
+        self.rf_duty: dict = {}
         self.node_name = ""
         self.node_id = ""
         self.firmware_version = ""
@@ -839,26 +1307,37 @@ class BridgeClient:
             self.node_id = node_id
 
     def status_dict(self, now: float) -> dict:
+        stats = get_node_stats(self)
+        prune_packet_times(stats["rx_times"], now)
+        prune_packet_times(stats["tx_times"], now)
         prune_packet_times(self.packet_rx_times, now)
         prune_packet_times(self.packet_tx_times, now)
-        return {
+        prune_rate_window(self.transport_rx_times, now, TRANSPORT_RATE_LIMIT_WINDOW_SECS)
+        status = node_stats_status_dict(stats, now)
+        status.update({
             "name": self.node_name,
             "id": self.client_id,
             "node_id": self.node_id,
             "firmware_version": self.firmware_version,
             "display_name": self.display_name,
+            "connected": True,
             "connected_seconds": int(now - self._connect_time),
             "connected_for": format_duration(now - self._connect_time),
             "idle_seconds": int(now - self.last_seen),
             "heartbeat_age_seconds": int(now - self.last_heartbeat) if self.last_heartbeat else None,
+            "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
+            "rf_duty": dict(self.rf_duty),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
-            "packets_rx_24h": len(self.packet_rx_times),
-            "packets_tx_24h": len(self.packet_tx_times),
+            "packets_rx_24h": len(stats["rx_times"]),
+            "packets_tx_24h": len(stats["tx_times"]),
+            "transport_rx_window": len(self.transport_rx_times),
+            "transport_rate_dropped": self.transport_rate_dropped,
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
             "supports_bridge_v2": self.supports_bridge_v2,
-        }
+        })
+        return status
 
     async def read_packet(self) -> bytes | None:
         """Read one framed packet from the stream. Returns raw payload bytes or None on error."""
@@ -916,6 +1395,7 @@ class BridgeClient:
             now = time.time()
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
+            record_node_packet(self, "TX", now)
             packet_log = record_packet_log("TX", self, payload, source=source, target=self.display_name)
             if LOG_PACKETS:
                 log.info(
@@ -1004,6 +1484,7 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
 async def disconnect(client: "BridgeClient", reason: str = "EOF"):
     if client in connected_clients:
         connected_clients.discard(client)
+        mark_node_disconnected(client)
         client.close()
         uptime = int(time.time() - client._connect_time)
         log.info(
@@ -1049,6 +1530,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 await disconnect(existing, reason=f"replaced by new connection from {client.addr}")
 
     connected_clients.add(client)
+    touch_node_stats(client)
     log.info("Connected %s (total=%d)", client.addr, len(connected_clients))
 
     try:
@@ -1073,14 +1555,20 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             caps = parse_caps(payload)
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
+                touch_node_stats(client)
                 log.info("%s: bridge capabilities v%d flags=0x%02x bridge_v2=%s",
                          client.addr, caps["version"], caps["flags"], client.supports_bridge_v2)
                 continue
-            heartbeat_uptime = parse_heartbeat(payload)
-            if heartbeat_uptime is not None:
+            heartbeat = parse_heartbeat(payload)
+            if heartbeat is not None:
                 client.heartbeats_rx += 1
-                client.last_heartbeat = time.time()
-                log.debug("%s: heartbeat uptime=%dms", client.addr, heartbeat_uptime)
+                now = time.time()
+                client.last_heartbeat = now
+                client.last_heartbeat_uptime_ms = int(heartbeat.get("uptime_ms") or 0)
+                if "rf_duty" in heartbeat:
+                    client.rf_duty = heartbeat["rf_duty"]
+                record_node_heartbeat(client, heartbeat, now)
+                log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
             if command_reply is not None:
@@ -1096,6 +1584,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 client.node_name, client.firmware_version, node_id = node_info
                 if node_id:
                     client.node_id = node_id
+                touch_node_stats(client)
                 if client.firmware_version:
                     log.info("%s: node name is %s firmware=%s node_id=%s",
                              client.addr, client.node_name, client.firmware_version, client.node_id or "unknown")
@@ -1106,7 +1595,22 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
+            record_node_packet(client, "RX", now)
             mesh_payload = mesh_payload_for_parsing(payload)
+            parsed_payload = parse_mesh_payload(mesh_payload)
+            if not allow_transport_packet(client, parsed_payload, now):
+                packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
+                log.warning(
+                    "%s: dropping transport flood packet from %s (%d/%ds client, %d/%ds global): %s",
+                    client.addr,
+                    client.display_name,
+                    len(client.transport_rx_times),
+                    TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+                    len(transport_rx_times),
+                    TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+                    format_packet_description(packet_log),
+                )
+                continue
             location_report = parse_mesh_location_payload(mesh_payload)
             if location_report is not None:
                 record_location(location_report, client)
@@ -1144,15 +1648,42 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         await disconnect(client, reason=str(exc))
 
 
-def status_snapshot() -> dict:
+def status_snapshot(include_disconnected: bool = True) -> dict:
     now = time.time()
+    prune_disconnected_node_stats(now)
     clients = [
         client.status_dict(now)
         for client in sorted(connected_clients, key=lambda c: (c.display_name.lower(), c.addr))
     ]
+    if include_disconnected:
+        active_keys = {getattr(client, "_stats_key", "") for client in connected_clients}
+        offline_clients = [
+            node_stats_status_dict(stats, now)
+            for key, stats in node_traffic_stats.items()
+            if key not in active_keys and (
+                stats.get("last_seen", 0) >= now - PACKET_COUNTER_WINDOW_SECS
+                or stats["rx_times"]
+                or stats["tx_times"]
+            )
+        ]
+        clients.extend(sorted(
+            offline_clients,
+            key=lambda c: (c["display_name"].lower(), -(c.get("last_seen_seconds") or 0)),
+        ))
     return {
         "generated_at": int(now),
-        "connected_count": len(clients),
+        "connected_count": len(connected_clients),
+        "online_count": len(connected_clients),
+        "known_count": len(clients),
+        "transport_rate_limit": {
+            "enabled": TRANSPORT_RATE_LIMIT_ENABLE,
+            "client_max": TRANSPORT_RATE_LIMIT_MAX,
+            "client_window_secs": TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+            "global_max": TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+            "global_window_secs": TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+            "global_count": len(transport_rx_times),
+            "dropped": transport_rate_dropped,
+        },
         "clients": redact_public_value(clients),
     }
 
@@ -1163,6 +1694,7 @@ def locations_snapshot() -> dict:
     for report in latest_locations.values():
         item = dict(report)
         item["age_seconds"] = max(0, now - item["received_at"])
+        item["track"] = list(latest_location_tracks.get(item["node_id"], ()))
         locations.append(item)
     locations.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
     return {
@@ -1399,6 +1931,7 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .badge.rx {{ color: #86c5ff; border-color: rgba(134, 197, 255, .45); }}
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
+    .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
     .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
     .feed {{
@@ -1433,9 +1966,13 @@ def build_status_html(base_path: str = "") -> str:
       padding: 12px;
       min-height: 148px;
     }}
+    .node-card.offline {{
+      border-color: rgba(255, 209, 102, .2);
+      background: rgba(15, 18, 18, .7);
+    }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
-    .node-stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }}
     .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
     .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
     @media (max-width: 980px) {{
@@ -1597,29 +2134,47 @@ def build_status_html(base_path: str = "") -> str:
       document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
     }}
 
+    function pct(value) {{
+      return Number.isFinite(value) ? `${{value.toFixed(value >= 10 ? 1 : 2)}}%` : "--";
+    }}
+
+    function seconds(ms) {{
+      return Number.isFinite(ms) ? `${{Math.round(ms / 1000)}}s` : "--";
+    }}
+
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
-        target.innerHTML = '<div class="empty">No bridge nodes connected</div>';
-        setStatus("nodeStatus", "offline", "warn");
+        target.innerHTML = '<div class="empty">No bridge nodes seen in the last 24h</div>';
+        setStatus("nodeStatus", "no nodes", "warn");
         return;
       }}
-      setStatus("nodeStatus", `${{status.clients.length}} active`, "ok");
+      setStatus("nodeStatus", `${{status.connected_count}} online / ${{status.known_count || status.clients.length}} known`, status.connected_count ? "ok" : "warn");
       target.innerHTML = status.clients.map((client) => {{
         const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
+        const isOnline = client.connected !== false;
+        const rf = client.rf_duty || {{}};
+        const rfTitle = Number.isFinite(rf.tx_used_pct)
+          ? `${{pct(rf.tx_used_pct)}} dutycycle used this hour. 0% = no RF TX budget used, 100% = full ${{pct(rf.duty_limit_pct)}} hourly dutycycle used (${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}}).`
+          : "firmware update needed";
+        const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
+        const footer = isOnline
+          ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
+          : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
         return `
-          <article class="node-card">
+          <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
               <span>${{escapeHtml(client.display_name)}}</span>
-              <span class="badge">${{client.supports_bridge_v2 ? "v2" : "v1"}}</span>
+              <span class="badge${{isOnline ? "" : " offline"}}">${{badge}}</span>
             </div>
             <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty this hour</span><b>${{pct(rf.tx_used_pct)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
-            <div class="node-meta">connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}</div>
+            <div class="node-meta">${{footer}}</div>
           </article>
         `;
       }}).join("");
@@ -1748,7 +2303,7 @@ def build_status_html(base_path: str = "") -> str:
 
 
 def build_manage_html(command_result: str = "", base_path: str = "") -> str:
-    snapshot = status_snapshot()
+    snapshot = status_snapshot(include_disconnected=False)
     options = []
     for client in snapshot["clients"]:
         label = client["display_name"]
@@ -1763,11 +2318,23 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     options_html = "\n".join(options) if options else (
         '<option value="">No bridge nodes connected</option>'
     )
+    path_options_html = (
+        '<option value="__all__">All connected bridge nodes</option>\n' + "\n".join(options)
+        if options else
+        '<option value="">No bridge nodes connected</option>'
+    )
     disabled = " disabled" if not options else ""
+    path_block_enabled = ALLOW_PATH_BLOCK_ADMIN and bool(ADMIN_PASSWORD)
+    path_disabled = "" if options and path_block_enabled else " disabled"
     admin_note = (
         "Remote management protected by server admin password; node password still required"
         if ADMIN_PASSWORD else
         "Remote management enabled; enter the selected node's admin password"
+    )
+    path_note = (
+        "Path quarantine is enabled for bridge admins and does not require the node password"
+        if path_block_enabled else
+        "Path quarantine is disabled; start the server with --admin-password and --allow-path-block-admin"
     )
     result_html = (
         f'<pre class="command-result">{html.escape(redact_public_text(command_result))}</pre>'
@@ -1786,10 +2353,12 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
   <style>
     :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
     body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
-    main {{ max-width: 760px; margin: 0 auto; padding: 32px 20px; }}
+    main {{ max-width: 860px; margin: 0 auto; padding: 32px 20px; }}
     h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
     .summary {{ margin: 0 0 24px; color: #58606a; }}
-    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; }}
+    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; margin-bottom: 18px; }}
+    .panel h2 {{ margin: 0 0 6px; font-size: 1.1rem; }}
+    .panel p {{ margin: 0 0 12px; color: #58606a; }}
     label {{ display: block; font-weight: 650; margin: 14px 0 6px; }}
     select, input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c7ced6; border-radius: 6px; font: inherit; background: #fff; color: inherit; }}
     button {{ margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 6px; background: #0969da; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }}
@@ -1803,6 +2372,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     @media (prefers-color-scheme: dark) {{
       body {{ background: #111418; color: #f0f3f6; }}
       .summary {{ color: #9aa4af; }}
+      .panel p {{ color: #9aa4af; }}
       .panel {{ background: #171b20; border-color: #30363d; }}
       select, input {{ background: #111418; border-color: #3b434d; }}
       a {{ color: #7cb7ff; }}
@@ -1814,6 +2384,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     <h1>MeshCoreNG Remote Management</h1>
     <p class="summary">{html.escape(admin_note)}. <a href="{status_url}">Bridge status</a></p>
     <div class="panel">
+      <h2>Remote CLI</h2>
       <form method="post" action="{command_url}">
         <label for="target">Bridge node</label>
         <select id="target" name="target"{disabled}>
@@ -1826,6 +2397,29 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         <button type="submit"{disabled}>Send command</button>
       </form>
       {result_html}
+    </div>
+    <div class="panel">
+      <h2>Path quarantine</h2>
+      <p>{html.escape(path_note)}</p>
+      <form method="post" action="{command_url}">
+        <input type="hidden" name="mode" value="path_block">
+        <label for="path_target">Bridge node</label>
+        <select id="path_target" name="target"{path_disabled}>
+          {path_options_html}
+        </select>
+        <label for="path_action">Action</label>
+        <select id="path_action" name="path_action"{path_disabled}>
+          <option value="add">Add block</option>
+          <option value="del">Remove block</option>
+          <option value="get">Show blocks</option>
+          <option value="clear">Clear all</option>
+        </select>
+        <label for="path_block">Path</label>
+        <input id="path_block" name="path_block" placeholder="aa/bb/cc" maxlength="20"{path_disabled}>
+        <label for="path_duration">Duration</label>
+        <input id="path_duration" name="path_duration" placeholder="1h" maxlength="8"{path_disabled}>
+        <button type="submit"{path_disabled}>Apply quarantine</button>
+      </form>
     </div>
   </main>
 </body>
@@ -1844,34 +2438,402 @@ def build_location_map_html(base_path: str = "") -> str:
   <title>MeshCoreNG Tracker Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    html, body, #map { height: 100%; margin: 0; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .topbar {
-      position: absolute; z-index: 1000; top: 12px; left: 12px; right: 12px;
-      display: flex; gap: 12px; align-items: center; justify-content: space-between;
-      background: rgba(255, 255, 255, 0.92); border: 1px solid #d8dee4;
-      border-radius: 8px; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    :root {
+      color-scheme: dark;
+      --bg: #050806;
+      --panel: rgba(8, 18, 12, .88);
+      --line: rgba(97, 255, 154, .32);
+      --line-strong: rgba(97, 255, 154, .58);
+      --green: #68ff9d;
+      --green-soft: #a1ffc4;
+      --amber: #ffd166;
+      --red: #ff5f6d;
+      --muted: #8fb99e;
+      --text: #dfffe9;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .48);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     }
-    .topbar h1 { margin: 0; font-size: 1rem; }
-    .topbar a { color: #0969da; text-decoration: none; }
-    .muted { color: #57606a; font-size: .9rem; }
+    * { box-sizing: border-box; }
+    html, body, #map { height: 100%; margin: 0; }
+    html { background: var(--bg); }
+    body {
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(104, 255, 157, .12), transparent 28%),
+        linear-gradient(180deg, rgba(2, 10, 6, .7), rgba(2, 5, 3, .98)),
+        var(--bg);
+      overflow: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(104, 255, 157, .04) 50%, rgba(0, 0, 0, .13) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, .025), rgba(0, 255, 95, .018), rgba(0, 120, 255, .025));
+      background-size: 100% 4px, 7px 100%;
+      mix-blend-mode: screen;
+      opacity: .42;
+      z-index: 1200;
+    }
+    #map {
+      background: #071009;
+    }
+    #map.layout-tactical .leaflet-tile,
+    #map.layout-night .leaflet-tile {
+      filter: invert(1) hue-rotate(95deg) saturate(.75) brightness(.58) contrast(1.25);
+    }
+    #map.layout-standard .leaflet-tile,
+    #map.layout-humanitarian .leaflet-tile,
+    #map.layout-topo .leaflet-tile {
+      filter: none;
+    }
+    .leaflet-control-attribution,
+    .leaflet-control-zoom a,
+    .leaflet-control-layers {
+      background: rgba(8, 18, 12, .92) !important;
+      border-color: var(--line) !important;
+      color: var(--green-soft) !important;
+      font-family: inherit;
+    }
+    .leaflet-control-layers-expanded {
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+    .leaflet-control-layers label {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.9;
+    }
+    .leaflet-control-layers-selector {
+      accent-color: var(--green);
+    }
+    .leaflet-control-zoom {
+      border: 1px solid var(--line) !important;
+      box-shadow: var(--shadow);
+    }
+    .leaflet-bottom {
+      bottom: 74px;
+    }
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: rgba(5, 12, 8, .96);
+      color: var(--text);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .leaflet-popup-content {
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .leaflet-popup-content strong {
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .leaflet-container a.leaflet-popup-close-button {
+      color: var(--green-soft);
+    }
+    .topbar {
+      position: absolute;
+      z-index: 1000;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 14px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(11, 26, 17, .94), rgba(5, 12, 8, .88));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .topbar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(104,255,157,.14), transparent 18%, transparent 82%, rgba(104,255,157,.12));
+    }
+    .topbar h1 {
+      margin: 0;
+      min-width: 0;
+      color: var(--green);
+      font-size: clamp(.9rem, 2.4vw, 1.08rem);
+      font-weight: 780;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      text-shadow: 0 0 18px rgba(104,255,157,.42);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .topbar a {
+      color: var(--green-soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      text-decoration: none;
+      text-transform: uppercase;
+      font-size: .78rem;
+      font-weight: 760;
+      background: rgba(104, 255, 157, .08);
+    }
+    .topbar a:hover { border-color: var(--line-strong); color: var(--green); }
+    .muted {
+      color: var(--muted);
+      font-size: .84rem;
+      white-space: nowrap;
+    }
+    .tracker-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--marker-core, var(--green-soft)), var(--marker-fill, var(--green)) 55%, var(--marker-edge, #0c4f2a) 100%);
+      border: 2px solid var(--marker-border, rgba(223,255,233,.9));
+      box-shadow:
+        0 0 0 3px var(--marker-ring, rgba(104,255,157,.18)),
+        0 0 22px var(--marker-glow, rgba(104,255,157,.54)),
+        0 3px 9px rgba(0,0,0,.5);
+      position: relative;
+    }
+    .tracker-icon::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -11px;
+      transform: translateX(-50%);
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 14px solid var(--marker-fill, var(--green));
+      filter: drop-shadow(0 -1px 5px var(--marker-glow, rgba(104,255,157,.55)));
+    }
+    .tracker-icon.stationary::before { display: none; }
+    .tracker-label {
+      margin-left: 32px;
+      margin-top: -28px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: var(--marker-label-bg, rgba(5,12,8,.9));
+      border: 1px solid var(--marker-label-border, var(--line));
+      color: var(--marker-label-color, var(--green-soft));
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 0 12px rgba(104,255,157,.16), 0 1px 6px rgba(0,0,0,.42);
+    }
+    .replaybar {
+      position: absolute;
+      z-index: 1000;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: auto auto minmax(160px, 1fr) auto auto;
+      gap: 12px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(11, 26, 17, .94), rgba(5, 12, 8, .88));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .replaybar button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: rgba(104, 255, 157, .08);
+      color: var(--green-soft);
+      cursor: pointer;
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 760;
+      padding: 7px 10px;
+      text-transform: uppercase;
+    }
+    .replaybar button:hover { border-color: var(--line-strong); color: var(--green); }
+    .replaybar input[type="range"] {
+      width: 100%;
+      accent-color: var(--green);
+    }
+    .replaybar .time {
+      color: var(--green-soft);
+      font-size: .84rem;
+      white-space: nowrap;
+    }
+    .replaybar .hint {
+      color: var(--muted);
+      font-size: .76rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    @media (max-width: 720px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+        gap: 8px;
+      }
+      .topbar h1 { white-space: normal; }
+      .muted { white-space: normal; }
+      .topbar a { width: max-content; }
+      .replaybar {
+        grid-template-columns: 1fr;
+        bottom: 10px;
+      }
+      .leaflet-bottom { bottom: 150px; }
+      .replaybar .hint { white-space: normal; }
+    }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <h1>MeshCoreNG Tracker Map</h1>
+    <h1>MeshCoreNG Tracker Tactical Map</h1>
     <span class="muted" id="summary">Loading...</span>
     <a href="__STATUS_URL__">Bridge status</a>
   </div>
   <div id="map"></div>
+  <div class="replaybar">
+    <button id="replayToggle" type="button">Replay 24h</button>
+    <button id="replayPlay" type="button">Play</button>
+    <input id="replaySlider" type="range" min="0" max="1440" value="1440" step="1">
+    <span class="time" id="replayTime">live</span>
+    <span class="hint" id="replayHint">Live tracking</span>
+  </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([52.2, 5.3], 8);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    const mapEl = document.getElementById('map');
+    const savedLayout = localStorage.getItem('meshcore_tracker_map_layout') || 'Tactical';
+    const map = L.map('map', { zoomControl: false }).setView([52.2, 5.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    const osmAttrib = '&copy; OpenStreetMap contributors';
+    const topoAttrib = '&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap';
+    const baseLayers = {
+      Tactical: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Night: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Standard: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Humanitarian: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: osmAttrib
+      }),
+      Topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: topoAttrib
+      })
+    };
+    const layoutClasses = {
+      Tactical: 'layout-tactical',
+      Night: 'layout-night',
+      Standard: 'layout-standard',
+      Humanitarian: 'layout-humanitarian',
+      Topo: 'layout-topo'
+    };
+    const routeStyles = {
+      Tactical: { color: '#68ff9d', weight: 4, opacity: 0.82 },
+      Night: { color: '#ffd166', weight: 4, opacity: 0.88 },
+      Standard: { color: '#d0006f', weight: 5, opacity: 0.92 },
+      Humanitarian: { color: '#0057ff', weight: 5, opacity: 0.9 },
+      Topo: { color: '#d0006f', weight: 5, opacity: 0.92 }
+    };
+    const markerStyles = {
+      Tactical: {
+        core: '#dfffe9', fill: '#68ff9d', edge: '#0c4f2a', border: '#f4fff8',
+        ring: 'rgba(104,255,157,.2)', glow: 'rgba(104,255,157,.58)',
+        labelBg: 'rgba(5,12,8,.92)', labelBorder: 'rgba(97,255,154,.46)', labelColor: '#a1ffc4'
+      },
+      Night: {
+        core: '#fff3c2', fill: '#ffd166', edge: '#6f4c00', border: '#fff8dc',
+        ring: 'rgba(255,209,102,.22)', glow: 'rgba(255,209,102,.62)',
+        labelBg: 'rgba(18,12,4,.94)', labelBorder: 'rgba(255,209,102,.5)', labelColor: '#ffe59a'
+      },
+      Standard: {
+        core: '#ffffff', fill: '#d0006f', edge: '#3b001f', border: '#ffffff',
+        ring: 'rgba(208,0,111,.24)', glow: 'rgba(208,0,111,.58)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#d0006f', labelColor: '#3b001f'
+      },
+      Humanitarian: {
+        core: '#ffffff', fill: '#0057ff', edge: '#001d54', border: '#ffffff',
+        ring: 'rgba(0,87,255,.24)', glow: 'rgba(0,87,255,.55)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#0057ff', labelColor: '#001d54'
+      },
+      Topo: {
+        core: '#ffffff', fill: '#d0006f', edge: '#3b001f', border: '#ffffff',
+        ring: 'rgba(208,0,111,.24)', glow: 'rgba(208,0,111,.58)',
+        labelBg: 'rgba(255,255,255,.94)', labelBorder: '#d0006f', labelColor: '#3b001f'
+      }
+    };
+    let currentLayout = 'Tactical';
+
+    function routeStyle() {
+      return {
+        ...(routeStyles[currentLayout] || routeStyles.Tactical),
+        lineJoin: 'round'
+      };
+    }
+
+    function markerStyleVars() {
+      const style = markerStyles[currentLayout] || markerStyles.Tactical;
+      return [
+        `--marker-core:${style.core}`,
+        `--marker-fill:${style.fill}`,
+        `--marker-edge:${style.edge}`,
+        `--marker-border:${style.border}`,
+        `--marker-ring:${style.ring}`,
+        `--marker-glow:${style.glow}`,
+        `--marker-label-bg:${style.labelBg}`,
+        `--marker-label-border:${style.labelBorder}`,
+        `--marker-label-color:${style.labelColor}`
+      ].join(';');
+    }
+
+    function setMapLayout(name) {
+      currentLayout = baseLayers[name] ? name : 'Tactical';
+      for (const cls of Object.values(layoutClasses)) mapEl.classList.remove(cls);
+      mapEl.classList.add(layoutClasses[currentLayout] || layoutClasses.Tactical);
+      localStorage.setItem('meshcore_tracker_map_layout', currentLayout);
+      for (const track of tracks.values()) {
+        track.eachLayer((layer) => layer.setStyle(routeStyle()));
+      }
+      for (const [nodeId, marker] of markers) {
+        const loc = latestLocationByNode.get(nodeId);
+        if (loc) marker.setIcon(trackerIcon(loc));
+      }
+    }
+
     const markers = new Map();
+    const tracks = new Map();
+    const latestLocationByNode = new Map();
+    let latestData = null;
+    let replayMode = false;
+    let replayTimer = null;
+    let replayStart = 0;
+    let replayEnd = 0;
+    let replayCursor = 0;
+    const replayToggle = document.getElementById('replayToggle');
+    const replayPlay = document.getElementById('replayPlay');
+    const replaySlider = document.getElementById('replaySlider');
+    const replayTimeLabel = document.getElementById('replayTime');
+    const replayHint = document.getElementById('replayHint');
+    const initialLayout = baseLayers[savedLayout] ? savedLayout : 'Tactical';
+    setMapLayout(initialLayout);
+    baseLayers[initialLayout].addTo(map);
+    L.control.layers(baseLayers, null, { position: 'bottomleft', collapsed: false }).addTo(map);
+    map.on('baselayerchange', (event) => setMapLayout(event.name));
 
     function fmtAge(seconds) {
       if (seconds < 60) return `${seconds}s`;
@@ -1879,26 +2841,141 @@ def build_location_map_html(base_path: str = "") -> str:
       return `${Math.floor(seconds / 3600)}h`;
     }
 
-    async function refresh() {
-      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
-      const data = await res.json();
-      document.getElementById('summary').textContent = `${data.location_count} tracker node(s)`;
+    function fmtReplayTime(epochSeconds) {
+      if (!epochSeconds) return 'live';
+      return new Date(epochSeconds * 1000).toLocaleString();
+    }
+
+    function pointTime(point) {
+      const value = Number(point.timestamp || point.received_at || 0);
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function fmtNumber(value, decimals = 1) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num.toFixed(decimals) : '';
+    }
+
+    function fmtSpeed(value) {
+      const speed = fmtNumber(value, 1);
+      return speed ? `${speed} km/h` : 'unknown';
+    }
+
+    function fmtHeading(value) {
+      const heading = fmtNumber(value, 0);
+      return heading ? `${heading}&deg;` : 'unknown';
+    }
+
+    function trackerIcon(loc) {
+      const heading = Number(loc.heading_deg);
+      const speed = Number(loc.speed_kmh);
+      const moving = Number.isFinite(speed) && speed >= 1;
+      const rotation = Number.isFinite(heading) ? heading : 0;
+      const labelSpeed = Number.isFinite(speed) ? `${speed.toFixed(0)} km/h` : '';
+      return L.divIcon({
+        className: '',
+        iconSize: [110, 34],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -16],
+        html: `<div style="${markerStyleVars()}">` +
+          `<div class="tracker-icon ${moving ? '' : 'stationary'}" style="transform: rotate(${rotation}deg)"></div>` +
+          `<div class="tracker-label">${escapeHtml(labelSpeed || '0 km/h')} ${Number.isFinite(heading) ? Math.round(heading) + '&deg;' : ''}</div>` +
+          `</div>`
+      });
+    }
+
+    function trackSegments(loc) {
+      const points = Array.isArray(loc.track) ? loc.track : [];
+      const segments = [];
+      let segment = [];
+      for (const point of points) {
+        const lat = Number(point.lat);
+        const lon = Number(point.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        segment.push([lat, lon]);
+        if (point.route_break_after) {
+          if (segment.length) segments.push(segment);
+          segment = [];
+        }
+      }
+      if (segment.length) segments.push(segment);
+      return segments;
+    }
+
+    function trackLatLngs(loc) {
+      return trackSegments(loc).flat();
+    }
+
+    function routeDistanceKm(segments) {
+      let km = 0;
+      for (const latlngs of segments) {
+        for (let i = 1; i < latlngs.length; i++) {
+          km += map.distance(latlngs[i - 1], latlngs[i]) / 1000;
+        }
+      }
+      return km;
+    }
+
+    function fitRenderedLocations(locations) {
+      if (!locations.length || refresh.didFit) return;
+      const bounds = locations.flatMap(loc => {
+        const latlngs = trackLatLngs(loc);
+        return latlngs.length ? latlngs : [[loc.lat, loc.lon]];
+      });
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+      refresh.didFit = true;
+    }
+
+    function renderLocations(locations, labelPrefix = '') {
+      document.getElementById('summary').textContent = `${labelPrefix}${locations.length} tracker node(s)`;
       const seen = new Set();
-      for (const loc of data.locations) {
+      for (const loc of locations) {
         seen.add(loc.node_id);
+        latestLocationByNode.set(loc.node_id, loc);
         const label = loc.name || loc.node_id;
-        const popup = `<strong>${label}</strong><br>` +
-          `Node: ${loc.node_id}<br>` +
+        const segments = trackSegments(loc);
+        const latlngs = segments.flat();
+        const routeKm = routeDistanceKm(segments);
+        const popup = `<strong>${escapeHtml(label)}</strong><br>` +
+          `Node: ${escapeHtml(loc.node_id)}<br>` +
           `Age: ${fmtAge(loc.age_seconds)}<br>` +
+          `Speed: ${fmtSpeed(loc.speed_kmh)}<br>` +
+          `Heading: ${fmtHeading(loc.heading_deg)}<br>` +
+          `Track: ${latlngs.length} point(s), ${routeKm.toFixed(2)} km<br>` +
           `Sats: ${loc.satellites}<br>` +
           `Battery: ${loc.battery_mv} mV<br>` +
           `Alt: ${loc.altitude_m} m`;
+        let track = tracks.get(loc.node_id);
+        const drawableSegments = segments.filter(segment => segment.length >= 2);
+        if (drawableSegments.length) {
+          if (track) {
+            track.remove();
+          }
+          track = L.layerGroup(
+            drawableSegments.map(segment => L.polyline(segment, routeStyle()))
+          ).addTo(map);
+          tracks.set(loc.node_id, track);
+        } else if (track) {
+          track.remove();
+          tracks.delete(loc.node_id);
+        }
         let marker = markers.get(loc.node_id);
         if (!marker) {
-          marker = L.marker([loc.lat, loc.lon]).addTo(map);
+          marker = L.marker([loc.lat, loc.lon], { icon: trackerIcon(loc) }).addTo(map);
           markers.set(loc.node_id, marker);
         } else {
           marker.setLatLng([loc.lat, loc.lon]);
+          marker.setIcon(trackerIcon(loc));
         }
         marker.bindPopup(popup);
       }
@@ -1906,14 +2983,132 @@ def build_location_map_html(base_path: str = "") -> str:
         if (!seen.has(nodeId)) {
           marker.remove();
           markers.delete(nodeId);
+          latestLocationByNode.delete(nodeId);
         }
       }
-      if (data.locations.length && !refresh.didFit) {
-        const bounds = data.locations.map(loc => [loc.lat, loc.lon]);
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
-        refresh.didFit = true;
+      for (const [nodeId, track] of tracks) {
+        if (!seen.has(nodeId)) {
+          track.remove();
+          tracks.delete(nodeId);
+        }
+      }
+      fitRenderedLocations(locations);
+    }
+
+    function updateReplayWindow(data) {
+      replayEnd = Number(data.generated_at || Math.floor(Date.now() / 1000));
+      replayStart = replayEnd - 24 * 60 * 60;
+      if (!replayMode) {
+        replayCursor = replayEnd;
+        replaySlider.value = replaySlider.max;
+        replayTimeLabel.textContent = 'live';
+        replayHint.textContent = 'Live tracking';
       }
     }
+
+    function replayLocationsAt(data, cursor) {
+      const locations = [];
+      for (const loc of data.locations || []) {
+        const points = (Array.isArray(loc.track) ? loc.track : [])
+          .filter(point => {
+            const t = pointTime(point);
+            return t >= replayStart && t <= cursor;
+          });
+        if (!points.length) continue;
+        const last = points[points.length - 1];
+        locations.push({
+          ...loc,
+          ...last,
+          age_seconds: Math.max(0, replayEnd - pointTime(last)),
+          track: points
+        });
+      }
+      return locations;
+    }
+
+    function renderReplay() {
+      if (!latestData) return;
+      const minutes = Number(replaySlider.value);
+      replayCursor = replayStart + minutes * 60;
+      const locations = replayLocationsAt(latestData, replayCursor);
+      renderLocations(locations, 'Replay: ');
+      replayTimeLabel.textContent = fmtReplayTime(replayCursor);
+      replayHint.textContent = `Last 24h replay | ${locations.length} active`;
+    }
+
+    function stopReplay() {
+      replayMode = false;
+      if (replayTimer) {
+        clearInterval(replayTimer);
+        replayTimer = null;
+      }
+      replayToggle.textContent = 'Replay 24h';
+      replayPlay.textContent = 'Play';
+      replaySlider.value = replaySlider.max;
+      replayTimeLabel.textContent = 'live';
+      replayHint.textContent = 'Live tracking';
+      if (latestData) renderLocations(latestData.locations || []);
+    }
+
+    function pauseReplayPlayback() {
+      if (replayTimer) clearInterval(replayTimer);
+      replayTimer = null;
+      replayPlay.textContent = 'Play';
+    }
+
+    function playReplayFromCurrent() {
+      if (!latestData) return;
+      replayMode = true;
+      replayToggle.textContent = 'Live';
+      pauseReplayPlayback();
+      replayPlay.textContent = 'Pause';
+      replayTimer = setInterval(() => {
+        let next = Number(replaySlider.value) + 5;
+        if (next > Number(replaySlider.max)) next = 0;
+        replaySlider.value = next;
+        renderReplay();
+      }, 700);
+    }
+
+    function startReplay() {
+      if (!latestData) return;
+      replayMode = true;
+      replayToggle.textContent = 'Live';
+      replaySlider.value = 0;
+      renderReplay();
+      playReplayFromCurrent();
+    }
+
+    async function refresh() {
+      const res = await fetch('__LOCATIONS_URL__', { cache: 'no-store' });
+      const data = await res.json();
+      latestData = data;
+      updateReplayWindow(data);
+      if (replayMode) renderReplay();
+      else renderLocations(data.locations || []);
+    }
+
+    replayToggle.addEventListener('click', () => {
+      if (replayMode) stopReplay();
+      else startReplay();
+    });
+    replayPlay.addEventListener('click', () => {
+      if (!replayMode) {
+        replayMode = true;
+        replayToggle.textContent = 'Live';
+        renderReplay();
+      }
+      if (replayTimer) pauseReplayPlayback();
+      else playReplayFromCurrent();
+    });
+    replaySlider.addEventListener('input', () => {
+      if (!replayMode) {
+        replayMode = true;
+        replayToggle.textContent = 'Live';
+      }
+      pauseReplayPlayback();
+      renderReplay();
+    });
 
     refresh();
     setInterval(refresh, 10000);
@@ -1954,6 +3149,30 @@ def find_client(client_id: str) -> BridgeClient | None:
     return None
 
 
+PATH_BLOCK_RE = re.compile(r"^[0-9a-fA-F]{2}(?:/[0-9a-fA-F]{2}){0,2}$|^[0-9a-fA-F]{4}(?:/[0-9a-fA-F]{4}){0,2}$|^[0-9a-fA-F]{6}(?:/[0-9a-fA-F]{6}){0,2}$")
+PATH_BLOCK_DURATION_RE = re.compile(r"^[1-9][0-9]*(?:[mhd])?$")
+
+
+def build_path_block_command(form: dict[str, list[str]]) -> str:
+    action = (form.get("path_action") or [""])[0].strip().lower()
+    path = (form.get("path_block") or [""])[0].strip()
+    duration = (form.get("path_duration") or [""])[0].strip().lower()
+
+    if action == "get":
+        return "get path.block"
+    if action == "clear":
+        return "clear path.block"
+    if action not in ("add", "del"):
+        raise ValueError("invalid path.block action")
+    if not PATH_BLOCK_RE.fullmatch(path):
+        raise ValueError("path must be aa, aa/bb, aa/bb/cc, or same-width 2/3-byte hops")
+    if action == "del":
+        return f"set path.block del {path}"
+    if duration and not PATH_BLOCK_DURATION_RE.fullmatch(duration):
+        raise ValueError("duration must be seconds, Nm, Nh, or Nd")
+    return f"set path.block add {path}" + (f" {duration}" if duration else "")
+
+
 async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     try:
         request_line = await reader.readline()
@@ -1985,22 +3204,58 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                 target = (form.get("target") or [""])[0]
                 node_password = (form.get("node_password") or [""])[0]
                 command = (form.get("command") or [""])[0].strip()
+                mode = (form.get("mode") or [""])[0].strip()
                 client = find_client(target)
-                if client is None:
-                    result = "Error: selected bridge node is no longer connected"
-                elif not command:
-                    result = "Error: empty command"
-                elif not node_password:
-                    result = "Error: node admin password required"
+                if mode == "path_block":
+                    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
+                        result = "Error: path quarantine admin is disabled"
+                    else:
+                        try:
+                            command = build_path_block_command(form)
+                            if target == "__all__":
+                                targets = sorted(list(connected_clients), key=lambda c: (c.display_name.lower(), c.client_id))
+                                if not targets:
+                                    result = "Error: no bridge nodes connected"
+                                else:
+                                    async def send_path_block(client: BridgeClient) -> str:
+                                        try:
+                                            reply = await client.send_command(command, "")
+                                            log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
+                                            return f"{client.display_name}> {command}\n{reply}"
+                                        except asyncio.TimeoutError:
+                                            log.warning("%s: path quarantine command timed out", client.addr)
+                                            return f"{client.display_name}> {command}\nError: command timed out waiting for bridge reply"
+                                        except Exception as exc:
+                                            return f"{client.display_name}> {command}\nError: {exc}"
+
+                                    result = "\n\n".join(await asyncio.gather(*(send_path_block(c) for c in targets)))
+                            elif client is None:
+                                result = "Error: selected bridge node is no longer connected"
+                            else:
+                                reply = await client.send_command(command, "")
+                                result = f"{client.display_name}> {command}\n{reply}"
+                                log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
+                        except asyncio.TimeoutError:
+                            log.warning("%s: path quarantine command timed out", client.addr)
+                            result = "Error: command timed out waiting for bridge reply"
+                        except Exception as exc:
+                            result = f"Error: {exc}"
                 else:
-                    try:
-                        reply = await client.send_command(command, node_password)
-                        result = f"{client.display_name}> {command}\n{reply}"
-                    except asyncio.TimeoutError:
-                        log.warning("%s: remote command timed out: %s", client.addr, command)
-                        result = "Error: command timed out waiting for bridge reply"
-                    except Exception as exc:
-                        result = f"Error: {exc}"
+                    if client is None:
+                        result = "Error: selected bridge node is no longer connected"
+                    elif not command:
+                        result = "Error: empty command"
+                    elif not node_password:
+                        result = "Error: node admin password required"
+                    else:
+                        try:
+                            reply = await client.send_command(command, node_password)
+                            result = f"{client.display_name}> {command}\n{reply}"
+                        except asyncio.TimeoutError:
+                            log.warning("%s: remote command timed out: %s", client.addr, command)
+                            result = "Error: command timed out waiting for bridge reply"
+                        except Exception as exc:
+                            result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
                 body = build_manage_html(result, base_path).encode("utf-8")
         elif method != "GET":
@@ -2104,12 +3359,26 @@ if __name__ == "__main__":
                         help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
     parser.add_argument("--public-channels-file", default="",
                         help="JSON file with public channel names/secrets for optional group packet decoding")
+    parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
+                        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)")
+    parser.add_argument("--transport-rate-limit", choices=("on", "off"), default="on",
+                        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)")
+    parser.add_argument("--transport-rate-max", type=int, default=TRANSPORT_RATE_LIMIT_MAX,
+                        help="Max transport packets per bridge client per window (default: 20)")
+    parser.add_argument("--transport-rate-window", type=int, default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+                        help="Per-client transport rate window in seconds (default: 120)")
+    parser.add_argument("--transport-global-rate-max", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+                        help="Max transport packets globally per window, 0 disables global cap (default: 80)")
+    parser.add_argument("--transport-global-rate-window", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+                        help="Global transport rate window in seconds (default: 120)")
     parser.add_argument("--replace-same-ip", action="store_true",
                         help="When a new client connects, disconnect older clients from the same IP")
     parser.add_argument("--password", default="",
                         help="Optional TCP bridge password required from clients")
     parser.add_argument("--admin-password", default="",
                         help="Optional Basic auth password protecting the HTTP remote management page")
+    parser.add_argument("--allow-path-block-admin", action="store_true",
+                        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords")
     parser.add_argument("--verbose", action="store_true",
                         help="Enable debug logging")
     args = parser.parse_args()
@@ -2123,9 +3392,17 @@ if __name__ == "__main__":
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
+    ALLOW_PATH_BLOCK_ADMIN = args.allow_path_block_admin
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     PUBLIC_CHANNELS_FILE = args.public_channels_file
+    LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
+    TRANSPORT_RATE_LIMIT_ENABLE = args.transport_rate_limit == "on"
+    TRANSPORT_RATE_LIMIT_MAX = max(0, args.transport_rate_max)
+    TRANSPORT_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_rate_window)
+    TRANSPORT_GLOBAL_RATE_LIMIT_MAX = max(0, args.transport_global_rate_max)
+    TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_global_rate_window)
     load_public_channels(PUBLIC_CHANNELS_FILE)
+    load_location_tracks()
 
     try:
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))

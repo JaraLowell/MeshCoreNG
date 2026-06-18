@@ -583,6 +583,222 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
   return n >= max_counters[hash_size];
 }
 
+static bool parseDurationSeconds(const char* text, uint32_t* seconds) {
+  if (text == NULL || *text == 0) {
+    *seconds = 3600;
+    return true;
+  }
+
+  char* end = NULL;
+  unsigned long value = strtoul(text, &end, 10);
+  if (end == text || value == 0) return false;
+
+  if (*end == 'm' && end[1] == 0) value *= 60UL;
+  else if (*end == 'h' && end[1] == 0) value *= 3600UL;
+  else if (*end == 'd' && end[1] == 0) value *= 86400UL;
+  else if (*end != 0) return false;
+
+  if (value > 86400UL * 7UL) value = 86400UL * 7UL;
+  *seconds = (uint32_t)value;
+  return true;
+}
+
+void MyMesh::clearExpiredPathBlocks() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+    if (path_blocks[i].hop_count > 0 && path_blocks[i].expires_at != 0 && path_blocks[i].expires_at <= now) {
+      memset(&path_blocks[i], 0, sizeof(path_blocks[i]));
+    }
+  }
+}
+
+bool MyMesh::parsePathBlockSpec(const char* spec, PathBlockEntry* entry) const {
+  memset(entry, 0, sizeof(*entry));
+  if (spec == NULL || *spec == 0) return false;
+
+  uint8_t hash_size = 0;
+  uint8_t hop_count = 0;
+  const char* pos = spec;
+
+  while (*pos != 0) {
+    if (hop_count >= PATH_BLOCK_MAX_HOPS) return false;
+
+    const char* slash = strchr(pos, '/');
+    size_t hex_len = slash ? (size_t)(slash - pos) : strlen(pos);
+    if (hex_len != 2 && hex_len != 4 && hex_len != 6) return false;
+
+    uint8_t this_hash_size = hex_len / 2;
+    if (hash_size == 0) {
+      hash_size = this_hash_size;
+    } else if (this_hash_size != hash_size) {
+      return false;
+    }
+
+    char hex[7];
+    memcpy(hex, pos, hex_len);
+    hex[hex_len] = 0;
+    for (size_t i = 0; i < hex_len; i++) {
+      if (!mesh::Utils::isHexChar(hex[i])) return false;
+    }
+    if (!mesh::Utils::fromHex(&entry->path[hop_count * PATH_BLOCK_MAX_HASH_SIZE], hash_size, hex)) return false;
+
+    hop_count++;
+    if (!slash) break;
+    pos = slash + 1;
+    if (*pos == 0) return false;
+  }
+
+  entry->hash_size = hash_size;
+  entry->hop_count = hop_count;
+  return hop_count > 0;
+}
+
+bool MyMesh::pathBlockMatches(const mesh::Packet* packet, const PathBlockEntry& entry) const {
+  if (entry.hop_count == 0) return false;
+  if (!packet->isRouteFlood()) return false;
+  if (packet->getPathHashSize() != entry.hash_size) return false;
+  if (packet->getPathHashCount() < entry.hop_count) return false;
+
+  uint8_t packet_hops = packet->getPathHashCount();
+  uint8_t hash_size = packet->getPathHashSize();
+  for (uint8_t start = 0; start + entry.hop_count <= packet_hops; start++) {
+    bool match = true;
+    for (uint8_t hop = 0; hop < entry.hop_count; hop++) {
+      const uint8_t* packet_hash = &packet->path[(start + hop) * hash_size];
+      const uint8_t* block_hash = &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE];
+      if (memcmp(packet_hash, block_hash, hash_size) != 0) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+bool MyMesh::shouldBlockPath(const mesh::Packet* packet) {
+  clearExpiredPathBlocks();
+  for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+    if (pathBlockMatches(packet, path_blocks[i])) {
+      path_blocks[i].drops++;
+      MESH_DEBUG_PRINTLN("allowPacketForward: path.block matched entry=%d", i);
+      return true;
+    }
+  }
+  return false;
+}
+
+void MyMesh::formatPathBlocksReply(char* reply) {
+  clearExpiredPathBlocks();
+  uint32_t now = getRTCClock()->getCurrentTime();
+  strcpy(reply, "> ");
+  size_t used = 2;
+  bool any = false;
+
+  for (int i = 0; i < MAX_PATH_BLOCKS && used < 150; i++) {
+    const PathBlockEntry& entry = path_blocks[i];
+    if (entry.hop_count == 0) continue;
+
+    if (any && used < 158) reply[used++] = ';';
+    if (any && used < 158) reply[used++] = ' ';
+    any = true;
+
+    for (uint8_t hop = 0; hop < entry.hop_count && used < 150; hop++) {
+      if (hop > 0 && used < 158) reply[used++] = '/';
+      mesh::Utils::toHex(&reply[used], &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE], entry.hash_size);
+      used += entry.hash_size * 2;
+    }
+
+    uint32_t ttl = entry.expires_at > now ? entry.expires_at - now : 0;
+    used += snprintf(&reply[used], 160 - used, " %lus %lu", (unsigned long)ttl, (unsigned long)entry.drops);
+  }
+
+  if (!any) {
+    strcpy(reply, "> empty");
+  } else {
+    if (used > 159) used = 159;
+    reply[used] = 0;
+  }
+}
+
+void MyMesh::handlePathBlockCommand(char* command, char* reply) {
+  clearExpiredPathBlocks();
+
+  if (strcmp(command, "get path.block") == 0) {
+    formatPathBlocksReply(reply);
+    return;
+  }
+
+  if (strcmp(command, "clear path.block") == 0 || strcmp(command, "set path.block clear") == 0) {
+    memset(path_blocks, 0, sizeof(path_blocks));
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set path.block add ", 19) == 0) {
+    char* spec = &command[19];
+    char* ttl_text = strchr(spec, ' ');
+    if (ttl_text) {
+      *ttl_text++ = 0;
+      while (*ttl_text == ' ') ttl_text++;
+    }
+
+    PathBlockEntry entry;
+    uint32_t ttl_secs;
+    if (!parsePathBlockSpec(spec, &entry)) {
+      strcpy(reply, "Error: expected aa, aa/bb, or aa/bb/cc");
+      return;
+    }
+    if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
+      strcpy(reply, "Error: duration must be seconds, Nm, Nh, or Nd");
+      return;
+    }
+
+    int slot = -1;
+    for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+      if (path_blocks[i].hop_count == 0 && slot < 0) slot = i;
+      if (path_blocks[i].hop_count == entry.hop_count
+          && path_blocks[i].hash_size == entry.hash_size
+          && memcmp(path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+        slot = i;
+        break;
+      }
+    }
+
+    if (slot < 0) {
+      strcpy(reply, "Error: path.block list full");
+      return;
+    }
+
+    entry.expires_at = getRTCClock()->getCurrentTime() + ttl_secs;
+    path_blocks[slot] = entry;
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set path.block del ", 19) == 0) {
+    PathBlockEntry entry;
+    if (!parsePathBlockSpec(&command[19], &entry)) {
+      strcpy(reply, "Error: expected aa, aa/bb, or aa/bb/cc");
+      return;
+    }
+
+    for (int i = 0; i < MAX_PATH_BLOCKS; i++) {
+      if (path_blocks[i].hop_count == entry.hop_count
+          && path_blocks[i].hash_size == entry.hash_size
+          && memcmp(path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+        memset(&path_blocks[i], 0, sizeof(path_blocks[i]));
+        strcpy(reply, "OK");
+        return;
+      }
+    }
+    strcpy(reply, "Error: not found");
+    return;
+  }
+
+  strcpy(reply, "Error: use get path.block, clear path.block, set path.block add/del");
+}
+
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
   if (recv_pkt_region && !recv_pkt_region->isWildcard()) {  // if _request_ packet scope is known, send reply with same scope
     TransportKey scope;
@@ -605,10 +821,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       MESH_DEBUG_PRINTLN("allowPacketForward: bridge RF forwarding is off");
       return false;
     }
-    if (_prefs.bridge_rf == BRIDGE_RF_FLOOD) {
-      if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
-      return true;
-    }
+  }
+
+  if (shouldBlockPath(packet)) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    recordDenseSuppressedTx();
+    return false;
+  }
+
+  if (is_bridge_flood && _prefs.bridge_rf == BRIDGE_RF_FLOOD) {
+    if (is_flood_advert) dense_stats.n_fwd_flood_adverts++;
+    return true;
   }
 
   if (_prefs.disable_fwd) {
@@ -680,6 +903,10 @@ const char *MyMesh::getLogDateTime() {
 }
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
+#ifdef WITH_MQTT_BRIDGE
+  // Capture raw radio bytes + real SNR/RSSI for the MQTT bridge (packets/raw uplink).
+  if (mqtt_bridge) mqtt_bridge->storeRawRadioData(raw, len, snr, rssi);
+#endif
 #if MESH_PACKET_LOGGING
   Serial.print(getLogDateTime());
   Serial.print(" RAW: ");
@@ -689,7 +916,11 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
-#ifdef WITH_BRIDGE
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed RX packets — the bridge decides based on mqtt.rx.
+  if (mqtt_bridge) mqtt_bridge->sendPacket(pkt);
+#endif
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_pkt_src == 1 || _prefs.bridge_pkt_src == 2) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.sendPacket(pkt);
@@ -720,7 +951,11 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 }
 
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
-#ifdef WITH_BRIDGE
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed TX packets — the bridge decides based on mqtt.tx (on/advert/off).
+  if (mqtt_bridge) mqtt_bridge->sendPacket(pkt);
+#endif
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_pkt_src == 0 || _prefs.bridge_pkt_src == 2) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.sendPacket(pkt);
@@ -1281,6 +1516,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 {
+#if defined(WITH_MQTT_BRIDGE) || defined(WITH_SNMP)
+  _board_ref = &board;
+#endif
   last_millis = 0;
   uptime_millis = 0;
   next_daily_reboot_uptime_ms = 0;
@@ -1290,6 +1528,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  memset(path_blocks, 0, sizeof(path_blocks));
   clearDenseStatsLocked();
   clearSpamStatsLocked();
   clearPowerStats();
@@ -1363,9 +1602,33 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
   _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
   _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
-  StrHelper::strncpy(_prefs.ntp_server, "pool.ntp.org", sizeof(_prefs.ntp_server));
+  StrHelper::strncpy(_prefs.ntp_server, "nl.pool.ntp.org", sizeof(_prefs.ntp_server));
   _prefs.ntp_enabled = 1;
   _prefs.ntp_interval_secs = 3600;
+
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT observer tuning. Slot/IATA/timezone defaults come from /mqtt_prefs (setMQTTPrefsDefaults);
+  // these are NodePrefs fallbacks until that file is loaded/synced.
+  _prefs.agc_reset_interval = 7;      // 28s (secs/4) — avoid AGC drift on long-running observers
+  _prefs.bridge_enabled = 1;          // MQTT bridge self-gates on WiFi/MQTT config
+  _prefs.bridge_pkt_src = 1;          // logRx
+  _prefs.mqtt_origin[0] = '\0';
+  _prefs.mqtt_status_enabled = 1;
+  _prefs.mqtt_packets_enabled = 1;
+  _prefs.mqtt_raw_enabled = 0;
+  _prefs.mqtt_tx_enabled = 2;         // advert only
+  _prefs.mqtt_rx_enabled = 1;
+  _prefs.mqtt_status_interval = 300000;
+  _prefs.wifi_power_save = 1;         // none
+  StrHelper::strncpy(_prefs.timezone_string, "Europe/Amsterdam", sizeof(_prefs.timezone_string));
+  _prefs.timezone_offset = 1;
+  StrHelper::strncpy(_prefs.mqtt_slot_preset[0], "dutchmeshcore-1", sizeof(_prefs.mqtt_slot_preset[0]));
+  StrHelper::strncpy(_prefs.mqtt_slot_preset[1], "dutchmeshcore-2", sizeof(_prefs.mqtt_slot_preset[1]));
+  for (int i = 2; i < MAX_MQTT_SLOTS; i++)
+    StrHelper::strncpy(_prefs.mqtt_slot_preset[i], "none", sizeof(_prefs.mqtt_slot_preset[i]));
+  _prefs.snmp_enabled = 0;
+  StrHelper::strncpy(_prefs.snmp_community, "public", sizeof(_prefs.snmp_community));
+#endif
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -1415,7 +1678,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
     }
   }
 
-#if defined(WITH_BRIDGE)
+  // Start the primary (non-MQTT) bridge first so it can bring up WiFi before MQTT piggybacks.
+#if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   if (_prefs.bridge_enabled) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     configureTcpBridgeNodeIds();
@@ -1430,6 +1694,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
     bridge.begin();
 #endif
   }
+#endif
+#if defined(WITH_MQTT_BRIDGE)
+  // The MQTT bridge always starts (it self-gates on WiFi/MQTT config); construction is deferred
+  // to startMqttBridge() which heap-allocates it and wires metadata. When a TCP bridge is also
+  // present it owns WiFi and MQTT runs in external-WiFi mode.
+  startMqttBridge();
 #endif
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -1810,8 +2080,10 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 void MyMesh::configureTcpBridgeNodeIds() {
 #if defined(WITH_BLE_BRIDGE)
   tcp_bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
+  tcp_bridge.setSelfHash(self_id.pub_key);
 #else
   bridge.setNodeId(self_id.pub_key, PUB_KEY_SIZE);
+  bridge.setSelfHash(self_id.pub_key);
 #endif
 }
 #endif
@@ -1885,6 +2157,15 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     memcpy(reply, command, 3);                    // reflect the prefix back
     reply += 3;
     command += 3;
+  }
+
+  if (strcmp(command, "get path.block") == 0
+      || strcmp(command, "clear path.block") == 0
+      || strcmp(command, "set path.block clear") == 0
+      || memcmp(command, "set path.block add ", 19) == 0
+      || memcmp(command, "set path.block del ", 19) == 0) {
+    handlePathBlockCommand(command, reply);
+    return;
   }
 
   // handle ACL related commands
@@ -1965,11 +2246,20 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 }
 
 #if defined(WITH_TCP_BRIDGE)
+static bool isPasswordlessTcpPathBlockCommand(const char *command) {
+  return strcmp(command, "get path.block") == 0
+      || strcmp(command, "clear path.block") == 0
+      || strcmp(command, "set path.block clear") == 0
+      || memcmp(command, "set path.block add ", 19) == 0
+      || memcmp(command, "set path.block del ", 19) == 0;
+}
+
 void MyMesh::handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) {
   char local_command[96];
   char local_reply[768];
 
-  if (strcmp(password, _prefs.password) != 0) {
+  bool passwordless_path_block = (password == NULL || password[0] == 0) && isPasswordlessTcpPathBlockCommand(command);
+  if (!passwordless_path_block && (password == NULL || strcmp(password, _prefs.password) != 0)) {
     if (reply_size > 0) {
       strncpy(reply, "Error: invalid node admin password", reply_size);
       reply[reply_size - 1] = 0;
@@ -2024,12 +2314,51 @@ void MyMesh::checkDailyReboot() {
 }
 
 void MyMesh::loop() {
-#ifdef WITH_BRIDGE
+  // Primary (non-MQTT) bridge needs pumping from the main loop.
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+  {
+    uint32_t max_tx_budget = getMaxTxBudget();
+    uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
+    uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
+    tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
+                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+  }
   tcp_bridge.loop();
   ble_bridge.loop();
-#else
+  if (tcp_bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
+#elif defined(WITH_TCP_BRIDGE)
+  {
+    uint32_t max_tx_budget = getMaxTxBudget();
+    uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
+    uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
+    bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
+                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+  }
   bridge.loop();
+  if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
+#elif defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+  bridge.loop();
+  if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge runs in its own FreeRTOS task; nothing to pump from here.
+#ifdef WITH_SNMP
+  if (_snmp_agent.isRunning()) {
+    static unsigned long last_snmp_stats = 0;
+    unsigned long now_ms = millis();
+    if (now_ms - last_snmp_stats >= 2000) {
+      last_snmp_stats = now_ms;
+      _snmp_agent.updateRadioStats(
+        radio_driver.getPacketsRecv(), radio_driver.getPacketsSent(),
+        radio_driver.getPacketsRecvErrors(),
+        (int16_t)_radio->getNoiseFloor(),
+        (int16_t)radio_driver.getLastRSSI(),
+        (int16_t)(radio_driver.getLastSNR() * 4),
+        getNumSentFlood(), getNumSentDirect(),
+        getNumRecvFlood(), getNumRecvDirect(),
+        getTotalAirTime() / 1000, uptime_millis / 1000);
+    }
+  }
 #endif
 #endif
 
@@ -2076,15 +2405,16 @@ void MyMesh::loop() {
 }
 
 bool MyMesh::isBridgeActive() const {
-#if defined(WITH_BRIDGE)
+  bool active = false;
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
-  return tcp_bridge.isRunning() || ble_bridge.isRunning();
-#else
-  return bridge.isRunning();
+  active = active || tcp_bridge.isRunning() || ble_bridge.isRunning();
+#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+  active = active || bridge.isRunning();
 #endif
-#else
-  return false;
+#ifdef WITH_MQTT_BRIDGE
+  active = active || (mqtt_bridge && mqtt_bridge->isRunning());
 #endif
+  return active;
 }
 
 bool MyMesh::hasOutboundWork() const {

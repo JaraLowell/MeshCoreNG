@@ -166,6 +166,9 @@ private:
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
+#if GPS_FORCE_ENABLED
+    _prefs.gps_enabled = 1;
+#endif
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
   }
 #endif

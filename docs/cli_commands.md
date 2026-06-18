@@ -731,6 +731,35 @@ On ESP32 boards with supported LoRa DIO1 wake wiring, sleep can wake by LoRa RX 
 
 ---
 
+#### Temporarily block flood forwarding by packet path
+**Usage:**
+- `get path.block`
+- `set path.block add <path> [duration]`
+- `set path.block del <path>`
+- `clear path.block`
+- `set path.block clear`
+
+**Parameters:**
+- `path`: one, two, or three consecutive path hops, separated by `/`
+  - `aa`: match any flood packet whose path contains hop `aa`
+  - `aa/bb`: match any flood packet whose path contains hop `aa` followed by `bb`
+  - `aa/bb/cc`: match any flood packet whose path contains that three-hop sequence
+- `duration`: optional temporary block duration. Use seconds, `Nm`, `Nh`, or `Nd`. Default is `1h`; maximum is 7 days.
+
+**Examples:**
+```text
+set path.block add aa 15m
+set path.block add aa/bb 1h
+set path.block add aa/bb/cc 6h
+set path.block del aa/bb
+get path.block
+clear path.block
+```
+
+**Note:** This is a runtime quarantine list for repeaters. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+
+---
+
 #### View or change this node's loop detection
 **Usage:**
 - `get loop.detect`
@@ -1527,6 +1556,16 @@ The TCP bridge connects bridge-capable repeaters to a selected bridge server. Us
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
+Optional web-admin path quarantine on `/manage`:
+
+```bash
+python3 tools/tcp_bridge_server.py --port 4200 \
+  --admin-password webAdminSecret \
+  --allow-path-block-admin
+```
+
+This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
+
 **2. Configure each intended bridge repeater via CLI:**
 ```
 set wifi.ssid     YourWiFi
@@ -1628,7 +1667,7 @@ In `local`/`ttl1` mode, packets received from the bridge are transmitted once by
   - `channels`: export only channel/group flood packets selected by `bridge.source`
   - `messages`: export DM/chat-related packets and channel/group packets selected by `bridge.source`
 
-`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision without adding a TCP bridge hop to the MeshCore packet path.
+`bridge.export` is applied after `bridge.source`. This lets the bridge export RF RX packets independently from the local RF retransmit decision. When a flood packet is exported over the TCP bridge, the exporting bridge-repeater adds its own node hash to the MeshCore packet path if it is not already present and the path still has room.
 
 **Default:** `all`
 
@@ -1656,7 +1695,7 @@ This is useful for RF island bridges where channel packets heard from several RF
 **Parameters:**
 - `ttl`: TCP bridge envelope TTL, from `1` to `8`.
 
-The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. The MeshCore route/path is not modified.
+The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. RF flood packets exported to TCP also carry the exporting bridge-repeater in the MeshCore path, using the packet's existing path hash size and avoiding duplicate entries.
 
 **Default:** `2`
 
@@ -1832,11 +1871,11 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 - `set ntp.interval <seconds>`
 
 **Parameters:**
-- `state`: `on`|`off`
-- `host`: NTP server hostname, default `pool.ntp.org`
-- `seconds`: refresh interval from 300 to 86400 seconds
+- `state`: `on`|`off`; accepted for compatibility, but NTP remains enabled
+- `host`: NTP server hostname, default `nl.pool.ntp.org`
+- `seconds`: accepted from 300 to 86400 seconds for compatibility, but the refresh interval remains fixed at 3600 seconds
 
-When enabled, the TCP bridge syncs the firmware RTC after WiFi connects and refreshes it periodically while the bridge is running. `get wifi.status` shows `NTP: synced`, `not synced`, or `disabled`.
+The TCP bridge syncs the firmware RTC immediately after WiFi connects and refreshes it every hour. It uses the configured server with `pool.ntp.org` and `time.google.com` as fallbacks. `get ntp.enabled` always reports `on`; `get wifi.status` shows `NTP: synced` or `not synced`.
 
 ---
 

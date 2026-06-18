@@ -25,6 +25,18 @@ Om een bridge-wachtwoord voor TCP-clients te vereisen:
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
+De server start standaard ook een statuspagina:
+
+```text
+http://localhost:8080/
+```
+
+Open die pagina op de server zelf, of vervang `localhost` door het IP-adres van de server vanaf een andere machine op hetzelfde netwerk. De pagina toont online en recent geziene bridge-nodes, firmwareversie, heartbeat-status, packet counters en RF dutycycle-budgetverbruik.
+
+De statuspagina houdt per bekende bridge-node een 24-uurs verkeersvenster in geheugen bij. `RX 24h` en `TX 24h` tonen het aantal ontvangen en verzonden packets per node in de laatste 24 uur. Nodes die disconnecten blijven als `offline` zichtbaar zolang ze nog packet-history binnen dat 24-uurs venster hebben. Deze tellers beginnen opnieuw als het Python bridge-serverproces opnieuw start.
+
+De tegel `Duty this hour` toont hoeveel procent van het toegestane RF TX dutycycle-uurbudget van die node is gebruikt. `0%` betekent dat er geen RF TX-budget is gebruikt. `100%` betekent dat het volledige ingestelde uurbudget is gebruikt. Bij `set dutycycle 10` is het RF TX-budget 10% van een uur, dus 360 seconden. Dan betekent `50%` dat 180 seconden RF TX zijn gebruikt, en `100%` dat 360 seconden zijn gebruikt. Oudere bridge firmware die deze RF duty-telemetry nog niet meestuurt toont deze tegel als niet beschikbaar tot de repeater is bijgewerkt.
+
 Voor testen en monitoren kun je de server starten met statusregels en heartbeat-timeout:
 
 ```bash

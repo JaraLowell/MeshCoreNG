@@ -6,6 +6,9 @@
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
 #include <helpers/Atlas.h>
+#ifdef WITH_MQTT_BRIDGE
+#include <helpers/MQTTPresets.h>  // For MAX_MQTT_SLOTS (used in NodePrefs/MQTTPrefs struct layout)
+#endif
 #ifndef WITH_DUTCH_REGION_DB
 #define WITH_DUTCH_REGION_DB 0
 #endif
@@ -13,7 +16,7 @@
 #include <helpers/DutchRegionDb.h>
 #endif
 
-#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE) || defined(WITH_BLE_BRIDGE)
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_TCP_BRIDGE) || defined(WITH_BLE_BRIDGE) || defined(WITH_MQTT_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
@@ -96,11 +99,11 @@ struct NodePrefs { // persisted to file
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
   uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
-  // TCP flood protection settings
-  uint8_t tcp_flood_limit_enable; // enable TCP bridge flood protection
+  // TCP bridge rate-limit settings (CLI keeps tcp.flood.* names for compatibility)
+  uint8_t tcp_flood_limit_enable; // enable TCP bridge rate limiting
   uint16_t tcp_flood_max_packets; // max packets allowed in time window (general/legacy)
   uint16_t tcp_flood_window_secs; // time window in seconds (e.g., 600 = 10 min)
-  // Selective flood protection per packet category
+  // Selective rate limiting per packet category
   uint16_t tcp_flood_transport_max; // max transport/message packets (DMs, group msgs)
   uint16_t tcp_flood_transport_window; // transport time window in seconds
   uint16_t tcp_flood_control_max; // max control/admin packets (0 = bypass)
@@ -122,7 +125,130 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
   uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
   uint8_t bridge_profile;         // 0=default, 1=island, 2=repeater
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge settings — mirrored in memory from the separate /mqtt_prefs file so the
+  // bridge can read everything from NodePrefs. Appended at the end of NodePrefs so the main
+  // prefs file layout for non-MQTT builds is unaffected.
+  char mqtt_origin[32];          // Device name for MQTT topics
+  char mqtt_iata[8];             // IATA code for MQTT topics
+  uint8_t mqtt_status_enabled;   // Enable status messages
+  uint8_t mqtt_packets_enabled;  // Enable packet messages
+  uint8_t mqtt_raw_enabled;      // Enable raw messages
+  uint8_t mqtt_tx_enabled;       // TX packet uplinking: 0=off, 1=all, 2=advert (self-originated only)
+  uint32_t mqtt_status_interval; // Status publish interval (ms)
+  uint8_t mqtt_rx_enabled;       // Enable RX packet uplinking (default: on)
+  uint8_t wifi_power_save;       // WiFi power save mode: 0=min, 1=none, 2=max (default: 1=none)
+  char timezone_string[32];      // Timezone string (e.g., "America/Los_Angeles")
+  int8_t timezone_offset;        // Timezone offset in hours (-12 to +14) - fallback
+  char mqtt_slot_preset[MAX_MQTT_SLOTS][24];   // e.g. "analyzer-us", "meshmapper", "custom", "none"
+  char mqtt_slot_host[MAX_MQTT_SLOTS][64];     // custom broker host (preset == "custom")
+  uint16_t mqtt_slot_port[MAX_MQTT_SLOTS];     // custom broker port
+  char mqtt_slot_username[MAX_MQTT_SLOTS][32]; // per-slot username
+  char mqtt_slot_password[MAX_MQTT_SLOTS][64]; // per-slot password
+  char mqtt_owner_public_key[65];              // Owner public key (hex string)
+  char mqtt_email[64];                         // Owner email address
+  char mqtt_slot_token[MAX_MQTT_SLOTS][48];    // Per-slot token (e.g., MeshRank account token)
+  char mqtt_slot_topic[MAX_MQTT_SLOTS][96];    // Per-slot custom topic template (custom preset only)
+  char mqtt_slot_audience[MAX_MQTT_SLOTS][64]; // JWT audience (non-empty enables JWT auth for custom slots)
+  uint8_t snmp_enabled;          // SNMP agent: 0=off, 1=on (only used when WITH_SNMP)
+  char snmp_community[24];        // SNMP community string (default "public")
+#endif
 };
+
+#ifdef WITH_MQTT_BRIDGE
+// Old MQTT preferences layout (pre-slot firmware) — used only for migration detection
+struct OldMQTTPrefs {
+  char mqtt_origin[32];
+  char mqtt_iata[8];
+  uint8_t mqtt_status_enabled;
+  uint8_t mqtt_packets_enabled;
+  uint8_t mqtt_raw_enabled;
+  uint8_t mqtt_tx_enabled;
+  uint32_t mqtt_status_interval;
+  char wifi_ssid[32];
+  char wifi_password[64];
+  uint8_t wifi_power_save;
+  char timezone_string[32];
+  int8_t timezone_offset;
+  char mqtt_server[64];
+  uint16_t mqtt_port;
+  char mqtt_username[32];
+  char mqtt_password[64];
+  uint8_t mqtt_analyzer_us_enabled;
+  uint8_t mqtt_analyzer_eu_enabled;
+  char mqtt_owner_public_key[65];
+  char mqtt_email[64];
+};
+
+// MQTT preferences stored in a separate file to avoid conflicts with upstream NodePrefs changes
+struct MQTTPrefs {
+  char mqtt_origin[32];
+  char mqtt_iata[8];
+  uint8_t mqtt_status_enabled;
+  uint8_t mqtt_packets_enabled;
+  uint8_t mqtt_raw_enabled;
+  uint8_t mqtt_tx_enabled;
+  uint32_t mqtt_status_interval;
+  char wifi_ssid[32];
+  char wifi_password[64];
+  uint8_t wifi_power_save;
+  char timezone_string[32];
+  int8_t timezone_offset;
+  char mqtt_slot_preset[MAX_MQTT_SLOTS][24];
+  char mqtt_slot_host[MAX_MQTT_SLOTS][64];
+  uint16_t mqtt_slot_port[MAX_MQTT_SLOTS];
+  char mqtt_slot_username[MAX_MQTT_SLOTS][32];
+  char mqtt_slot_password[MAX_MQTT_SLOTS][64];
+  char mqtt_owner_public_key[65];
+  char mqtt_email[64];
+  // --- Legacy fields (vestigial, kept for binary compatibility of /mqtt_prefs) ---
+  uint8_t _legacy_analyzer_us_enabled;
+  uint8_t _legacy_analyzer_eu_enabled;
+  char _legacy_mqtt_server[64];
+  uint16_t _legacy_mqtt_port;
+  char _legacy_mqtt_username[32];
+  char _legacy_mqtt_password[64];
+  // --- New fields (appended at end for migration safety) ---
+  char mqtt_slot_token[MAX_MQTT_SLOTS][48];
+  char mqtt_slot_topic[MAX_MQTT_SLOTS][96];
+  char mqtt_slot_audience[MAX_MQTT_SLOTS][64];
+  uint8_t mqtt_rx_enabled;
+  // --- Appended for MeshCoreNG (SNMP persisted alongside MQTT config) ---
+  uint8_t snmp_enabled;
+  char snmp_community[24];
+};
+
+// 3-slot MQTTPrefs layout — used for migrating from 3-slot to 6-slot format.
+struct ThreeSlotMQTTPrefs {
+  char mqtt_origin[32];
+  char mqtt_iata[8];
+  uint8_t mqtt_status_enabled;
+  uint8_t mqtt_packets_enabled;
+  uint8_t mqtt_raw_enabled;
+  uint8_t mqtt_tx_enabled;
+  uint32_t mqtt_status_interval;
+  char wifi_ssid[32];
+  char wifi_password[64];
+  uint8_t wifi_power_save;
+  char timezone_string[32];
+  int8_t timezone_offset;
+  char mqtt_slot_preset[3][24];
+  char mqtt_slot_host[3][64];
+  uint16_t mqtt_slot_port[3];
+  char mqtt_slot_username[3][32];
+  char mqtt_slot_password[3][64];
+  char mqtt_owner_public_key[65];
+  char mqtt_email[64];
+  uint8_t _legacy_analyzer_us_enabled;
+  uint8_t _legacy_analyzer_eu_enabled;
+  char _legacy_mqtt_server[64];
+  uint16_t _legacy_mqtt_port;
+  char _legacy_mqtt_username[32];
+  char _legacy_mqtt_password[64];
+  char mqtt_slot_token[3][48];
+  char mqtt_slot_topic[3][96];
+};
+#endif
 
 class CommonCLICallbacks {
 public:
@@ -200,6 +326,14 @@ public:
     // no op by default
   };
 
+  virtual void restartBridgeSlot(int slot_index) {
+    // no op by default (used by MQTT bridge to reconnect a single slot)
+  };
+
+  virtual void formatMqttStatusReply(char *reply) {
+    reply[0] = 0;
+  }
+
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
@@ -214,6 +348,13 @@ class CommonCLI {
   RegionMap* _region_map;
   ClientACL* _acl;
   char tmp[PRV_KEY_SIZE*2 + 4];
+#ifdef WITH_MQTT_BRIDGE
+  MQTTPrefs _mqtt_prefs;
+  void loadMQTTPrefs(FILESYSTEM* fs);
+  void saveMQTTPrefs(FILESYSTEM* fs);
+  void syncMQTTPrefsToNodePrefs();
+  void syncNodePrefsToMQTTPrefs();
+#endif
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();

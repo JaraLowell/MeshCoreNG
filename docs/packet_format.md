@@ -36,7 +36,7 @@ This is the protocol level packet structure used in MeshCore firmware v1.12.0
         - `0x0A`/`0b1010` - `PAYLOAD_TYPE_MULTIPART` - Packet is part of a sequence of packets
         - `0x0B`/`0b1011` - `PAYLOAD_TYPE_CONTROL` - Control packet data (unencrypted)
         - `0x0C`/`0b1100` - `PAYLOAD_TYPE_ATLAS` - Optional Atlas telemetry
-        - `0x0D`/`0b1101` - reserved
+        - `0x0D`/`0b1101` - `PAYLOAD_TYPE_LOCATION` - Compact tracker/APRS-like location report
         - `0x0E`/`0b1110` - reserved
         - `0x0F`/`0b1111` - `PAYLOAD_TYPE_RAW_CUSTOM` - Custom packet (raw bytes, custom encryption)
     - Bits 6-7 - 2-bits - [Payload Version](#payload-versions)
