@@ -42,6 +42,8 @@ import struct
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 try:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -122,6 +124,9 @@ ADMIN_PASSWORD = ""
 ALLOW_PATH_BLOCK_ADMIN = False
 STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
+FIRMWARE_UPDATE_REPO = "MichTronics/MeshCoreNG"
+FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = 60 * 60
+FIRMWARE_UPDATE_TIMEOUT_SECS = 5
 next_command_id = 1
 next_client_id = 1
 
@@ -136,6 +141,15 @@ transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 public_channels: list[dict] = []
+latest_firmware_info: dict = {
+    "enabled": True,
+    "checked_at": 0,
+    "latest_version": "",
+    "latest_tag": "",
+    "latest_url": "",
+    "status": "pending",
+    "error": "",
+}
 
 PAYLOAD_TYPE_NAMES = {
     0x00: "request",
@@ -263,6 +277,113 @@ def load_public_channels(path: str) -> None:
         })
 
     log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
+
+
+VERSION_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z._-]+)?")
+FIRMWARE_RELEASE_TAG_RE = re.compile(
+    r"^(?:v|bridge-tcp-v|bridge-tcp-ble-v)(\d+\.\d+\.\d+)(?:[-+].*)?$"
+)
+
+
+def parse_semver(value: str) -> tuple[int, int, int] | None:
+    match = VERSION_RE.search(value or "")
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def version_is_older(current: str, latest: str) -> bool:
+    current_version = parse_semver(current)
+    latest_version = parse_semver(latest)
+    if current_version is None or latest_version is None:
+        return False
+    return current_version < latest_version
+
+
+def firmware_update_status(current_version: str) -> dict:
+    latest = latest_firmware_info.get("latest_version", "")
+    if not current_version:
+        state = "unknown"
+    elif latest and version_is_older(current_version, latest):
+        state = "available"
+    elif latest and parse_semver(current_version):
+        state = "current"
+    else:
+        state = "unknown"
+    return {
+        "state": state,
+        "current_version": current_version,
+        "latest_version": latest,
+        "latest_tag": latest_firmware_info.get("latest_tag", ""),
+        "latest_url": latest_firmware_info.get("latest_url", ""),
+        "checked_at": latest_firmware_info.get("checked_at", 0),
+        "check_status": latest_firmware_info.get("status", "disabled"),
+        "error": latest_firmware_info.get("error", ""),
+    }
+
+
+def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
+    url = f"https://api.github.com/repos/{repo}/tags?per_page=100"
+    request = Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "MeshCoreNG TCP Bridge Server",
+    })
+    with urlopen(request, timeout=timeout) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+
+    best: tuple[int, int, int] | None = None
+    best_tag = ""
+    for item in payload:
+        tag = str(item.get("name", ""))
+        match = FIRMWARE_RELEASE_TAG_RE.match(tag)
+        if not match:
+            continue
+        version = parse_semver(match.group(1))
+        if version is None:
+            continue
+        if best is None or version > best:
+            best = version
+            best_tag = tag
+
+    if best is None:
+        raise ValueError(f"no firmware release tags found in {repo}")
+
+    latest_version = f"v{best[0]}.{best[1]}.{best[2]}"
+    return {
+        "enabled": True,
+        "checked_at": int(time.time()),
+        "latest_version": latest_version,
+        "latest_tag": best_tag,
+        "latest_url": f"https://github.com/{repo}/releases/tag/{best_tag}",
+        "status": "ok",
+        "error": "",
+    }
+
+
+async def firmware_update_task(repo: str, interval_secs: int, timeout_secs: int) -> None:
+    latest_firmware_info.update({
+        "enabled": bool(repo and interval_secs > 0),
+        "status": "disabled" if not repo or interval_secs <= 0 else "pending",
+        "error": "",
+    })
+    if not repo or interval_secs <= 0:
+        return
+
+    while True:
+        try:
+            loop = asyncio.get_running_loop()
+            info = await loop.run_in_executor(None, fetch_latest_firmware_info, repo, timeout_secs)
+            latest_firmware_info.update(info)
+            log.info("Latest firmware release: %s (%s)", info["latest_version"], info["latest_tag"])
+        except (URLError, TimeoutError, ValueError, OSError, json.JSONDecodeError) as exc:
+            latest_firmware_info.update({
+                "enabled": True,
+                "checked_at": int(time.time()),
+                "status": "error",
+                "error": str(exc),
+            })
+            log.warning("Firmware update check failed: %s", exc)
+        await asyncio.sleep(interval_secs)
 
 
 def aes_ecb_decrypt(secret: bytes, data: bytes) -> bytes | None:
