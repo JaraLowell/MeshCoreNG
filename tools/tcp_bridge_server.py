@@ -2687,6 +2687,11 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
 
     status_url = prefixed_url(base_path, "/")
     command_url = prefixed_url(base_path, "/command")
+    connected_count = snapshot.get("connected_count", len(snapshot["clients"]))
+    node_count = len(snapshot["clients"])
+    auth_state = "protected" if ADMIN_PASSWORD else "node password"
+    quarantine_state = "enabled" if path_block_enabled else "disabled"
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -2694,76 +2699,241 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MeshCoreNG Remote Management</title>
   <style>
-    :root {{ color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-    body {{ margin: 0; background: #f4f6f8; color: #1b1f24; }}
-    main {{ max-width: 860px; margin: 0 auto; padding: 32px 20px; }}
-    h1 {{ margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.4rem); }}
-    .summary {{ margin: 0 0 24px; color: #58606a; }}
-    .panel {{ background: #fff; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; margin-bottom: 18px; }}
-    .panel h2 {{ margin: 0 0 6px; font-size: 1.1rem; }}
-    .panel p {{ margin: 0 0 12px; color: #58606a; }}
-    label {{ display: block; font-weight: 650; margin: 14px 0 6px; }}
-    select, input {{ width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c7ced6; border-radius: 6px; font: inherit; background: #fff; color: inherit; }}
-    button {{ margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 6px; background: #0969da; color: #fff; font: inherit; font-weight: 650; cursor: pointer; }}
-    button:disabled {{ background: #8c959f; cursor: not-allowed; }}
-    .command-result {{ margin: 18px 0 0; padding: 14px; min-height: 72px; overflow-x: auto; border-radius: 6px; background: #20262d; color: #f0f3f6; white-space: pre-wrap; }}
-    .empty {{ color: #9aa4af; }}
-    a {{ color: #0969da; }}
-    @media (max-width: 760px) {{
-      main {{ padding: 20px 12px; }}
+    :root {{
+      color-scheme: dark;
+      --bg: #070908;
+      --panel: #101514;
+      --panel-2: #141b19;
+      --line: rgba(97, 255, 154, .22);
+      --green: #68ff9d;
+      --green-soft: #b6ffd0;
+      --muted: #8aa596;
+      --amber: #ffd166;
+      --red: #ff5b5b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }}
-    @media (prefers-color-scheme: dark) {{
-      body {{ background: #111418; color: #f0f3f6; }}
-      .summary {{ color: #9aa4af; }}
-      .panel p {{ color: #9aa4af; }}
-      .panel {{ background: #171b20; border-color: #30363d; }}
-      select, input {{ background: #111418; border-color: #3b434d; }}
-      a {{ color: #7cb7ff; }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      color: #eafff0;
+      background:
+        radial-gradient(circle at 15% -10%, rgba(104, 255, 157, .12), transparent 28%),
+        linear-gradient(135deg, #070908 0%, #0d1311 48%, #050706 100%);
+    }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 22px 18px 32px; }}
+    .topbar {{ display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 16px; }}
+    h1 {{ margin: 0; color: var(--green-soft); font-size: clamp(1.5rem, 3vw, 2.25rem); letter-spacing: 0; }}
+    .summary {{ margin: 6px 0 0; max-width: 760px; color: var(--muted); line-height: 1.45; }}
+    nav {{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }}
+    nav a {{
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--green-soft);
+      padding: 8px 11px;
+      text-decoration: none;
+      background: rgba(104, 255, 157, .06);
+      font-weight: 750;
+      font-size: .82rem;
+    }}
+    .status-strip {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }}
+    .metric {{
+      border: 1px solid var(--line);
+      background: rgba(16, 21, 20, .82);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }}
+    .label {{ color: var(--muted); font-size: .7rem; text-transform: uppercase; }}
+    .metric b {{ display: block; margin-top: 4px; color: var(--green); font-size: 1.08rem; font-variant-numeric: tabular-nums; }}
+    .grid {{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .85fr); gap: 14px; align-items: start; }}
+    .stack {{ display: grid; gap: 14px; }}
+    .panel {{
+      border: 1px solid var(--line);
+      background: rgba(16, 21, 20, .86);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, .24);
+    }}
+    .panel-header {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(104, 255, 157, .06);
+    }}
+    h2 {{ margin: 0; color: var(--green-soft); font-size: .92rem; text-transform: uppercase; }}
+    .panel-body {{ padding: 14px; }}
+    .panel p {{ margin: 0 0 12px; color: var(--muted); line-height: 1.4; }}
+    .form-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }}
+    .form-wide {{ grid-column: 1 / -1; }}
+    label {{ display: block; color: var(--muted); font-size: .72rem; font-weight: 750; margin: 0 0 5px; text-transform: uppercase; }}
+    select, input {{
+      width: 100%;
+      min-width: 0;
+      border: 1px solid rgba(97, 255, 154, .18);
+      border-radius: 4px;
+      padding: 9px 10px;
+      background: rgba(0, 0, 0, .22);
+      color: #eafff0;
+      font: inherit;
+      outline: none;
+    }}
+    select:focus, input:focus {{ border-color: rgba(104, 255, 157, .65); box-shadow: 0 0 0 2px rgba(104, 255, 157, .1); }}
+    select:disabled, input:disabled {{ color: #65786e; border-color: rgba(138, 165, 150, .14); cursor: not-allowed; }}
+    .actions {{ display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }}
+    button {{
+      border: 1px solid rgba(104, 255, 157, .42);
+      border-radius: 4px;
+      padding: 9px 12px;
+      background: rgba(104, 255, 157, .12);
+      color: var(--green-soft);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    button:hover:not(:disabled) {{ background: rgba(104, 255, 157, .18); }}
+    button:disabled {{ color: #65786e; border-color: rgba(138, 165, 150, .16); cursor: not-allowed; }}
+    .command-result {{
+      margin: 0;
+      min-height: 224px;
+      max-height: 520px;
+      overflow: auto;
+      border: 1px solid rgba(97, 255, 154, .16);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, .28);
+      color: #dfffe9;
+      padding: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: .82rem;
+      line-height: 1.38;
+    }}
+    .empty {{ color: var(--muted); }}
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(97, 255, 154, .22);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--muted);
+      font-size: .72rem;
+      white-space: nowrap;
+    }}
+    @media (max-width: 920px) {{
+      main {{ padding: 18px 12px 26px; }}
+      .topbar {{ display: block; }}
+      nav {{ justify-content: flex-start; margin-top: 12px; }}
+      .status-strip {{ grid-template-columns: 1fr; }}
+      .grid {{ grid-template-columns: 1fr; }}
+    }}
+    @media (max-width: 560px) {{
+      .form-grid {{ grid-template-columns: 1fr; }}
+      .actions {{ justify-content: stretch; }}
+      button {{ width: 100%; }}
     }}
   </style>
 </head>
 <body>
   <main>
-    <h1>MeshCoreNG Remote Management</h1>
-    <p class="summary">{html.escape(admin_note)}. <a href="{status_url}">Bridge status</a></p>
-    <div class="panel">
-      <h2>Remote CLI</h2>
-      <form method="post" action="{command_url}">
-        <label for="target">Bridge node</label>
-        <select id="target" name="target"{disabled}>
-          {options_html}
-        </select>
-        <label for="node_password">Node admin password</label>
-        <input id="node_password" name="node_password" type="password" autocomplete="current-password" maxlength="32"{disabled}>
-        <label for="command">Command</label>
-        <input id="command" name="command" placeholder="get bridge.status" maxlength="96"{disabled}>
-        <button type="submit"{disabled}>Send command</button>
-      </form>
-      {result_html}
-    </div>
-    <div class="panel">
-      <h2>Path quarantine</h2>
-      <p>{html.escape(path_note)}</p>
-      <form method="post" action="{command_url}">
-        <input type="hidden" name="mode" value="path_block">
-        <label for="path_target">Bridge node</label>
-        <select id="path_target" name="target"{path_disabled}>
-          {path_options_html}
-        </select>
-        <label for="path_action">Action</label>
-        <select id="path_action" name="path_action"{path_disabled}>
-          <option value="add">Add block</option>
-          <option value="del">Remove block</option>
-          <option value="get">Show blocks</option>
-          <option value="clear">Clear all</option>
-        </select>
-        <label for="path_block">Path</label>
-        <input id="path_block" name="path_block" placeholder="aa/bb/cc" maxlength="20"{path_disabled}>
-        <label for="path_duration">Duration</label>
-        <input id="path_duration" name="path_duration" placeholder="1h" maxlength="8"{path_disabled}>
-        <button type="submit"{path_disabled}>Apply quarantine</button>
-      </form>
-    </div>
+    <header class="topbar">
+      <div>
+        <h1>Remote Management</h1>
+        <p class="summary">{html.escape(admin_note)}.</p>
+      </div>
+      <nav>
+        <a href="{status_url}">Bridge status</a>
+      </nav>
+    </header>
+    <section class="status-strip">
+      <div class="metric"><span class="label">Online nodes</span><b>{connected_count}</b></div>
+      <div class="metric"><span class="label">Command auth</span><b>{html.escape(auth_state)}</b></div>
+      <div class="metric"><span class="label">Path quarantine</span><b>{html.escape(quarantine_state)}</b></div>
+    </section>
+    <section class="grid">
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Remote CLI</h2>
+            <span class="pill">{node_count} node{'' if node_count == 1 else 's'}</span>
+          </div>
+          <div class="panel-body">
+            <form method="post" action="{command_url}">
+              <div class="form-grid">
+                <div class="form-wide">
+                  <label for="target">Bridge node</label>
+                  <select id="target" name="target"{disabled}>
+                    {options_html}
+                  </select>
+                </div>
+                <div>
+                  <label for="node_password">Node password</label>
+                  <input id="node_password" name="node_password" type="password" autocomplete="current-password" maxlength="32"{disabled}>
+                </div>
+                <div>
+                  <label for="command">Command</label>
+                  <input id="command" name="command" placeholder="get bridge.status" maxlength="96"{disabled}>
+                </div>
+              </div>
+              <div class="actions"><button type="submit"{disabled}>Send command</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Path Quarantine</h2>
+            <span class="pill">{html.escape(quarantine_state)}</span>
+          </div>
+          <div class="panel-body">
+            <p>{html.escape(path_note)}</p>
+            <form method="post" action="{command_url}">
+              <input type="hidden" name="mode" value="path_block">
+              <div class="form-grid">
+                <div class="form-wide">
+                  <label for="path_target">Bridge node</label>
+                  <select id="path_target" name="target"{path_disabled}>
+                    {path_options_html}
+                  </select>
+                </div>
+                <div>
+                  <label for="path_action">Action</label>
+                  <select id="path_action" name="path_action"{path_disabled}>
+                    <option value="add">Add block</option>
+                    <option value="del">Remove block</option>
+                    <option value="get">Show blocks</option>
+                    <option value="clear">Clear all</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="path_duration">Duration</label>
+                  <input id="path_duration" name="path_duration" placeholder="1h" maxlength="8"{path_disabled}>
+                </div>
+                <div class="form-wide">
+                  <label for="path_block">Path</label>
+                  <input id="path_block" name="path_block" placeholder="aa/bb/cc" maxlength="20"{path_disabled}>
+                </div>
+              </div>
+              <div class="actions"><button type="submit"{path_disabled}>Apply quarantine</button></div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Command Result</h2>
+          <span class="pill">console</span>
+        </div>
+        <div class="panel-body">
+          {result_html}
+        </div>
+      </div>
+    </section>
   </main>
 </body>
 </html>
