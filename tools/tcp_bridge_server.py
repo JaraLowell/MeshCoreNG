@@ -126,6 +126,7 @@ next_command_id = 1
 next_client_id = 1
 
 connected_clients: set["BridgeClient"] = set()
+node_traffic_stats: dict[str, dict] = {}
 latest_locations: dict[str, dict] = {}
 latest_location_tracks: dict[str, list[dict]] = {}
 latest_location_stationary: dict[str, dict] = {}
@@ -1081,6 +1082,166 @@ def prune_packet_times(packet_times: deque[float], now: float) -> None:
         packet_times.popleft()
 
 
+def make_node_stats_key(client: "BridgeClient") -> str:
+    if client.node_id:
+        return f"node:{client.node_id.strip().lower()}"
+    if client.node_name:
+        return f"name:{client.node_name.strip().lower()}"
+    return f"host:{client.host}"
+
+
+def new_node_stats(key: str) -> dict:
+    now = time.time()
+    return {
+        "key": key,
+        "rx_times": deque(),
+        "tx_times": deque(),
+        "packets_rx": 0,
+        "packets_tx": 0,
+        "heartbeats_rx": 0,
+        "first_seen": now,
+        "last_seen": now,
+        "last_connected": now,
+        "last_disconnect": 0.0,
+        "last_heartbeat": 0.0,
+        "last_heartbeat_uptime_ms": 0,
+        "rf_duty": {},
+        "node_name": "",
+        "node_id": "",
+        "firmware_version": "",
+        "supports_bridge_v2": False,
+        "connected": False,
+        "client_id": "",
+        "addr": "",
+    }
+
+
+def merge_node_stats(target: dict, source: dict) -> None:
+    target["rx_times"].extend(source["rx_times"])
+    target["tx_times"].extend(source["tx_times"])
+    target["rx_times"] = deque(sorted(target["rx_times"]))
+    target["tx_times"] = deque(sorted(target["tx_times"]))
+    target["packets_rx"] += source.get("packets_rx", 0)
+    target["packets_tx"] += source.get("packets_tx", 0)
+    target["heartbeats_rx"] += source.get("heartbeats_rx", 0)
+    target["first_seen"] = min(target.get("first_seen", time.time()), source.get("first_seen", time.time()))
+    for field in ("last_seen", "last_connected", "last_disconnect", "last_heartbeat"):
+        target[field] = max(target.get(field, 0.0), source.get(field, 0.0))
+    for field in ("last_heartbeat_uptime_ms",):
+        if source.get(field):
+            target[field] = source[field]
+    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr"):
+        if source.get(field):
+            target[field] = source[field]
+    target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
+    target["connected"] = target.get("connected", False) or source.get("connected", False)
+
+
+def get_node_stats(client: "BridgeClient") -> dict:
+    key = make_node_stats_key(client)
+    old_key = getattr(client, "_stats_key", "")
+    if old_key and old_key != key and old_key in node_traffic_stats:
+        old_stats = node_traffic_stats.pop(old_key)
+        stats = node_traffic_stats.setdefault(key, new_node_stats(key))
+        merge_node_stats(stats, old_stats)
+    else:
+        stats = node_traffic_stats.setdefault(key, new_node_stats(key))
+    client._stats_key = key
+    stats.update({
+        "key": key,
+        "node_name": client.node_name,
+        "node_id": client.node_id,
+        "firmware_version": client.firmware_version,
+        "supports_bridge_v2": client.supports_bridge_v2,
+        "connected": client in connected_clients,
+        "client_id": client.client_id,
+        "addr": client.addr,
+        "last_connected": client._connect_time,
+    })
+    return stats
+
+
+def touch_node_stats(client: "BridgeClient", now: float | None = None) -> dict:
+    now = now or time.time()
+    stats = get_node_stats(client)
+    stats["last_seen"] = now
+    return stats
+
+
+def record_node_packet(client: "BridgeClient", direction: str, now: float | None = None) -> None:
+    now = now or time.time()
+    stats = touch_node_stats(client, now)
+    if direction == "RX":
+        stats["packets_rx"] += 1
+        stats["rx_times"].append(now)
+        prune_packet_times(stats["rx_times"], now)
+    elif direction == "TX":
+        stats["packets_tx"] += 1
+        stats["tx_times"].append(now)
+        prune_packet_times(stats["tx_times"], now)
+
+
+def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | None = None) -> None:
+    now = now or time.time()
+    stats = touch_node_stats(client, now)
+    stats["heartbeats_rx"] += 1
+    stats["last_heartbeat"] = now
+    stats["last_heartbeat_uptime_ms"] = int(heartbeat.get("uptime_ms") or 0)
+    if "rf_duty" in heartbeat:
+        stats["rf_duty"] = heartbeat["rf_duty"]
+
+
+def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
+    now = now or time.time()
+    stats = get_node_stats(client)
+    stats["connected"] = False
+    stats["last_disconnect"] = now
+    stats["last_seen"] = max(stats.get("last_seen", 0.0), client.last_seen)
+
+
+def node_stats_status_dict(stats: dict, now: float) -> dict:
+    prune_packet_times(stats["rx_times"], now)
+    prune_packet_times(stats["tx_times"], now)
+    display_name = stats.get("node_name") or "unnamed bridge node"
+    connected = bool(stats.get("connected"))
+    heartbeat_age = int(now - stats["last_heartbeat"]) if stats.get("last_heartbeat") else None
+    return {
+        "name": stats.get("node_name", ""),
+        "id": stats.get("client_id") or stats["key"],
+        "node_id": stats.get("node_id", ""),
+        "firmware_version": stats.get("firmware_version", ""),
+        "display_name": display_name,
+        "connected": connected,
+        "connected_seconds": int(now - stats["last_connected"]) if connected else 0,
+        "connected_for": format_duration(now - stats["last_connected"]) if connected else "offline",
+        "idle_seconds": int(now - stats["last_seen"]) if stats.get("last_seen") else None,
+        "heartbeat_age_seconds": heartbeat_age,
+        "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
+        "rf_duty": dict(stats.get("rf_duty") or {}),
+        "packets_rx": stats.get("packets_rx", 0),
+        "packets_tx": stats.get("packets_tx", 0),
+        "packets_rx_24h": len(stats["rx_times"]),
+        "packets_tx_24h": len(stats["tx_times"]),
+        "transport_rx_window": 0,
+        "transport_rate_dropped": 0,
+        "heartbeats_rx": stats.get("heartbeats_rx", 0),
+        "authenticated": connected,
+        "supports_bridge_v2": stats.get("supports_bridge_v2", False),
+        "last_seen_seconds": int(now - stats["last_seen"]) if stats.get("last_seen") else None,
+    }
+
+
+def prune_disconnected_node_stats(now: float) -> None:
+    for key, stats in list(node_traffic_stats.items()):
+        prune_packet_times(stats["rx_times"], now)
+        prune_packet_times(stats["tx_times"], now)
+        if stats.get("connected"):
+            continue
+        last_seen = stats.get("last_seen", 0.0)
+        if not stats["rx_times"] and not stats["tx_times"] and last_seen < now - PACKET_COUNTER_WINDOW_SECS:
+            node_traffic_stats.pop(key, None)
+
+
 class BridgeClient:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         global next_client_id
@@ -1099,6 +1260,7 @@ class BridgeClient:
         self.packet_tx_times: deque[float] = deque()
         self.transport_rx_times: deque[float] = deque()
         self.transport_rate_dropped = 0
+        self._stats_key = ""
         self.heartbeats_rx = 0
         self._connect_time = time.time()
         self.last_seen = self._connect_time
@@ -1130,15 +1292,20 @@ class BridgeClient:
             self.node_id = node_id
 
     def status_dict(self, now: float) -> dict:
+        stats = get_node_stats(self)
+        prune_packet_times(stats["rx_times"], now)
+        prune_packet_times(stats["tx_times"], now)
         prune_packet_times(self.packet_rx_times, now)
         prune_packet_times(self.packet_tx_times, now)
         prune_rate_window(self.transport_rx_times, now, TRANSPORT_RATE_LIMIT_WINDOW_SECS)
-        return {
+        status = node_stats_status_dict(stats, now)
+        status.update({
             "name": self.node_name,
             "id": self.client_id,
             "node_id": self.node_id,
             "firmware_version": self.firmware_version,
             "display_name": self.display_name,
+            "connected": True,
             "connected_seconds": int(now - self._connect_time),
             "connected_for": format_duration(now - self._connect_time),
             "idle_seconds": int(now - self.last_seen),
@@ -1147,14 +1314,15 @@ class BridgeClient:
             "rf_duty": dict(self.rf_duty),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
-            "packets_rx_24h": len(self.packet_rx_times),
-            "packets_tx_24h": len(self.packet_tx_times),
+            "packets_rx_24h": len(stats["rx_times"]),
+            "packets_tx_24h": len(stats["tx_times"]),
             "transport_rx_window": len(self.transport_rx_times),
             "transport_rate_dropped": self.transport_rate_dropped,
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
             "supports_bridge_v2": self.supports_bridge_v2,
-        }
+        })
+        return status
 
     async def read_packet(self) -> bytes | None:
         """Read one framed packet from the stream. Returns raw payload bytes or None on error."""
@@ -1212,6 +1380,7 @@ class BridgeClient:
             now = time.time()
             self.packet_tx_times.append(now)
             prune_packet_times(self.packet_tx_times, now)
+            record_node_packet(self, "TX", now)
             packet_log = record_packet_log("TX", self, payload, source=source, target=self.display_name)
             if LOG_PACKETS:
                 log.info(
@@ -1293,6 +1462,7 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
 async def disconnect(client: "BridgeClient", reason: str = "EOF"):
     if client in connected_clients:
         connected_clients.discard(client)
+        mark_node_disconnected(client)
         client.close()
         uptime = int(time.time() - client._connect_time)
         log.info(
@@ -1338,6 +1508,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 await disconnect(existing, reason=f"replaced by new connection from {client.addr}")
 
     connected_clients.add(client)
+    touch_node_stats(client)
     log.info("Connected %s (total=%d)", client.addr, len(connected_clients))
 
     try:
@@ -1362,16 +1533,19 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             caps = parse_caps(payload)
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
+                touch_node_stats(client)
                 log.info("%s: bridge capabilities v%d flags=0x%02x bridge_v2=%s",
                          client.addr, caps["version"], caps["flags"], client.supports_bridge_v2)
                 continue
             heartbeat = parse_heartbeat(payload)
             if heartbeat is not None:
                 client.heartbeats_rx += 1
-                client.last_heartbeat = time.time()
+                now = time.time()
+                client.last_heartbeat = now
                 client.last_heartbeat_uptime_ms = int(heartbeat.get("uptime_ms") or 0)
                 if "rf_duty" in heartbeat:
                     client.rf_duty = heartbeat["rf_duty"]
+                record_node_heartbeat(client, heartbeat, now)
                 log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
@@ -1388,6 +1562,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 client.node_name, client.firmware_version, node_id = node_info
                 if node_id:
                     client.node_id = node_id
+                touch_node_stats(client)
                 if client.firmware_version:
                     log.info("%s: node name is %s firmware=%s node_id=%s",
                              client.addr, client.node_name, client.firmware_version, client.node_id or "unknown")
@@ -1398,6 +1573,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
+            record_node_packet(client, "RX", now)
             mesh_payload = mesh_payload_for_parsing(payload)
             parsed_payload = parse_mesh_payload(mesh_payload)
             if not allow_transport_packet(client, parsed_payload, now):
@@ -1450,15 +1626,33 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         await disconnect(client, reason=str(exc))
 
 
-def status_snapshot() -> dict:
+def status_snapshot(include_disconnected: bool = True) -> dict:
     now = time.time()
+    prune_disconnected_node_stats(now)
     clients = [
         client.status_dict(now)
         for client in sorted(connected_clients, key=lambda c: (c.display_name.lower(), c.addr))
     ]
+    if include_disconnected:
+        active_keys = {getattr(client, "_stats_key", "") for client in connected_clients}
+        offline_clients = [
+            node_stats_status_dict(stats, now)
+            for key, stats in node_traffic_stats.items()
+            if key not in active_keys and (
+                stats.get("last_seen", 0) >= now - PACKET_COUNTER_WINDOW_SECS
+                or stats["rx_times"]
+                or stats["tx_times"]
+            )
+        ]
+        clients.extend(sorted(
+            offline_clients,
+            key=lambda c: (c["display_name"].lower(), -(c.get("last_seen_seconds") or 0)),
+        ))
     return {
         "generated_at": int(now),
-        "connected_count": len(clients),
+        "connected_count": len(connected_clients),
+        "online_count": len(connected_clients),
+        "known_count": len(clients),
         "transport_rate_limit": {
             "enabled": TRANSPORT_RATE_LIMIT_ENABLE,
             "client_max": TRANSPORT_RATE_LIMIT_MAX,
@@ -1715,6 +1909,7 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .badge.rx {{ color: #86c5ff; border-color: rgba(134, 197, 255, .45); }}
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
+    .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
     .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
     .feed {{
@@ -1748,6 +1943,10 @@ def build_status_html(base_path: str = "") -> str:
       border-radius: 6px;
       padding: 12px;
       min-height: 148px;
+    }}
+    .node-card.offline {{
+      border-color: rgba(255, 209, 102, .2);
+      background: rgba(15, 18, 18, .7);
     }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
@@ -1924,22 +2123,27 @@ def build_status_html(base_path: str = "") -> str:
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
-        target.innerHTML = '<div class="empty">No bridge nodes connected</div>';
-        setStatus("nodeStatus", "offline", "warn");
+        target.innerHTML = '<div class="empty">No bridge nodes seen in the last 24h</div>';
+        setStatus("nodeStatus", "no nodes", "warn");
         return;
       }}
-      setStatus("nodeStatus", `${{status.clients.length}} active`, "ok");
+      setStatus("nodeStatus", `${{status.connected_count}} online / ${{status.known_count || status.clients.length}} known`, status.connected_count ? "ok" : "warn");
       target.innerHTML = status.clients.map((client) => {{
         const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
+        const isOnline = client.connected !== false;
         const rf = client.rf_duty || {{}};
         const rfTitle = Number.isFinite(rf.tx_used_pct)
           ? `${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}} of ${{pct(rf.duty_limit_pct)}} duty`
           : "firmware update needed";
+        const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
+        const footer = isOnline
+          ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
+          : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
         return `
-          <article class="node-card">
+          <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
               <span>${{escapeHtml(client.display_name)}}</span>
-              <span class="badge">${{client.supports_bridge_v2 ? "v2" : "v1"}}</span>
+              <span class="badge${{isOnline ? "" : " offline"}}">${{badge}}</span>
             </div>
             <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
             <div class="node-stats">
@@ -1948,7 +2152,7 @@ def build_status_html(base_path: str = "") -> str:
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">RF TX</span><b>${{pct(rf.tx_used_pct)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
-            <div class="node-meta">connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}</div>
+            <div class="node-meta">${{footer}}</div>
           </article>
         `;
       }}).join("");
@@ -2077,7 +2281,7 @@ def build_status_html(base_path: str = "") -> str:
 
 
 def build_manage_html(command_result: str = "", base_path: str = "") -> str:
-    snapshot = status_snapshot()
+    snapshot = status_snapshot(include_disconnected=False)
     options = []
     for client in snapshot["clients"]:
         label = client["display_name"]
