@@ -2229,9 +2229,31 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
-    .node-stats {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 12px; }}
-    .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
-    .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
+    .node-stats {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }}
+    .mini {{
+      min-width: 0;
+      border: 1px solid rgba(97, 255, 154, .14);
+      background: rgba(0, 0, 0, .16);
+      padding: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }}
+    .mini .label {{ display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+    .mini b {{
+      display: block;
+      min-width: 0;
+      color: var(--green);
+      font-size: .95rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+      margin-top: 4px;
+      overflow-wrap: anywhere;
+    }}
     @media (max-width: 980px) {{
       main {{ padding: 16px 12px; }}
       .topbar {{ display: block; }}
@@ -2242,7 +2264,8 @@ def build_status_html(base_path: str = "") -> str:
     }}
     @media (max-width: 560px) {{
       .status-strip {{ grid-template-columns: 1fr; }}
-      .node-stats {{ grid-template-columns: 1fr; }}
+      .node-grid {{ grid-template-columns: 1fr; }}
+      .node-stats {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       table {{ min-width: 760px; }}
     }}
   </style>
