@@ -147,6 +147,9 @@ latest_firmware_info: dict = {
     "latest_version": "",
     "latest_tag": "",
     "latest_url": "",
+    "asset_count": 0,
+    "bin_count": 0,
+    "merged_bin_count": 0,
     "status": "pending",
     "error": "",
 }
@@ -316,6 +319,9 @@ def firmware_update_status(current_version: str) -> dict:
         "latest_version": latest,
         "latest_tag": latest_firmware_info.get("latest_tag", ""),
         "latest_url": latest_firmware_info.get("latest_url", ""),
+        "asset_count": latest_firmware_info.get("asset_count", 0),
+        "bin_count": latest_firmware_info.get("bin_count", 0),
+        "merged_bin_count": latest_firmware_info.get("merged_bin_count", 0),
         "checked_at": latest_firmware_info.get("checked_at", 0),
         "check_status": latest_firmware_info.get("status", "disabled"),
         "error": latest_firmware_info.get("error", ""),
@@ -323,7 +329,7 @@ def firmware_update_status(current_version: str) -> dict:
 
 
 def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
-    url = f"https://api.github.com/repos/{repo}/tags?per_page=100"
+    url = f"https://api.github.com/repos/{repo}/releases?per_page=100"
     request = Request(url, headers={
         "Accept": "application/vnd.github+json",
         "User-Agent": "MeshCoreNG TCP Bridge Server",
@@ -333,10 +339,19 @@ def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
 
     best: tuple[int, int, int] | None = None
     best_tag = ""
+    best_url = ""
+    best_asset_count = 0
+    best_bin_count = 0
+    best_merged_bin_count = 0
     for item in payload:
-        tag = str(item.get("name", ""))
+        tag = str(item.get("tag_name", ""))
         match = FIRMWARE_RELEASE_TAG_RE.match(tag)
         if not match:
+            continue
+        assets = item.get("assets") or []
+        asset_names = [str(asset.get("name", "")) for asset in assets if isinstance(asset, dict)]
+        bin_count = sum(1 for name in asset_names if name.endswith(".bin"))
+        if bin_count == 0:
             continue
         version = parse_semver(match.group(1))
         if version is None:
@@ -345,9 +360,13 @@ def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
         if best is None or version > best or (version == best and prefer_tag):
             best = version
             best_tag = tag
+            best_url = str(item.get("html_url", "")) or f"https://github.com/{repo}/releases/tag/{tag}"
+            best_asset_count = len(asset_names)
+            best_bin_count = bin_count
+            best_merged_bin_count = sum(1 for name in asset_names if name.endswith("-merged.bin"))
 
     if best is None:
-        raise ValueError(f"no firmware release tags found in {repo}")
+        raise ValueError(f"no firmware releases with .bin assets found in {repo}")
 
     latest_version = f"v{best[0]}.{best[1]}.{best[2]}"
     return {
@@ -355,7 +374,10 @@ def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
         "checked_at": int(time.time()),
         "latest_version": latest_version,
         "latest_tag": best_tag,
-        "latest_url": f"https://github.com/{repo}/releases/tag/{best_tag}",
+        "latest_url": best_url,
+        "asset_count": best_asset_count,
+        "bin_count": best_bin_count,
+        "merged_bin_count": best_merged_bin_count,
         "status": "ok",
         "error": "",
     }
@@ -2282,7 +2304,7 @@ def build_status_html(base_path: str = "") -> str:
         const update = client.firmware_update || {{}};
         const updateAvailable = update.state === "available";
         const updateTitle = updateAvailable
-          ? `new firmware available: ${{update.latest_version || update.latest_tag}}`
+          ? `new firmware available: ${{update.latest_version || update.latest_tag}} (${{update.bin_count || 0}} bin files)`
           : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}` : "";
         const updateBadge = updateAvailable
           ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`

@@ -37,7 +37,7 @@ The status page keeps a 24-hour in-memory traffic window for each known bridge n
 
 The `Duty this hour` tile shows how much of the node's allowed hourly RF transmit duty-cycle budget has been used. `0%` means no RF TX budget has been used in the current accounting window. `100%` means the full configured hourly duty-cycle budget has been used. For example, with `set dutycycle 10`, the hourly RF TX budget is 10% of one hour, or 360 seconds. In that case `50%` means 180 seconds of RF TX have been used, and `100%` means 360 seconds have been used. Older bridge firmware that does not send RF duty telemetry will show the tile as unavailable until the repeater is updated.
 
-The server also checks GitHub release tags and marks a node with an `update` badge when its reported firmware version is older than the newest available firmware release. By default it checks `MichTronics/MeshCoreNG` once per hour. Use `--firmware-update-repo owner/repo` to point it at another repository, or `--firmware-update-interval 0` to disable the check.
+The server also checks GitHub releases and marks a node with an `update` badge when its reported firmware version is older than the newest available firmware release that already has `.bin` assets attached. A tag alone is not enough, because the node cannot be updated until the firmware files exist. By default it checks `MichTronics/MeshCoreNG` once per hour. Use `--firmware-update-repo owner/repo` to point it at another repository, or `--firmware-update-interval 0` to disable the check.
 
 Remote management is on a separate page:
 
