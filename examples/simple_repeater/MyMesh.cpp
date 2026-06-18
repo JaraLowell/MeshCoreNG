@@ -2338,7 +2338,6 @@ void MyMesh::loop() {
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
 #elif defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   bridge.loop();
-  if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
 #endif
 #ifdef WITH_MQTT_BRIDGE
   // MQTT bridge runs in its own FreeRTOS task; nothing to pump from here.
