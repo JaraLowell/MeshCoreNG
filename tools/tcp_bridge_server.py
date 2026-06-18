@@ -2133,7 +2133,7 @@ def build_status_html(base_path: str = "") -> str:
         const isOnline = client.connected !== false;
         const rf = client.rf_duty || {{}};
         const rfTitle = Number.isFinite(rf.tx_used_pct)
-          ? `${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}} of ${{pct(rf.duty_limit_pct)}} duty`
+          ? `${{pct(rf.tx_used_pct)}} of the ${{pct(rf.duty_limit_pct)}} per-hour duty budget used (${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}})`
           : "firmware update needed";
         const badge = isOnline ? (client.supports_bridge_v2 ? "v2" : "v1") : "offline";
         const footer = isOnline
@@ -2149,7 +2149,7 @@ def build_status_html(base_path: str = "") -> str:
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
-              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">RF TX</span><b>${{pct(rf.tx_used_pct)}}</b></div>
+              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{pct(rf.tx_used_pct)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
             <div class="node-meta">${{footer}}</div>

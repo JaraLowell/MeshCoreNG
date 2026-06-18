@@ -724,7 +724,7 @@ void TCPBridge::getStatusStr(char *reply) const {
   
   char dutyStr[80] = "";
   if (_rf_tx_max_ms > 0) {
-    snprintf(dutyStr, sizeof(dutyStr), " | RF TX: %u.%02u%% of %u.%02u%% duty",
+    snprintf(dutyStr, sizeof(dutyStr), " | RF duty used: %u.%02u%% of %u.%02u%%/h",
              (uint32_t)(_rf_tx_used_centi_pct / 100),
              (uint32_t)(_rf_tx_used_centi_pct % 100),
              (uint32_t)(_rf_duty_limit_centi_pct / 100),
