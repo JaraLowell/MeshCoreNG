@@ -186,6 +186,10 @@ public:
   unsigned long getReceiveAirTime() const {return rx_air_time; }
   uint16_t getErrFlags() const { return _err_flags; }
   unsigned long getRemainingTxBudget() const { return tx_budget_ms; }
+  unsigned long getEffectiveRemainingTxBudget() const;
+  unsigned long getMaxTxBudget() const;
+  uint16_t getDutyCycleLimitCentiPct() const;
+  uint16_t getTxBudgetUsedCentiPct() const;
   uint32_t getNumSentFlood() const { return n_sent_flood; }
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }

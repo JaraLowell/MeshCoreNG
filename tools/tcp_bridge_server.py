@@ -495,16 +495,32 @@ def record_packet_log(
     return entry
 
 
-def parse_heartbeat(payload: bytes) -> int | None:
+def parse_heartbeat(payload: bytes) -> dict | None:
     if len(payload) < 5:
         return None
     if not payload.startswith(CONTROL_PREFIX):
         return None
     if payload[4] != CONTROL_TYPE_HEARTBEAT:
         return None
-    if len(payload) >= 9:
-        return struct.unpack(">I", payload[5:9])[0]
-    return 0
+    heartbeat = {
+        "uptime_ms": struct.unpack(">I", payload[5:9])[0] if len(payload) >= 9 else 0,
+    }
+    if len(payload) >= 28 and payload[9:11] == b"RF" and payload[11] == 1:
+        used_ms = struct.unpack(">I", payload[12:16])[0]
+        max_ms = struct.unpack(">I", payload[16:20])[0]
+        window_ms = struct.unpack(">I", payload[20:24])[0]
+        duty_limit_centi_pct = struct.unpack(">H", payload[24:26])[0]
+        used_centi_pct = struct.unpack(">H", payload[26:28])[0]
+        heartbeat["rf_duty"] = {
+            "tx_used_ms": used_ms,
+            "tx_max_ms": max_ms,
+            "window_ms": window_ms,
+            "duty_limit_pct": duty_limit_centi_pct / 100.0,
+            "tx_used_pct": min(100.0, used_centi_pct / 100.0),
+        }
+        if window_ms > 0:
+            heartbeat["rf_duty"]["actual_window_pct"] = (used_ms * 100.0) / window_ms
+    return heartbeat
 
 
 def parse_node_info(payload: bytes) -> tuple[str, str, str] | None:
@@ -1087,6 +1103,8 @@ class BridgeClient:
         self._connect_time = time.time()
         self.last_seen = self._connect_time
         self.last_heartbeat = 0.0
+        self.last_heartbeat_uptime_ms = 0
+        self.rf_duty: dict = {}
         self.node_name = ""
         self.node_id = ""
         self.firmware_version = ""
@@ -1125,6 +1143,8 @@ class BridgeClient:
             "connected_for": format_duration(now - self._connect_time),
             "idle_seconds": int(now - self.last_seen),
             "heartbeat_age_seconds": int(now - self.last_heartbeat) if self.last_heartbeat else None,
+            "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
+            "rf_duty": dict(self.rf_duty),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(self.packet_rx_times),
@@ -1345,11 +1365,14 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 log.info("%s: bridge capabilities v%d flags=0x%02x bridge_v2=%s",
                          client.addr, caps["version"], caps["flags"], client.supports_bridge_v2)
                 continue
-            heartbeat_uptime = parse_heartbeat(payload)
-            if heartbeat_uptime is not None:
+            heartbeat = parse_heartbeat(payload)
+            if heartbeat is not None:
                 client.heartbeats_rx += 1
                 client.last_heartbeat = time.time()
-                log.debug("%s: heartbeat uptime=%dms", client.addr, heartbeat_uptime)
+                client.last_heartbeat_uptime_ms = int(heartbeat.get("uptime_ms") or 0)
+                if "rf_duty" in heartbeat:
+                    client.rf_duty = heartbeat["rf_duty"]
+                log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
             if command_reply is not None:
@@ -1728,7 +1751,7 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .node-title {{ display: flex; justify-content: space-between; gap: 10px; color: var(--green-soft); font-weight: 800; }}
     .node-meta {{ margin-top: 8px; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }}
-    .node-stats {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }}
+    .node-stats {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }}
     .mini {{ border: 1px solid rgba(97, 255, 154, .14); padding: 8px; border-radius: 4px; }}
     .mini b {{ display: block; color: var(--green); font-size: 1rem; margin-top: 4px; }}
     @media (max-width: 980px) {{
@@ -1890,6 +1913,14 @@ def build_status_html(base_path: str = "") -> str:
       document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
     }}
 
+    function pct(value) {{
+      return Number.isFinite(value) ? `${{value.toFixed(value >= 10 ? 1 : 2)}}%` : "--";
+    }}
+
+    function seconds(ms) {{
+      return Number.isFinite(ms) ? `${{Math.round(ms / 1000)}}s` : "--";
+    }}
+
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
@@ -1900,6 +1931,10 @@ def build_status_html(base_path: str = "") -> str:
       setStatus("nodeStatus", `${{status.clients.length}} active`, "ok");
       target.innerHTML = status.clients.map((client) => {{
         const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
+        const rf = client.rf_duty || {{}};
+        const rfTitle = Number.isFinite(rf.tx_used_pct)
+          ? `${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}} of ${{pct(rf.duty_limit_pct)}} duty`
+          : "firmware update needed";
         return `
           <article class="node-card">
             <div class="node-title">
@@ -1910,6 +1945,7 @@ def build_status_html(base_path: str = "") -> str:
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">RF TX</span><b>${{pct(rf.tx_used_pct)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
             <div class="node-meta">connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}</div>

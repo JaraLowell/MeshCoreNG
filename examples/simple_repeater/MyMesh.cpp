@@ -2316,10 +2316,27 @@ void MyMesh::checkDailyReboot() {
 void MyMesh::loop() {
   // Primary (non-MQTT) bridge needs pumping from the main loop.
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+  {
+    uint32_t max_tx_budget = getMaxTxBudget();
+    uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
+    uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
+    tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
+                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+  }
   tcp_bridge.loop();
   ble_bridge.loop();
   if (tcp_bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
-#elif defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
+#elif defined(WITH_TCP_BRIDGE)
+  {
+    uint32_t max_tx_budget = getMaxTxBudget();
+    uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
+    uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
+    bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
+                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct());
+  }
+  bridge.loop();
+  if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
+#elif defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
   bridge.loop();
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
 #endif
