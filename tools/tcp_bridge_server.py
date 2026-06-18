@@ -2162,13 +2162,13 @@ def build_status_html(base_path: str = "") -> str:
     }}
     .pulse.warn::before {{ background: var(--amber); box-shadow: 0 0 14px var(--amber); }}
     .pulse.error::before {{ background: var(--red); box-shadow: 0 0 14px var(--red); }}
-    .table-wrap {{ overflow-x: auto; }}
-    table {{ width: 100%; border-collapse: collapse; min-width: 840px; }}
+    .table-wrap {{ overflow: hidden; }}
+    table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
     th, td {{
       padding: 6px 8px;
       text-align: left;
       border-bottom: 1px solid rgba(97, 255, 154, .14);
-      white-space: nowrap;
+      white-space: normal;
       vertical-align: top;
       font-size: .78rem;
       line-height: 1.25;
@@ -2191,7 +2191,14 @@ def build_status_html(base_path: str = "") -> str:
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.update {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
-    .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
+    .packet-age {{ width: 54px; }}
+    .packet-dir {{ width: 40px; }}
+    .packet-flow {{ width: 24%; }}
+    .packet-kind {{ width: 23%; }}
+    .packet-data {{ width: auto; }}
+    .packet-main {{ color: #dfffe9; overflow-wrap: anywhere; }}
+    .packet-sub {{ color: var(--muted); font-size: .7rem; margin-top: 2px; overflow-wrap: anywhere; }}
+    .preview {{ max-width: 100%; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
     .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
     .feed {{
       padding: 8px 10px;
@@ -2269,7 +2276,23 @@ def build_status_html(base_path: str = "") -> str:
       .status-strip {{ grid-template-columns: 1fr; }}
       .node-grid {{ grid-template-columns: 1fr; }}
       .node-stats {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-      table {{ min-width: 760px; }}
+      table, thead, tbody, tr, th, td {{ display: block; width: 100%; }}
+      thead {{ display: none; }}
+      tr {{
+        padding: 7px 8px;
+        border-bottom: 1px solid rgba(97, 255, 154, .18);
+      }}
+      th, td {{
+        border-bottom: 0;
+        padding: 2px 0;
+      }}
+      td.packet-age {{
+        color: var(--muted);
+        font-size: .7rem;
+      }}
+      td:nth-child(2) {{
+        margin: 2px 0;
+      }}
     }}
   </style>
 </head>
@@ -2312,23 +2335,15 @@ def build_status_html(base_path: str = "") -> str:
           <table>
             <thead>
               <tr>
-                <th>Age</th>
-                <th>Dir</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Type</th>
-                <th>Route</th>
-                <th>Hops</th>
-                <th>Bytes</th>
-                <th>V2</th>
-                <th>TTL</th>
-                <th>Channel</th>
-                <th>Decoded</th>
-                <th>Preview</th>
+                <th class="packet-age">Age</th>
+                <th class="packet-dir">Dir</th>
+                <th class="packet-flow">Flow</th>
+                <th class="packet-kind">Packet</th>
+                <th class="packet-data">Data</th>
               </tr>
             </thead>
             <tbody id="packetRows">
-              <tr><td colspan="13" class="empty">Loading packet telemetry</td></tr>
+              <tr><td colspan="5" class="empty">Loading packet telemetry</td></tr>
             </tbody>
           </table>
         </div>
@@ -2502,7 +2517,7 @@ def build_status_html(base_path: str = "") -> str:
       const rows = document.getElementById("packetRows");
       const packets = packetData.packets.slice(0, 50);
       if (!packets.length) {{
-        rows.innerHTML = '<tr><td colspan="13" class="empty">No packets seen yet</td></tr>';
+        rows.innerHTML = '<tr><td colspan="5" class="empty">No packets seen yet</td></tr>';
         document.getElementById("packetFeed").innerHTML = '<div class="empty">Awaiting mesh traffic</div>';
         setStatus("packetStatus", "no traffic", "warn");
         setStatus("feedStatus", "quiet", "warn");
@@ -2512,21 +2527,35 @@ def build_status_html(base_path: str = "") -> str:
       setStatus("feedStatus", "live", "ok");
       rows.innerHTML = packets.map((packet, index) => {{
         const dirClass = packet.direction === "RX" ? "rx" : "tx";
+        const source = packet.source || packet.client || "";
+        const target = packet.target || "";
+        const flow = target ? `${{escapeHtml(source)}} -> ${{escapeHtml(target)}}` : escapeHtml(source);
+        const routeBits = [
+          packet.route || "",
+          packet.hops === null || packet.hops === undefined ? "" : `${{packet.hops}} hop`,
+          `${{packet.size}}B`,
+          packet.bridge_v2 ? `ttl ${{text(packet.ttl, "-")}}` : "",
+        ].filter(Boolean).join(" | ");
+        const decoded = packet.decoded_text || packet.decoded_status || "";
+        const decodedLine = packet.decoded_channel
+          ? `${{escapeHtml(packet.decoded_channel)}}: ${{escapeHtml(decoded)}}`
+          : escapeHtml(decoded);
         return `
           <tr class="${{index < 3 ? "hot" : ""}}">
-            <td>${{age(packet.age_seconds)}} ago</td>
+            <td class="packet-age">${{age(packet.age_seconds)}}</td>
             <td><span class="badge ${{dirClass}}">${{escapeHtml(packet.direction)}}</span></td>
-            <td>${{escapeHtml(packet.source || packet.client || "")}}</td>
-            <td>${{escapeHtml(packet.target || "")}}</td>
-            <td>${{escapeHtml(packet.type || "unknown")}}</td>
-            <td>${{escapeHtml(packet.route || "")}}</td>
-            <td>${{text(packet.hops, "")}}</td>
-            <td>${{packet.size}}</td>
-            <td>${{yesNo(packet.bridge_v2)}}</td>
-            <td>${{text(packet.ttl, "")}}</td>
-            <td>${{escapeHtml(packet.decoded_channel || "")}}</td>
-            <td class="preview">${{escapeHtml(packet.decoded_text || packet.decoded_status || "")}}</td>
-            <td class="preview">${{escapeHtml(packet.preview)}}</td>
+            <td>
+              <div class="packet-main">${{flow}}</div>
+              <div class="packet-sub">${{escapeHtml(packet.client || "")}}</div>
+            </td>
+            <td>
+              <div class="packet-main">${{escapeHtml(packet.type || "unknown")}}</div>
+              <div class="packet-sub">${{escapeHtml(routeBits)}}</div>
+            </td>
+            <td>
+              <div class="packet-main preview">${{decodedLine}}</div>
+              <div class="packet-sub preview">${{escapeHtml(packet.preview)}}</div>
+            </td>
           </tr>
         `;
       }}).join("");
