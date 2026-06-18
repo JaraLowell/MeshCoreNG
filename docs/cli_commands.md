@@ -1564,7 +1564,7 @@ python3 tools/tcp_bridge_server.py --port 4200 \
   --allow-path-block-admin
 ```
 
-This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. Normal remote CLI commands still require the selected repeater's node admin password.
+This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
 
 **2. Configure each intended bridge repeater via CLI:**
 ```

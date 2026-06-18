@@ -2056,6 +2056,11 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     options_html = "\n".join(options) if options else (
         '<option value="">No bridge nodes connected</option>'
     )
+    path_options_html = (
+        '<option value="__all__">All connected bridge nodes</option>\n' + "\n".join(options)
+        if options else
+        '<option value="">No bridge nodes connected</option>'
+    )
     disabled = " disabled" if not options else ""
     path_block_enabled = ALLOW_PATH_BLOCK_ADMIN and bool(ADMIN_PASSWORD)
     path_disabled = "" if options and path_block_enabled else " disabled"
@@ -2138,7 +2143,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         <input type="hidden" name="mode" value="path_block">
         <label for="path_target">Bridge node</label>
         <select id="path_target" name="target"{path_disabled}>
-          {options_html}
+          {path_options_html}
         </select>
         <label for="path_action">Action</label>
         <select id="path_action" name="path_action"{path_disabled}>
@@ -2939,24 +2944,44 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                 command = (form.get("command") or [""])[0].strip()
                 mode = (form.get("mode") or [""])[0].strip()
                 client = find_client(target)
-                if client is None:
-                    result = "Error: selected bridge node is no longer connected"
-                elif mode == "path_block":
+                if mode == "path_block":
                     if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
                         result = "Error: path quarantine admin is disabled"
                     else:
                         try:
                             command = build_path_block_command(form)
-                            reply = await client.send_command(command, "")
-                            result = f"{client.display_name}> {command}\n{reply}"
-                            log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
+                            if target == "__all__":
+                                targets = sorted(list(connected_clients), key=lambda c: (c.display_name.lower(), c.client_id))
+                                if not targets:
+                                    result = "Error: no bridge nodes connected"
+                                else:
+                                    async def send_path_block(client: BridgeClient) -> str:
+                                        try:
+                                            reply = await client.send_command(command, "")
+                                            log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
+                                            return f"{client.display_name}> {command}\n{reply}"
+                                        except asyncio.TimeoutError:
+                                            log.warning("%s: path quarantine command timed out", client.addr)
+                                            return f"{client.display_name}> {command}\nError: command timed out waiting for bridge reply"
+                                        except Exception as exc:
+                                            return f"{client.display_name}> {command}\nError: {exc}"
+
+                                    result = "\n\n".join(await asyncio.gather(*(send_path_block(c) for c in targets)))
+                            elif client is None:
+                                result = "Error: selected bridge node is no longer connected"
+                            else:
+                                reply = await client.send_command(command, "")
+                                result = f"{client.display_name}> {command}\n{reply}"
+                                log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
                         except asyncio.TimeoutError:
                             log.warning("%s: path quarantine command timed out", client.addr)
                             result = "Error: command timed out waiting for bridge reply"
                         except Exception as exc:
                             result = f"Error: {exc}"
                 else:
-                    if not command:
+                    if client is None:
+                        result = "Error: selected bridge node is no longer connected"
+                    elif not command:
                         result = "Error: empty command"
                     elif not node_password:
                         result = "Error: node admin password required"
