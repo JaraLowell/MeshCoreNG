@@ -33,6 +33,10 @@ http://localhost:8080/
 
 Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
 
+The status page keeps a 24-hour in-memory traffic window for each known bridge node. It shows `RX 24h` and `TX 24h` per node, and disconnected nodes stay visible as `offline` while they still have packet history inside that 24-hour window. These counters reset when the Python bridge server process restarts.
+
+The `Duty this hour` tile shows how much of the node's allowed hourly RF transmit duty-cycle budget has been used. `0%` means no RF TX budget has been used in the current accounting window. `100%` means the full configured hourly duty-cycle budget has been used. For example, with `set dutycycle 10`, the hourly RF TX budget is 10% of one hour, or 360 seconds. In that case `50%` means 180 seconds of RF TX have been used, and `100%` means 360 seconds have been used. Older bridge firmware that does not send RF duty telemetry will show the tile as unavailable until the repeater is updated.
+
 Remote management is on a separate page:
 
 ```text

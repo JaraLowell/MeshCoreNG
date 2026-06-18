@@ -262,6 +262,8 @@ get bridge.tcp.ttl
 
 TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Beim Export von RF-Flood-Packets zur TCP bridge fuegt der exportierende Bridge-Repeater seinen eigenen Node-Hash zum MeshCore Path hinzu, wenn er dort noch nicht vorhanden ist und im Path noch Platz ist.
 
+Der Python TCP-Bridge-Server stellt standardmaessig eine Status-Webseite auf Port `8080` bereit. Sie zeigt online und kuerzlich gesehene Bridge-Nodes, RX/TX-Packet-Zahlen pro Node fuer die letzten 24 Stunden, Heartbeat-Status, Firmware-Version, Bridge-v1/v2-Support und den RF-Dutycycle-Budgetverbrauch. Disconnected Nodes bleiben sichtbar, solange sie noch Packet-History im 24-Stunden-Fenster haben. Der Wert `Duty this hour` ist der prozentuale Anteil des erlaubten stuendlichen RF-TX-Dutycycle-Budgets, der bereits genutzt wurde: bei 10% Dutycycle bedeutet `100%`, dass die vollen sechs Minuten pro Stunde genutzt wurden, und `50%` bedeutet drei Minuten.
+
 Alle 38 ESP32-Repeater-Varianten haben jetzt eine passende `_bridge_tcp` Firmware. Siehe [docs/cli_commands.md](./docs/cli_commands.md) fuer alle Einstellmoeglichkeiten.
 
 **Bridge-Firmwaretypen**
