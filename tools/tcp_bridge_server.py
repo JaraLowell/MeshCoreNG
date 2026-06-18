@@ -1395,6 +1395,8 @@ class BridgeClient:
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.authenticated = not BRIDGE_PASSWORD
+        self._seen_hash_set: set[bytes] = set()
+        self._seen_hash_deque: deque[bytes] = deque(maxlen=256)
 
     @property
     def display_name(self) -> str:
@@ -1403,6 +1405,19 @@ class BridgeClient:
     @property
     def client_id(self) -> str:
         return self._client_id
+
+    def has_seen_payload(self, payload: bytes) -> bool:
+        """Return True if this client has already received this mesh payload recently."""
+        mesh = mesh_payload_for_parsing(payload)
+        h = hashlib.sha256(mesh).digest()[:8]
+        if h in self._seen_hash_set:
+            return True
+        if len(self._seen_hash_deque) >= self._seen_hash_deque.maxlen:
+            oldest = self._seen_hash_deque[0]
+            self._seen_hash_set.discard(oldest)
+        self._seen_hash_deque.append(h)
+        self._seen_hash_set.add(h)
+        return False
 
     def learn_node_id(self, node_id: str, name: str = "") -> None:
         node_id = (node_id or "").strip().lower()
@@ -1567,10 +1582,17 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         log.debug("%s: dropping bridge packet with expired TTL", sender.addr)
         return
 
+    # Mark the sender as having seen this payload so it is skipped if it reconnects
+    # and the same packet arrives again before the deque ages out.
+    sender.has_seen_payload(forwarded_payload)
+
     dead = set()
     envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
         if client is sender:
+            continue
+        if client.has_seen_payload(forwarded_payload):
+            log.debug("%s: skipping duplicate payload to %s", sender.addr, client.addr)
             continue
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:

@@ -10,6 +10,8 @@ It will automatically build firmware when one of the following tag formats are p
 - `bridge-tcp-v1.0.0`
 - `bridge-rs232-v1.0.0`
 - `bridge-espnow-v1.0.0`
+- `bridge-ble-v1.0.0`
+- `bridge-tcp-ble-v1.0.0`
 
 > NOTE: replace `v1.0.0` with the version you want to release as.
 
