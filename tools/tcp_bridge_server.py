@@ -341,7 +341,8 @@ def fetch_latest_firmware_info(repo: str, timeout: int) -> dict:
         version = parse_semver(match.group(1))
         if version is None:
             continue
-        if best is None or version > best:
+        prefer_tag = best_tag.startswith("v") and not tag.startswith("v")
+        if best is None or version > best or (version == best and prefer_tag):
             best = version
             best_tag = tag
 
@@ -1331,6 +1332,7 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "id": stats.get("client_id") or stats["key"],
         "node_id": stats.get("node_id", ""),
         "firmware_version": stats.get("firmware_version", ""),
+        "firmware_update": firmware_update_status(stats.get("firmware_version", "")),
         "display_name": display_name,
         "connected": connected,
         "connected_seconds": int(now - stats["last_connected"]) if connected else 0,
@@ -1425,6 +1427,7 @@ class BridgeClient:
             "id": self.client_id,
             "node_id": self.node_id,
             "firmware_version": self.firmware_version,
+            "firmware_update": firmware_update_status(self.firmware_version),
             "display_name": self.display_name,
             "connected": True,
             "connected_seconds": int(now - self._connect_time),
@@ -1783,6 +1786,7 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "global_count": len(transport_rx_times),
             "dropped": transport_rate_dropped,
         },
+        "firmware_release": dict(latest_firmware_info),
         "clients": redact_public_value(clients),
     }
 
@@ -2031,6 +2035,7 @@ def build_status_html(base_path: str = "") -> str:
     .badge.rx {{ color: #86c5ff; border-color: rgba(134, 197, 255, .45); }}
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
+    .badge.update {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
     .preview {{ max-width: 520px; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }}
     .empty {{ text-align: center; color: var(--muted); padding: 28px; }}
     .feed {{
@@ -2252,6 +2257,14 @@ def build_status_html(base_path: str = "") -> str:
       target.innerHTML = status.clients.map((client) => {{
         const heartbeat = client.heartbeat_age_seconds === null ? "never" : `${{client.heartbeat_age_seconds}}s ago`;
         const isOnline = client.connected !== false;
+        const update = client.firmware_update || {{}};
+        const updateAvailable = update.state === "available";
+        const updateTitle = updateAvailable
+          ? `new firmware available: ${{update.latest_version || update.latest_tag}}`
+          : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}` : "";
+        const updateBadge = updateAvailable
+          ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`
+          : "";
         const rf = client.rf_duty || {{}};
         const rfTitle = Number.isFinite(rf.tx_used_pct)
           ? `${{pct(rf.tx_used_pct)}} dutycycle used this hour. 0% = no RF TX budget used, 100% = full ${{pct(rf.duty_limit_pct)}} hourly dutycycle used (${{seconds(rf.tx_used_ms)}} / ${{seconds(rf.tx_max_ms)}}).`
@@ -2266,7 +2279,7 @@ def build_status_html(base_path: str = "") -> str:
               <span>${{escapeHtml(client.display_name)}}</span>
               <span class="badge${{isOnline ? "" : " offline"}}">${{badge}}</span>
             </div>
-            <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}}</div>
+            <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}} ${{updateBadge}}</div>
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
@@ -3422,6 +3435,9 @@ async def main(host: str, port: int, status_host: str, status_port: int):
                         status_host, status_port, exc)
     log.info("Press Ctrl+C to stop")
     status = asyncio.create_task(status_task()) if STATUS_INTERVAL_SECS > 0 else None
+    firmware_updates = asyncio.create_task(
+        firmware_update_task(FIRMWARE_UPDATE_REPO, FIRMWARE_UPDATE_CHECK_INTERVAL_SECS, FIRMWARE_UPDATE_TIMEOUT_SECS)
+    )
 
     try:
         if http_server:
@@ -3436,6 +3452,8 @@ async def main(host: str, port: int, status_host: str, status_port: int):
             await http_server.wait_closed()
         if status:
             status.cancel()
+        if firmware_updates:
+            firmware_updates.cancel()
 
 
 if __name__ == "__main__":
@@ -3456,6 +3474,12 @@ if __name__ == "__main__":
                         help="HTTP status page port (default: 8080, 0 disables)")
     parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
                         help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
+    parser.add_argument("--firmware-update-repo", default=FIRMWARE_UPDATE_REPO,
+                        help="GitHub owner/repo used for firmware update checks (default: MichTronics/MeshCoreNG, empty disables)")
+    parser.add_argument("--firmware-update-interval", type=int, default=FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
+                        help="Seconds between firmware update checks (default: 3600, 0 disables)")
+    parser.add_argument("--firmware-update-timeout", type=int, default=FIRMWARE_UPDATE_TIMEOUT_SECS,
+                        help="HTTP timeout in seconds for firmware update checks (default: 5)")
     parser.add_argument("--public-channels-file", default="",
                         help="JSON file with public channel names/secrets for optional group packet decoding")
     parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
@@ -3493,6 +3517,9 @@ if __name__ == "__main__":
     ADMIN_PASSWORD = args.admin_password
     ALLOW_PATH_BLOCK_ADMIN = args.allow_path_block_admin
     STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
+    FIRMWARE_UPDATE_REPO = args.firmware_update_repo.strip()
+    FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = max(0, args.firmware_update_interval)
+    FIRMWARE_UPDATE_TIMEOUT_SECS = max(1, args.firmware_update_timeout)
     PUBLIC_CHANNELS_FILE = args.public_channels_file
     LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
     TRANSPORT_RATE_LIMIT_ENABLE = args.transport_rate_limit == "on"

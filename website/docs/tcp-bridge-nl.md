@@ -37,6 +37,8 @@ De statuspagina houdt per bekende bridge-node een 24-uurs verkeersvenster in geh
 
 De tegel `Duty this hour` toont hoeveel procent van het toegestane RF TX dutycycle-uurbudget van die node is gebruikt. `0%` betekent dat er geen RF TX-budget is gebruikt. `100%` betekent dat het volledige ingestelde uurbudget is gebruikt. Bij `set dutycycle 10` is het RF TX-budget 10% van een uur, dus 360 seconden. Dan betekent `50%` dat 180 seconden RF TX zijn gebruikt, en `100%` dat 360 seconden zijn gebruikt. Oudere bridge firmware die deze RF duty-telemetry nog niet meestuurt toont deze tegel als niet beschikbaar tot de repeater is bijgewerkt.
 
+De server controleert ook GitHub release-tags en toont bij een node een `update` badge wanneer de gemelde firmwareversie ouder is dan de nieuwste beschikbare firmware-release. Standaard wordt `MichTronics/MeshCoreNG` een keer per uur gecontroleerd. Gebruik `--firmware-update-repo owner/repo` om een andere repository te gebruiken, of `--firmware-update-interval 0` om de check uit te zetten.
+
 Voor testen en monitoren kun je de server starten met statusregels en heartbeat-timeout:
 
 ```bash
