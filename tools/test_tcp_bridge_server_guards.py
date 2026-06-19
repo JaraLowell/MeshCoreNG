@@ -203,6 +203,46 @@ async def test_status_hides_unnamed_offline_placeholders() -> None:
         server.node_traffic_stats = old_stats
 
 
+async def test_rf_duty_hour_counter_resets() -> None:
+    old_stats = server.node_traffic_stats
+    server.node_traffic_stats = {}
+    client = make_client("Duty")
+    heartbeat = {
+        "uptime_ms": 1,
+        "rf_duty": {
+            "tx_used_ms": 1200,
+            "tx_max_ms": 360000,
+            "window_ms": 3600000,
+            "duty_limit_pct": 10.0,
+            "tx_used_pct": 0.33,
+            "tx_total_ms": 100000,
+        },
+    }
+    try:
+        server.record_node_heartbeat(client, heartbeat, now=3610)
+        rf = server.get_node_stats(client)["rf_duty"]
+        assert rf["tx_used_ms"] == 1200
+        assert rf["tx_hour_used_ms"] == 0
+
+        heartbeat["rf_duty"]["tx_used_ms"] = 2400
+        heartbeat["rf_duty"]["tx_total_ms"] = 105000
+        server.record_node_heartbeat(client, heartbeat, now=3620)
+        rf = server.get_node_stats(client)["rf_duty"]
+        assert rf["tx_used_ms"] == 2400
+        assert rf["tx_hour_used_ms"] == 5000
+
+        heartbeat["rf_duty"]["tx_used_ms"] = 3000
+        heartbeat["rf_duty"]["tx_total_ms"] = 110000
+        server.record_node_heartbeat(client, heartbeat, now=7205)
+        rf = server.get_node_stats(client)["rf_duty"]
+        assert rf["tx_used_ms"] == 3000
+        assert rf["tx_hour_used_ms"] == 0
+        assert rf["tx_hour_resets_in_seconds"] == 3595
+    finally:
+        client.close()
+        server.node_traffic_stats = old_stats
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_ttl_allows_resend()
@@ -211,6 +251,7 @@ async def main() -> None:
     await test_rf_budget_drop()
     await test_caps_v2_group_budget()
     await test_status_hides_unnamed_offline_placeholders()
+    await test_rf_duty_hour_counter_resets()
     print("tcp bridge guard smoke tests passed")
 
 

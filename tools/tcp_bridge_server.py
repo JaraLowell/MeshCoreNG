@@ -1356,6 +1356,8 @@ def new_node_stats(key: str) -> dict:
         "rf_duty": {},
         "rf_tx_total_baseline_ms": None,
         "rf_tx_total_baseline_at": 0.0,
+        "rf_tx_hour_baseline_ms": None,
+        "rf_tx_hour_started_at": 0.0,
         "node_name": "",
         "node_id": "",
         "firmware_version": "",
@@ -1380,7 +1382,7 @@ def merge_node_stats(target: dict, source: dict) -> None:
     target["first_seen"] = min(target.get("first_seen", time.time()), source.get("first_seen", time.time()))
     for field in ("last_seen", "last_connected", "last_disconnect", "last_heartbeat"):
         target[field] = max(target.get(field, 0.0), source.get(field, 0.0))
-    for field in ("rf_tx_total_baseline_ms", "rf_tx_total_baseline_at"):
+    for field in ("rf_tx_total_baseline_ms", "rf_tx_total_baseline_at", "rf_tx_hour_baseline_ms", "rf_tx_hour_started_at"):
         if target.get(field) is None or not target.get(field):
             target[field] = source.get(field)
     for field in ("last_heartbeat_uptime_ms",):
@@ -1449,6 +1451,11 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
     stats["last_heartbeat_uptime_ms"] = int(heartbeat.get("uptime_ms") or 0)
     if "rf_duty" in heartbeat:
         rf = dict(heartbeat["rf_duty"])
+        max_ms = int(rf.get("tx_max_ms") or 0)
+        window_ms = int(rf.get("window_ms") or 0)
+        firmware_used_ms = int(rf.get("tx_used_ms") or 0)
+        rf["tx_left_ms"] = max(0, max_ms - firmware_used_ms) if max_ms > 0 else 0
+        rf["measured_from_server_start"] = False
         total_ms = rf.get("tx_total_ms")
         if isinstance(total_ms, int):
             baseline = stats.get("rf_tx_total_baseline_ms")
@@ -1456,18 +1463,23 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
                 baseline = total_ms
                 stats["rf_tx_total_baseline_ms"] = baseline
                 stats["rf_tx_total_baseline_at"] = now
-            measured_used_ms = max(0, total_ms - baseline)
-            max_ms = int(rf.get("tx_max_ms") or 0)
-            window_ms = int(rf.get("window_ms") or 0)
-            measured_used_ms = min(measured_used_ms, max_ms) if max_ms > 0 else measured_used_ms
-            rf["tx_used_ms"] = measured_used_ms
-            rf["tx_left_ms"] = max(0, max_ms - measured_used_ms) if max_ms > 0 else 0
-            rf["tx_used_pct"] = min(100.0, (measured_used_ms * 100.0) / max_ms) if max_ms > 0 else 0.0
-            rf["actual_window_pct"] = (measured_used_ms * 100.0) / window_ms if window_ms > 0 else 0.0
-            rf["measured_from_server_start"] = True
-        else:
-            rf["tx_left_ms"] = max(0, int(rf.get("tx_max_ms") or 0) - int(rf.get("tx_used_ms") or 0))
-            rf["measured_from_server_start"] = False
+            since_server_ms = max(0, total_ms - baseline)
+            rf["tx_since_server_ms"] = since_server_ms
+            rf["tx_since_server_pct"] = min(100.0, (since_server_ms * 100.0) / max_ms) if max_ms > 0 else 0.0
+
+            hour_started_at = int(now // 3600) * 3600
+            hour_baseline = stats.get("rf_tx_hour_baseline_ms")
+            if stats.get("rf_tx_hour_started_at") != hour_started_at or hour_baseline is None or total_ms < hour_baseline:
+                hour_baseline = total_ms
+                stats["rf_tx_hour_baseline_ms"] = hour_baseline
+                stats["rf_tx_hour_started_at"] = hour_started_at
+            hour_used_ms = max(0, total_ms - hour_baseline)
+            hour_used_ms = min(hour_used_ms, max_ms) if max_ms > 0 else hour_used_ms
+            rf["tx_hour_used_ms"] = hour_used_ms
+            rf["tx_hour_left_ms"] = max(0, max_ms - hour_used_ms) if max_ms > 0 else 0
+            rf["tx_hour_used_pct"] = min(100.0, (hour_used_ms * 100.0) / max_ms) if max_ms > 0 else 0.0
+            rf["tx_hour_started_at"] = hour_started_at
+            rf["tx_hour_resets_in_seconds"] = max(0, int(hour_started_at + 3600 - now))
         stats["rf_duty"] = rf
 
 
@@ -2820,11 +2832,16 @@ def build_status_html(base_path: str = "") -> str:
           ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`
           : "";
         const rf = client.rf_duty || {{}};
-        const rfUsedMs = Number.isFinite(rf.tx_used_ms) ? rf.tx_used_ms : NaN;
+        const rfFirmwareUsedMs = Number.isFinite(rf.tx_used_ms) ? rf.tx_used_ms : NaN;
+        const rfUsedMs = Number.isFinite(rf.tx_hour_used_ms) ? rf.tx_hour_used_ms : rfFirmwareUsedMs;
         const rfMaxMs = Number.isFinite(rf.tx_max_ms) ? rf.tx_max_ms : NaN;
-        const rfLeftMs = Number.isFinite(rfUsedMs) && Number.isFinite(rfMaxMs) ? Math.max(0, rfMaxMs - rfUsedMs) : NaN;
+        const rfLeftMs = Number.isFinite(rf.tx_hour_left_ms)
+          ? rf.tx_hour_left_ms
+          : Number.isFinite(rfUsedMs) && Number.isFinite(rfMaxMs) ? Math.max(0, rfMaxMs - rfUsedMs) : NaN;
+        const rfReset = Number.isFinite(rf.tx_hour_resets_in_seconds) ? duration(rf.tx_hour_resets_in_seconds * 1000) : "unknown";
+        const rfSinceServer = Number.isFinite(rf.tx_since_server_ms) ? duration(rf.tx_since_server_ms) : "unknown";
         const rfTitle = Number.isFinite(rf.tx_used_pct)
-          ? `Measured RF TX since this server saw the node. Used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total).`
+          ? `Current website hour: used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total). Resets in ${{rfReset}}. Firmware current-window used ${{duration(rfFirmwareUsedMs)}}. Since server saw node: ${{rfSinceServer}}.`
           : "firmware update needed";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
