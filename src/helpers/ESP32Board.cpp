@@ -41,6 +41,14 @@ static bool connectOtaWifi(const char* ssid, const char* password, char reply[])
     return false;
   }
 
+  if (WiFi.status() == WL_CONNECTED) {
+    String current_ssid = WiFi.SSID();
+    if (current_ssid.length() == 0 || current_ssid == ssid) {
+      otaStatusf("wifi already connected ip=%s", WiFi.localIP().toString().c_str());
+      return true;
+    }
+  }
+
   otaStatusf("wifi connecting to %s", ssid);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
