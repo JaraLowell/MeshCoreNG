@@ -1473,7 +1473,7 @@ class BridgeClient:
         self.authenticated = not BRIDGE_PASSWORD
         self._seen_hash_set: set[bytes] = set()
         self._seen_hash_deque: deque[bytes] = deque(maxlen=256)
-        self.tx_queue: asyncio.Queue[tuple[bytes, str]] = asyncio.Queue(maxsize=CLIENT_TX_QUEUE_MAX)
+        self.tx_queue: asyncio.Queue[tuple[bytes, str, bytes | None]] = asyncio.Queue(maxsize=CLIENT_TX_QUEUE_MAX)
         self.tx_queue_task: asyncio.Task | None = None
         self.tx_queued = 0
         self.tx_queue_dropped = 0
@@ -1496,14 +1496,18 @@ class BridgeClient:
         """Return True if this client has already received this mesh payload recently."""
         mesh = mesh_payload_for_parsing(payload)
         h = hashlib.sha256(mesh).digest()[:8]
+        return h in self._seen_hash_set
+
+    def mark_seen_payload(self, payload: bytes) -> None:
+        mesh = mesh_payload_for_parsing(payload)
+        h = hashlib.sha256(mesh).digest()[:8]
         if h in self._seen_hash_set:
-            return True
+            return
         if len(self._seen_hash_deque) >= self._seen_hash_deque.maxlen:
             oldest = self._seen_hash_deque[0]
             self._seen_hash_set.discard(oldest)
         self._seen_hash_deque.append(h)
         self._seen_hash_set.add(h)
-        return False
 
     def learn_node_id(self, node_id: str, name: str = "") -> None:
         node_id = (node_id or "").strip().lower()
@@ -1611,12 +1615,12 @@ class BridgeClient:
         if self.tx_queue_task is None or self.tx_queue_task.done():
             self.tx_queue_task = asyncio.create_task(self._tx_writer_loop())
 
-    def enqueue_payload(self, payload: bytes, source: str = "") -> bool:
+    def enqueue_payload(self, payload: bytes, source: str = "", seen_payload: bytes | None = None) -> bool:
         if self.writer.is_closing():
             self.tx_send_errors += 1
             self.last_tx_error = "writer closing"
             return False
-        item = (bytes(payload), source)
+        item = (bytes(payload), source, bytes(seen_payload) if seen_payload is not None else None)
         if self.tx_queue.full():
             try:
                 self.tx_queue.get_nowait()
@@ -1638,9 +1642,9 @@ class BridgeClient:
     async def _tx_writer_loop(self) -> None:
         try:
             while True:
-                payload, source = await self.tx_queue.get()
+                payload, source, seen_payload = await self.tx_queue.get()
                 try:
-                    ok = await self._send_payload_now(payload, source=source)
+                    ok = await self._send_payload_now(payload, source=source, seen_payload=seen_payload)
                     if not ok:
                         await disconnect(self, reason="send error")
                         return
@@ -1652,10 +1656,12 @@ class BridgeClient:
     async def send_payload(self, payload: bytes, source: str = "") -> bool:
         return self.enqueue_payload(payload, source=source)
 
-    async def _send_payload_now(self, payload: bytes, source: str = "") -> bool:
+    async def _send_payload_now(self, payload: bytes, source: str = "", seen_payload: bytes | None = None) -> bool:
         try:
             self.writer.write(self.build_frame(payload))
             await self.writer.drain()
+            if seen_payload is not None:
+                self.mark_seen_payload(seen_payload)
             self.packets_tx += 1
             now = time.time()
             self.last_tx_send = now
@@ -1736,7 +1742,7 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
 
     # Mark the sender as having seen this payload so it is skipped if it reconnects
     # and the same packet arrives again before the deque ages out.
-    sender.has_seen_payload(forwarded_payload)
+    sender.mark_seen_payload(forwarded_payload)
 
     envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
@@ -1749,7 +1755,7 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:
             client_payload = envelope["mesh_payload"]
-        if not client.enqueue_payload(client_payload, source=sender.display_name):
+        if not client.enqueue_payload(client_payload, source=sender.display_name, seen_payload=forwarded_payload):
             log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
 
 
