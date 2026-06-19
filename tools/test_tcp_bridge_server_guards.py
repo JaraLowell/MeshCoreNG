@@ -71,6 +71,52 @@ async def test_basic_dedupe() -> None:
         assert c.skip_reasons.get("skipped_dup_seen_by_target", 0) == 1
 
 
+async def test_dedupe_ignores_bridge_export_path() -> None:
+    header = (server.PAYLOAD_TYPE_GRP_DATA << server.PH_TYPE_SHIFT) | server.ROUTE_TYPE_FLOOD
+    app_payload = b"same-encrypted-group-data"
+    one_hop_path = bytes([header, 1, 0xA1]) + app_payload
+    two_hop_path = bytes([header, 2, 0xB2, 0xC3]) + app_payload
+    different_payload = bytes([header, 1, 0xA1]) + b"different-group-data"
+
+    assert server.packet_identity_for_dedupe(one_hop_path) == server.packet_identity_for_dedupe(two_hop_path)
+    assert server.packet_fingerprint(one_hop_path) == server.packet_fingerprint(two_hop_path)
+    assert server.packet_fingerprint(one_hop_path) != server.packet_fingerprint(different_payload)
+
+    client = make_client("seen")
+    try:
+        client.mark_seen_payload(one_hop_path)
+        assert client.has_seen_payload(two_hop_path)
+        assert not client.has_seen_payload(different_payload)
+    finally:
+        client.close()
+
+
+async def test_dedupe_ignores_bridge_envelope_and_transport_codes() -> None:
+    header = (server.PAYLOAD_TYPE_GRP_DATA << server.PH_TYPE_SHIFT) | server.ROUTE_TYPE_TRANSPORT_FLOOD
+    app_payload = b"same-transport-group-data"
+    first_codes = b"\x11\x22\x33\x44"
+    second_codes = b"\xAA\xBB\xCC\xDD"
+    transport_a = bytes([header]) + first_codes + bytes([1, 0xA1]) + app_payload
+    transport_b = bytes([header]) + second_codes + bytes([2, 0xB2, 0xC3]) + app_payload
+
+    def bridge_packet(mesh_payload: bytes, ttl: int, origin: int, flags: int) -> bytes:
+        return (
+            b"MCNG"
+            + bytes([server.CONTROL_TYPE_BRIDGE_PACKET, server.BRIDGE_PACKET_VERSION, ttl])
+            + origin.to_bytes(4, "big")
+            + bytes([flags])
+            + len(mesh_payload).to_bytes(2, "big")
+            + mesh_payload
+        )
+
+    wrapped_a = bridge_packet(transport_a, ttl=8, origin=0x01020304, flags=0x01)
+    wrapped_b = bridge_packet(transport_b, ttl=3, origin=0xA0B0C0D0, flags=0x00)
+
+    assert server.packet_identity_for_dedupe(wrapped_a) == server.packet_identity_for_dedupe(wrapped_b)
+    assert server.packet_fingerprint(wrapped_a) == server.packet_fingerprint(wrapped_b)
+    assert server.packet_fingerprint(wrapped_a) == server.packet_fingerprint(transport_a)
+
+
 async def test_ttl_allows_resend() -> None:
     old_ttl = server.BRIDGE_DEDUPE_TTL_SECS
     server.BRIDGE_DEDUPE_TTL_SECS = 1
@@ -245,6 +291,8 @@ async def test_rf_duty_hour_counter_resets() -> None:
 
 async def main() -> None:
     await test_basic_dedupe()
+    await test_dedupe_ignores_bridge_export_path()
+    await test_dedupe_ignores_bridge_envelope_and_transport_codes()
     await test_ttl_allows_resend()
     await test_group_mismatch()
     await test_quarantine()

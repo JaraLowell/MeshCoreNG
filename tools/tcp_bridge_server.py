@@ -85,6 +85,7 @@ PAYLOAD_TYPE_ANON_REQ = 0x07
 PAYLOAD_TYPE_MULTIPART = 0x0A
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
+PAYLOAD_TYPE_TRACE = 0x09
 PAYLOAD_TYPE_LOCATION = 0x0D
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
@@ -842,9 +843,20 @@ def fnv1a64(data: bytes) -> int:
     return value
 
 
-def packet_fingerprint(payload: bytes) -> int:
+def packet_identity_for_dedupe(payload: bytes) -> bytes:
     mesh = mesh_payload_for_parsing(payload)
-    return fnv1a64(mesh)
+    parsed = parse_mesh_payload(mesh)
+    if not parsed:
+        return mesh
+
+    identity = bytes([parsed["payload_type"]])
+    if parsed["payload_type"] == PAYLOAD_TYPE_TRACE:
+        identity += bytes([parsed["path_len"]])
+    return identity + parsed["app_payload"]
+
+
+def packet_fingerprint(payload: bytes) -> int:
+    return fnv1a64(packet_identity_for_dedupe(payload))
 
 
 def fingerprint_hex(fingerprint: int) -> str:
@@ -958,6 +970,7 @@ def parse_mesh_payload(frame_payload: bytes) -> dict | None:
     return {
         "payload_type": payload_type,
         "route_type": route_type,
+        "path_len": path_len,
         "path_hash_count": path_hash_count,
         "app_payload": frame_payload[pos:],
     }
@@ -1713,15 +1726,13 @@ class BridgeClient:
     def has_seen_payload(self, payload: bytes) -> bool:
         """Return True if this client has already received this mesh payload recently."""
         self.prune_seen_payloads()
-        mesh = mesh_payload_for_parsing(payload)
-        h = hashlib.sha256(mesh).digest()[:8]
+        h = hashlib.sha256(packet_identity_for_dedupe(payload)).digest()[:8]
         return h in self._seen_hash_seen_at
 
     def mark_seen_payload(self, payload: bytes) -> None:
         now = time.time()
         self.prune_seen_payloads(now)
-        mesh = mesh_payload_for_parsing(payload)
-        h = hashlib.sha256(mesh).digest()[:8]
+        h = hashlib.sha256(packet_identity_for_dedupe(payload)).digest()[:8]
         if h in self._seen_hash_seen_at:
             self._seen_hash_seen_at[h] = now
             return
