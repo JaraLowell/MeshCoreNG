@@ -30,7 +30,7 @@ import asyncio
 import argparse
 import base64
 import binascii
-from collections import deque
+from collections import OrderedDict, deque
 import hashlib
 import hmac
 import html
@@ -130,6 +130,19 @@ FIRMWARE_UPDATE_REPO = "MichTronics/MeshCoreNG"
 FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = 60 * 60
 FIRMWARE_UPDATE_TIMEOUT_SECS = 5
 CLIENT_TX_QUEUE_MAX = 250
+BRIDGE_DEDUPE_ENABLED = True
+BRIDGE_DEDUPE_TTL_SECS = 300
+BRIDGE_DEDUPE_MAX_ENTRIES = 4096
+BRIDGE_LOOPGUARD_ENABLED = True
+BRIDGE_LOOPGUARD_WINDOW_SECS = 60
+BRIDGE_LOOPGUARD_THRESHOLD = 5
+BRIDGE_LOOPGUARD_QUARANTINE_SECS = 120
+BRIDGE_RF_INJECT_ENABLED = False
+BRIDGE_RF_INJECT_MAX_PER_MIN = 0
+BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR = 0
+BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT = 0.0
+BRIDGE_GROUP = "default"
+BRIDGE_REQUIRE_GROUP_MATCH = False
 next_command_id = 1
 next_client_id = 1
 SERVER_STARTED_AT = time.time()
@@ -144,6 +157,7 @@ transport_rx_times: deque[float] = deque()
 transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
+packet_fingerprint_cache: OrderedDict[int, dict] = OrderedDict()
 public_channels: list[dict] = []
 latest_firmware_info: dict = {
     "enabled": True,
@@ -799,6 +813,56 @@ def mesh_payload_for_parsing(payload: bytes) -> bytes:
     return payload
 
 
+def fnv1a64(data: bytes) -> int:
+    value = 0xCBF29CE484222325
+    for byte in data:
+        value ^= byte
+        value = (value * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return value
+
+
+def packet_fingerprint(payload: bytes) -> int:
+    mesh = mesh_payload_for_parsing(payload)
+    return fnv1a64(mesh)
+
+
+def fingerprint_hex(fingerprint: int) -> str:
+    return f"{fingerprint:016x}"
+
+
+def prune_packet_fingerprint_cache(now: float | None = None) -> None:
+    now = now or time.time()
+    if not BRIDGE_DEDUPE_ENABLED:
+        packet_fingerprint_cache.clear()
+        return
+    cutoff = now - max(1, BRIDGE_DEDUPE_TTL_SECS)
+    for fingerprint, record in list(packet_fingerprint_cache.items()):
+        if record.get("last_seen", 0.0) >= cutoff and len(packet_fingerprint_cache) <= BRIDGE_DEDUPE_MAX_ENTRIES:
+            break
+        packet_fingerprint_cache.pop(fingerprint, None)
+    while len(packet_fingerprint_cache) > max(1, BRIDGE_DEDUPE_MAX_ENTRIES):
+        packet_fingerprint_cache.popitem(last=False)
+
+
+def packet_fingerprint_record(fingerprint: int, now: float | None = None) -> dict:
+    now = now or time.time()
+    prune_packet_fingerprint_cache(now)
+    record = packet_fingerprint_cache.get(fingerprint)
+    if record is None:
+        record = {
+            "fingerprint": fingerprint,
+            "first_seen": now,
+            "last_seen": now,
+            "seen_from": {},
+            "sent_to": {},
+        }
+        packet_fingerprint_cache[fingerprint] = record
+    else:
+        record["last_seen"] = now
+        packet_fingerprint_cache.move_to_end(fingerprint)
+    return record
+
+
 def decrement_bridge_ttl(payload: bytes) -> bytes | None:
     envelope = parse_bridge_packet_envelope(payload)
     if envelope is None:
@@ -1420,6 +1484,17 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "tx_queue_dropped": 0,
         "tx_send_errors": 0,
         "tx_skipped_duplicates": 0,
+        "skipped_dup_total": 0,
+        "skipped_dup_by_reason": {},
+        "loop_score": 0,
+        "quarantine_active": False,
+        "quarantine_seconds_left": 0,
+        "group": BRIDGE_GROUP,
+        "last_fingerprint": "",
+        "last_fingerprint_age_seconds": None,
+        "rf_inject_budget_remaining_ms": None,
+        "rf_budget_drops": 0,
+        "bridge_quality_score": 0,
         "last_tx_age_seconds": None,
         "last_tx_queue_drop_age_seconds": None,
         "last_tx_error": "",
@@ -1471,8 +1546,9 @@ class BridgeClient:
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.authenticated = not BRIDGE_PASSWORD
-        self._seen_hash_set: set[bytes] = set()
-        self._seen_hash_deque: deque[bytes] = deque(maxlen=256)
+        self.bridge_group = BRIDGE_GROUP
+        self._seen_hash_seen_at: dict[bytes, float] = {}
+        self._seen_hash_deque: deque[tuple[bytes, float]] = deque(maxlen=256)
         self.tx_queue: asyncio.Queue[tuple[bytes, str, bytes | None]] = asyncio.Queue(maxsize=CLIENT_TX_QUEUE_MAX)
         self.tx_queue_task: asyncio.Task | None = None
         self.tx_queued = 0
@@ -1480,6 +1556,15 @@ class BridgeClient:
         self.tx_queue_high_water = 0
         self.tx_send_errors = 0
         self.tx_skipped_duplicates = 0
+        self.skip_reasons: dict[str, int] = {}
+        self.loop_score = 0
+        self.loop_last_hit = 0.0
+        self.quarantined_until = 0.0
+        self.rf_inject_minute_times: deque[float] = deque()
+        self.rf_inject_airtime_times: deque[tuple[float, int]] = deque()
+        self.rf_budget_drops = 0
+        self.last_fingerprint = 0
+        self.last_fingerprint_at = 0.0
         self.last_tx_queue_drop = 0.0
         self.last_tx_send = 0.0
         self.last_tx_error = ""
@@ -1492,22 +1577,115 @@ class BridgeClient:
     def client_id(self) -> str:
         return self._client_id
 
+    @property
+    def bridge_key(self) -> str:
+        if self.node_id:
+            return f"node:{self.node_id.strip().lower()}"
+        if self.node_name:
+            return f"name:{self.node_name.strip().lower()}"
+        return self.client_id
+
+    def record_skip(self, reason: str) -> None:
+        self.skip_reasons[reason] = self.skip_reasons.get(reason, 0) + 1
+        if reason.startswith("skipped_dup") and reason != "skipped_dup_loopback":
+            self.tx_skipped_duplicates += 1
+
+    def quarantine_active(self, now: float | None = None) -> bool:
+        now = now or time.time()
+        if self.quarantined_until > now:
+            return True
+        if self.quarantined_until:
+            self.quarantined_until = 0.0
+            self.record_skip("bridge_quarantine_end")
+            log.warning("%s: bridge_quarantine_end", self.addr)
+        return False
+
+    def record_loopguard_hit(self, now: float | None = None) -> None:
+        now = now or time.time()
+        if self.loop_last_hit and now - self.loop_last_hit > max(1, BRIDGE_LOOPGUARD_WINDOW_SECS):
+            self.loop_score = 0
+        self.loop_last_hit = now
+        self.loop_score += 1
+        self.record_skip("loopguard_hit")
+        log.warning("%s: loopguard_hit score=%d", self.addr, self.loop_score)
+        if self.loop_score >= max(1, BRIDGE_LOOPGUARD_THRESHOLD):
+            self.quarantined_until = now + max(1, BRIDGE_LOOPGUARD_QUARANTINE_SECS)
+            self.record_skip("bridge_quarantine_start")
+            log.warning("%s: bridge_quarantine_start %ds", self.addr, BRIDGE_LOOPGUARD_QUARANTINE_SECS)
+
+    def estimated_airtime_ms(self, payload: bytes) -> int:
+        # Conservative bounded estimate for budgeting only; firmware reports real duty separately.
+        return max(1, len(mesh_payload_for_parsing(payload)) * 10)
+
+    def prune_rf_inject_budget(self, now: float | None = None) -> None:
+        now = now or time.time()
+        while self.rf_inject_minute_times and self.rf_inject_minute_times[0] < now - 60:
+            self.rf_inject_minute_times.popleft()
+        while self.rf_inject_airtime_times and self.rf_inject_airtime_times[0][0] < now - 3600:
+            self.rf_inject_airtime_times.popleft()
+
+    def rf_inject_airtime_used_ms(self, now: float | None = None) -> int:
+        self.prune_rf_inject_budget(now)
+        return sum(ms for _, ms in self.rf_inject_airtime_times)
+
+    def rf_inject_budget_remaining_ms(self, now: float | None = None) -> int | None:
+        if BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR <= 0:
+            return None
+        return max(0, BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR - self.rf_inject_airtime_used_ms(now))
+
+    def can_accept_rf_inject(self, payload: bytes, now: float | None = None) -> tuple[bool, str]:
+        if not BRIDGE_RF_INJECT_ENABLED:
+            return True, ""
+        now = now or time.time()
+        self.prune_rf_inject_budget(now)
+        if BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT > 0:
+            used_pct = float((self.rf_duty or {}).get("tx_used_pct") or 0.0)
+            if used_pct >= BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT:
+                return False, "skipped_rf_budget"
+        if BRIDGE_RF_INJECT_MAX_PER_MIN > 0 and len(self.rf_inject_minute_times) >= BRIDGE_RF_INJECT_MAX_PER_MIN:
+            return False, "skipped_rf_budget"
+        estimate = self.estimated_airtime_ms(payload)
+        remaining = self.rf_inject_budget_remaining_ms(now)
+        if remaining is not None and estimate > remaining:
+            return False, "skipped_rf_budget"
+        return True, ""
+
+    def record_rf_inject(self, payload: bytes, now: float | None = None) -> None:
+        if not BRIDGE_RF_INJECT_ENABLED:
+            return
+        now = now or time.time()
+        self.prune_rf_inject_budget(now)
+        self.rf_inject_minute_times.append(now)
+        self.rf_inject_airtime_times.append((now, self.estimated_airtime_ms(payload)))
+
     def has_seen_payload(self, payload: bytes) -> bool:
         """Return True if this client has already received this mesh payload recently."""
+        self.prune_seen_payloads()
         mesh = mesh_payload_for_parsing(payload)
         h = hashlib.sha256(mesh).digest()[:8]
-        return h in self._seen_hash_set
+        return h in self._seen_hash_seen_at
 
     def mark_seen_payload(self, payload: bytes) -> None:
+        now = time.time()
+        self.prune_seen_payloads(now)
         mesh = mesh_payload_for_parsing(payload)
         h = hashlib.sha256(mesh).digest()[:8]
-        if h in self._seen_hash_set:
+        if h in self._seen_hash_seen_at:
+            self._seen_hash_seen_at[h] = now
             return
         if len(self._seen_hash_deque) >= self._seen_hash_deque.maxlen:
-            oldest = self._seen_hash_deque[0]
-            self._seen_hash_set.discard(oldest)
-        self._seen_hash_deque.append(h)
-        self._seen_hash_set.add(h)
+            oldest, _ = self._seen_hash_deque.popleft()
+            self._seen_hash_seen_at.pop(oldest, None)
+        self._seen_hash_deque.append((h, now))
+        self._seen_hash_seen_at[h] = now
+
+    def prune_seen_payloads(self, now: float | None = None) -> None:
+        now = now or time.time()
+        cutoff = now - max(1, BRIDGE_DEDUPE_TTL_SECS)
+        while self._seen_hash_deque and self._seen_hash_deque[0][1] < cutoff:
+            oldest, seen_at = self._seen_hash_deque.popleft()
+            if self._seen_hash_seen_at.get(oldest) == seen_at:
+                self._seen_hash_seen_at.pop(oldest, None)
 
     def learn_node_id(self, node_id: str, name: str = "") -> None:
         node_id = (node_id or "").strip().lower()
@@ -1554,6 +1732,24 @@ class BridgeClient:
             "tx_queue_dropped": self.tx_queue_dropped,
             "tx_send_errors": self.tx_send_errors,
             "tx_skipped_duplicates": self.tx_skipped_duplicates,
+            "skipped_dup_total": self.tx_skipped_duplicates,
+            "skipped_dup_by_reason": dict(self.skip_reasons),
+            "loop_score": self.loop_score,
+            "quarantine_active": self.quarantine_active(now),
+            "quarantine_seconds_left": max(0, int(self.quarantined_until - now)) if self.quarantined_until else 0,
+            "group": self.bridge_group,
+            "last_fingerprint": fingerprint_hex(self.last_fingerprint) if self.last_fingerprint else "",
+            "last_fingerprint_age_seconds": int(now - self.last_fingerprint_at) if self.last_fingerprint_at else None,
+            "rf_inject_budget_remaining_ms": self.rf_inject_budget_remaining_ms(now),
+            "rf_budget_drops": self.rf_budget_drops,
+            "bridge_quality_score": max(
+                0,
+                100
+                - min(60, self.loop_score * 10)
+                - min(25, self.tx_queue_dropped)
+                - min(25, self.tx_send_errors * 5)
+                - min(25, self.rf_budget_drops * 2),
+            ),
             "last_tx_age_seconds": int(now - self.last_tx_send) if self.last_tx_send else None,
             "last_tx_queue_drop_age_seconds": int(now - self.last_tx_queue_drop) if self.last_tx_queue_drop else None,
             "last_tx_error": self.last_tx_error,
@@ -1662,6 +1858,12 @@ class BridgeClient:
             await self.writer.drain()
             if seen_payload is not None:
                 self.mark_seen_payload(seen_payload)
+                fingerprint = packet_fingerprint(seen_payload)
+                record = packet_fingerprint_record(fingerprint)
+                record["sent_to"][self.bridge_key] = time.time()
+                self.last_fingerprint = fingerprint
+                self.last_fingerprint_at = time.time()
+                self.record_rf_inject(seen_payload)
             self.packets_tx += 1
             now = time.time()
             self.last_tx_send = now
@@ -1735,26 +1937,56 @@ class BridgeClient:
 
 async def broadcast(payload: bytes, sender: "BridgeClient"):
     """Forward payload to every connected client except the sender."""
+    now = time.time()
     forwarded_payload = decrement_bridge_ttl(payload)
     if forwarded_payload is None:
-        log.debug("%s: dropping bridge packet with expired TTL", sender.addr)
+        sender.record_skip("skipped_dup_ttl_zero")
+        log.debug("%s: skipped_dup_ttl_zero", sender.addr)
         return
 
     # Mark the sender as having seen this payload so it is skipped if it reconnects
     # and the same packet arrives again before the deque ages out.
     sender.mark_seen_payload(forwarded_payload)
+    fingerprint = packet_fingerprint(forwarded_payload)
+    record = packet_fingerprint_record(fingerprint, now)
+    record["seen_from"][sender.bridge_key] = now
+    sender.last_fingerprint = fingerprint
+    sender.last_fingerprint_at = now
 
     envelope = parse_bridge_packet_envelope(forwarded_payload)
     for client in connected_clients:
         if client is sender:
+            client.record_skip("skipped_dup_loopback")
+            continue
+        if BRIDGE_REQUIRE_GROUP_MATCH and client.bridge_group != sender.bridge_group:
+            client.record_skip("skipped_group_mismatch")
+            log.debug("%s: skipped_group_mismatch target=%s", sender.addr, client.addr)
+            continue
+        if client.quarantine_active(now):
+            client.record_skip("skipped_quarantine")
+            log.warning("%s: skipped_quarantine target=%s", sender.addr, client.addr)
+            continue
+        if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
+            client.record_skip("skipped_dup_seen_by_target")
+            log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
+            continue
+        if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["sent_to"]:
+            client.record_skip("skipped_dup_seen_by_target")
+            log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if client.has_seen_payload(forwarded_payload):
-            client.tx_skipped_duplicates += 1
-            log.debug("%s: skipping duplicate payload to %s", sender.addr, client.addr)
+            client.record_skip("skipped_dup_fingerprint")
+            log.debug("%s: skipped_dup_fingerprint target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         client_payload = forwarded_payload
         if envelope is not None and not client.supports_bridge_v2:
             client_payload = envelope["mesh_payload"]
+        ok_budget, reason = client.can_accept_rf_inject(forwarded_payload, now)
+        if not ok_budget:
+            client.rf_budget_drops += 1
+            client.record_skip(reason or "skipped_rf_budget")
+            log.warning("%s: skipped_rf_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
+            continue
         if not client.enqueue_payload(client_payload, source=sender.display_name, seen_payload=forwarded_payload):
             log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
 
@@ -1878,6 +2110,30 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             prune_packet_times(client.packet_rx_times, now)
             record_node_packet(client, "RX", now)
             mesh_payload = mesh_payload_for_parsing(payload)
+            fingerprint = packet_fingerprint(payload)
+            record = packet_fingerprint_record(fingerprint, now)
+            client.last_fingerprint = fingerprint
+            client.last_fingerprint_at = now
+            sent_at = record["sent_to"].get(client.bridge_key)
+            if BRIDGE_LOOPGUARD_ENABLED and sent_at and now - sent_at <= max(1, BRIDGE_LOOPGUARD_WINDOW_SECS):
+                client.record_loopguard_hit(now)
+                if client.quarantine_active(now):
+                    client.record_skip("skipped_quarantine")
+                    log.warning("%s: skipped_quarantine source=%s fp=%s",
+                                client.addr, client.display_name, fingerprint_hex(fingerprint))
+                    continue
+            if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
+                client.record_skip("skipped_dup_fingerprint")
+                log.debug("%s: skipped_dup_fingerprint source=%s fp=%s",
+                          client.addr, client.display_name, fingerprint_hex(fingerprint))
+                continue
+            if client.quarantine_active(now):
+                client.record_skip("skipped_quarantine")
+                log.warning("%s: skipped_quarantine source=%s fp=%s",
+                            client.addr, client.display_name, fingerprint_hex(fingerprint))
+                continue
+            record["seen_from"][client.bridge_key] = now
+            client.mark_seen_payload(payload)
             parsed_payload = parse_mesh_payload(mesh_payload)
             if not allow_transport_packet(client, parsed_payload, now):
                 packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
@@ -1964,6 +2220,22 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "global_window_secs": TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
             "global_count": len(transport_rx_times),
             "dropped": transport_rate_dropped,
+        },
+        "bridge_guards": {
+            "dedupe_enabled": BRIDGE_DEDUPE_ENABLED,
+            "dedupe_ttl_sec": BRIDGE_DEDUPE_TTL_SECS,
+            "dedupe_max_entries": BRIDGE_DEDUPE_MAX_ENTRIES,
+            "dedupe_entries": len(packet_fingerprint_cache),
+            "loopguard_enabled": BRIDGE_LOOPGUARD_ENABLED,
+            "loopguard_window_sec": BRIDGE_LOOPGUARD_WINDOW_SECS,
+            "loopguard_threshold": BRIDGE_LOOPGUARD_THRESHOLD,
+            "loopguard_quarantine_sec": BRIDGE_LOOPGUARD_QUARANTINE_SECS,
+            "rf_inject_enabled": BRIDGE_RF_INJECT_ENABLED,
+            "rf_inject_max_per_min": BRIDGE_RF_INJECT_MAX_PER_MIN,
+            "rf_inject_max_airtime_ms_per_hour": BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
+            "rf_inject_block_duty_above_pct": BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
+            "group": BRIDGE_GROUP,
+            "require_group_match": BRIDGE_REQUIRE_GROUP_MATCH,
         },
         "firmware_release": dict(latest_firmware_info),
         "clients": redact_public_value(clients),
@@ -2504,7 +2776,13 @@ def build_status_html(base_path: str = "") -> str:
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
         const lastTx = client.last_tx_age_seconds === null || client.last_tx_age_seconds === undefined ? "never" : `${{client.last_tx_age_seconds}}s ago`;
-        const queueTitle = `queued total ${{client.tx_queued || 0}}, high water ${{client.tx_queue_high_water || 0}}, skipped duplicates ${{client.tx_skipped_duplicates || 0}}, send errors ${{client.tx_send_errors || 0}}${{client.last_tx_error ? ", last error: " + client.last_tx_error : ""}}`;
+        const skipReasons = client.skipped_dup_by_reason || {{}};
+        const skipReasonText = Object.entries(skipReasons).map(([key, value]) => `${{key}}=${{value}}`).join(", ") || "none";
+        const queueTitle = `queued total ${{client.tx_queued || 0}}, high water ${{client.tx_queue_high_water || 0}}, skipped duplicates ${{client.skipped_dup_total || 0}}, reasons: ${{skipReasonText}}, send errors ${{client.tx_send_errors || 0}}${{client.last_tx_error ? ", last error: " + client.last_tx_error : ""}}`;
+        const guardTitle = `group ${{client.group || "default"}}, loop score ${{client.loop_score || 0}}, quarantine ${{client.quarantine_active ? (client.quarantine_seconds_left || 0) + "s" : "no"}}, last fingerprint ${{client.last_fingerprint || "none"}}`;
+        const budgetLeft = client.rf_inject_budget_remaining_ms === null || client.rf_inject_budget_remaining_ms === undefined
+          ? "off"
+          : duration(client.rf_inject_budget_remaining_ms);
         return `
           <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
@@ -2518,9 +2796,14 @@ def build_status_html(base_path: str = "") -> str:
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Queue</span><b>${{client.tx_queue_depth || 0}}/${{client.tx_queue_max || 0}}</b></div>
               <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Q drops</span><b>${{client.tx_queue_dropped || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Dedup</span><b>${{client.skipped_dup_total || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Loop</span><b>${{client.loop_score || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Group</span><b>${{escapeHtml(client.group || "default")}}</b></div>
+              <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Quality</span><b>${{client.bridge_quality_score ?? 0}}</b></div>
+              <div class="mini" title="RF inject budget remaining"><span class="label">RF budget</span><b>${{budgetLeft}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
-            <div class="node-meta">${{footer}} · last tx ${{lastTx}} · skipped dup ${{client.tx_skipped_duplicates || 0}}</div>
+            <div class="node-meta">${{footer}} · last tx ${{lastTx}} · dedup ${{client.skipped_dup_total || 0}} · ${{client.quarantine_active ? "quarantine " + (client.quarantine_seconds_left || 0) + "s" : "not quarantined"}}</div>
           </article>
         `;
       }}).join("");
@@ -3904,6 +4187,32 @@ if __name__ == "__main__":
                         help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)")
     parser.add_argument("--client-tx-queue-max", type=int, default=CLIENT_TX_QUEUE_MAX,
                         help="Max queued outbound TCP packets per bridge client (default: 250)")
+    parser.add_argument("--bridge-dedupe", choices=("on", "off"), default="on",
+                        help="Enable TCP bridge packet fingerprint dedupe (default: on)")
+    parser.add_argument("--bridge-dedupe-ttl", type=int, default=BRIDGE_DEDUPE_TTL_SECS,
+                        help="Fingerprint dedupe TTL in seconds (default: 300)")
+    parser.add_argument("--bridge-dedupe-max-entries", type=int, default=BRIDGE_DEDUPE_MAX_ENTRIES,
+                        help="Max fingerprint dedupe entries (default: 4096)")
+    parser.add_argument("--bridge-loopguard", choices=("on", "off"), default="on",
+                        help="Enable bridge loop quarantine guard (default: on)")
+    parser.add_argument("--bridge-loopguard-window", type=int, default=BRIDGE_LOOPGUARD_WINDOW_SECS,
+                        help="Loopguard window in seconds (default: 60)")
+    parser.add_argument("--bridge-loopguard-threshold", type=int, default=BRIDGE_LOOPGUARD_THRESHOLD,
+                        help="Loopguard hits before quarantine (default: 5)")
+    parser.add_argument("--bridge-loopguard-quarantine", type=int, default=BRIDGE_LOOPGUARD_QUARANTINE_SECS,
+                        help="Loopguard quarantine seconds (default: 120)")
+    parser.add_argument("--bridge-rf-inject", choices=("on", "off"), default="off",
+                        help="Enable server-side RF inject budget before forwarding to bridges (default: off)")
+    parser.add_argument("--bridge-rf-inject-max-per-min", type=int, default=BRIDGE_RF_INJECT_MAX_PER_MIN,
+                        help="Max TCP-to-RF inject packets per bridge per minute, 0 disables count cap")
+    parser.add_argument("--bridge-rf-inject-max-airtime-ms-hour", type=int, default=BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
+                        help="Estimated max TCP-to-RF inject airtime per bridge per hour, 0 disables airtime cap")
+    parser.add_argument("--bridge-rf-inject-block-duty-above-pct", type=float, default=BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
+                        help="Block TCP-to-RF inject when reported duty used percent is at/above this, 0 disables")
+    parser.add_argument("--bridge-group", default=BRIDGE_GROUP,
+                        help="Bridge group name assigned to legacy/default clients (default: default)")
+    parser.add_argument("--bridge-require-group-match", action="store_true",
+                        help="Only forward packets between bridges with matching group")
     parser.add_argument("--status-interval", type=int, default=60,
                         help="Log connected clients every N seconds (default: 60, 0 disables)")
     parser.add_argument("--status-host", default="0.0.0.0",
@@ -3950,6 +4259,19 @@ if __name__ == "__main__":
     LOG_HEX_BYTES = max(0, args.log_hex_bytes)
     CLIENT_TIMEOUT_SECS = max(0, args.client_timeout)
     CLIENT_TX_QUEUE_MAX = max(1, args.client_tx_queue_max)
+    BRIDGE_DEDUPE_ENABLED = args.bridge_dedupe == "on"
+    BRIDGE_DEDUPE_TTL_SECS = max(1, args.bridge_dedupe_ttl)
+    BRIDGE_DEDUPE_MAX_ENTRIES = max(1, args.bridge_dedupe_max_entries)
+    BRIDGE_LOOPGUARD_ENABLED = args.bridge_loopguard == "on"
+    BRIDGE_LOOPGUARD_WINDOW_SECS = max(1, args.bridge_loopguard_window)
+    BRIDGE_LOOPGUARD_THRESHOLD = max(1, args.bridge_loopguard_threshold)
+    BRIDGE_LOOPGUARD_QUARANTINE_SECS = max(1, args.bridge_loopguard_quarantine)
+    BRIDGE_RF_INJECT_ENABLED = args.bridge_rf_inject == "on"
+    BRIDGE_RF_INJECT_MAX_PER_MIN = max(0, args.bridge_rf_inject_max_per_min)
+    BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR = max(0, args.bridge_rf_inject_max_airtime_ms_hour)
+    BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT = max(0.0, args.bridge_rf_inject_block_duty_above_pct)
+    BRIDGE_GROUP = (args.bridge_group or "default").strip() or "default"
+    BRIDGE_REQUIRE_GROUP_MATCH = bool(args.bridge_require_group_match)
     STATUS_INTERVAL_SECS = max(0, args.status_interval)
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
