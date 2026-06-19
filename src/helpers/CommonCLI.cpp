@@ -4,6 +4,14 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#ifdef WITH_MQTT_BRIDGE
+#include "bridges/MQTTBridge.h"
+#include "MQTTDefaults.h"
+#include <WiFi.h>
+#ifdef ESP_PLATFORM
+#include <esp_wifi.h>
+#endif
+#endif
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -43,14 +51,257 @@ static bool parseOnOff(const char* value, uint8_t* dest) {
   return false;
 }
 
+#ifdef WITH_MQTT_BRIDGE
+static int getMQTTPresetNameCount() {
+  return MQTT_PRESET_COUNT + 2; // built-ins + custom + none
+}
+
+static const char* getMQTTPresetNameByIndex(int index) {
+  if (index < MQTT_PRESET_COUNT) return MQTT_PRESETS[index].name;
+  if (index == MQTT_PRESET_COUNT) return MQTT_PRESET_CUSTOM;
+  if (index == MQTT_PRESET_COUNT + 1) return MQTT_PRESET_NONE;
+  return nullptr;
+}
+
+static void formatMQTTPresetListReply(char* reply, size_t reply_size, int start) {
+  if (!reply || reply_size == 0) return;
+  reply[0] = '\0';
+  const int total = getMQTTPresetNameCount();
+  if (start < 0 || start >= total) {
+    snprintf(reply, reply_size, "Error: preset list start must be 0-%d", total - 1);
+    return;
+  }
+  const size_t reserve_for_next = 18;
+  size_t used = 0;
+  bool wrote_any = false;
+  int index = start;
+  while (index < total) {
+    const char* name = getMQTTPresetNameByIndex(index);
+    if (!name) break;
+    size_t name_len = strlen(name);
+    size_t room = reply_size - used;
+    if (room <= reserve_for_next) break;
+    size_t needed = name_len + (wrote_any ? 1 : 0);
+    if (needed >= room - reserve_for_next) break;
+    if (wrote_any) reply[used++] = ',';
+    memcpy(reply + used, name, name_len);
+    used += name_len;
+    reply[used] = '\0';
+    wrote_any = true;
+    index++;
+  }
+  if (!wrote_any) { strcpy(reply, "Error: list page too small"); return; }
+  if (index < total) snprintf(reply + used, reply_size - used, "... next:%d", index);
+}
+
+static void setMQTTPrefsDefaults(MQTTPrefs* prefs) {
+  memset(prefs, 0, sizeof(MQTTPrefs));
+  prefs->mqtt_status_enabled = 1;    // enabled by default
+  prefs->mqtt_packets_enabled = 1;   // enabled by default
+  prefs->mqtt_raw_enabled = 0;       // disabled by default
+  prefs->mqtt_tx_enabled = 2;        // advert: own adverts only, by default
+  prefs->mqtt_rx_enabled = 1;        // RX packets enabled by default
+  prefs->mqtt_status_interval = 300000; // 5 minutes default
+  // Slot presets: dutchmeshcore-1 and dutchmeshcore-2 enabled by default, rest = none
+  strncpy(prefs->mqtt_slot_preset[0], "dutchmeshcore-1", sizeof(prefs->mqtt_slot_preset[0]) - 1);
+  strncpy(prefs->mqtt_slot_preset[1], "dutchmeshcore-2", sizeof(prefs->mqtt_slot_preset[1]) - 1);
+  for (int i = 2; i < MAX_MQTT_SLOTS; i++) {
+    strncpy(prefs->mqtt_slot_preset[i], "none", sizeof(prefs->mqtt_slot_preset[i]) - 1);
+  }
+  prefs->wifi_power_save = 1; // Default to none (0=min, 1=none, 2=max)
+  prefs->snmp_enabled = 0;
+  strncpy(prefs->snmp_community, "public", sizeof(prefs->snmp_community) - 1);
+}
+
+void CommonCLI::loadMQTTPrefs(FILESYSTEM* fs) {
+  setMQTTPrefsDefaults(&_mqtt_prefs);
+
+  if (!fs->exists("/mqtt_prefs")) return;  // defaults already set
+#if defined(RP2040_PLATFORM)
+  File file = fs->open("/mqtt_prefs", "r");
+#else
+  File file = fs->open("/mqtt_prefs");
+#endif
+  if (!file) return;
+  size_t file_size = file.size();
+
+  // Old (pre-slot) format → slot-based migration, detected by file size.
+  if (file_size > 0 && file_size <= sizeof(OldMQTTPrefs)) {
+    OldMQTTPrefs old_prefs;
+    memset(&old_prefs, 0, sizeof(old_prefs));
+    size_t bytes_read = file.read((uint8_t *)&old_prefs, file_size < sizeof(old_prefs) ? file_size : sizeof(old_prefs));
+    file.close();
+    if (bytes_read > 0) {
+      memcpy(_mqtt_prefs.mqtt_origin, old_prefs.mqtt_origin, sizeof(_mqtt_prefs.mqtt_origin));
+      memcpy(_mqtt_prefs.mqtt_iata, old_prefs.mqtt_iata, sizeof(_mqtt_prefs.mqtt_iata));
+      _mqtt_prefs.mqtt_status_enabled = old_prefs.mqtt_status_enabled;
+      _mqtt_prefs.mqtt_packets_enabled = old_prefs.mqtt_packets_enabled;
+      _mqtt_prefs.mqtt_raw_enabled = old_prefs.mqtt_raw_enabled;
+      _mqtt_prefs.mqtt_tx_enabled = old_prefs.mqtt_tx_enabled;
+      _mqtt_prefs.mqtt_status_interval = old_prefs.mqtt_status_interval;
+      memcpy(_mqtt_prefs.wifi_ssid, old_prefs.wifi_ssid, sizeof(_mqtt_prefs.wifi_ssid));
+      memcpy(_mqtt_prefs.wifi_password, old_prefs.wifi_password, sizeof(_mqtt_prefs.wifi_password));
+      _mqtt_prefs.wifi_power_save = old_prefs.wifi_power_save;
+      memcpy(_mqtt_prefs.timezone_string, old_prefs.timezone_string, sizeof(_mqtt_prefs.timezone_string));
+      _mqtt_prefs.timezone_offset = old_prefs.timezone_offset;
+      memcpy(_mqtt_prefs.mqtt_owner_public_key, old_prefs.mqtt_owner_public_key, sizeof(_mqtt_prefs.mqtt_owner_public_key));
+      memcpy(_mqtt_prefs.mqtt_email, old_prefs.mqtt_email, sizeof(_mqtt_prefs.mqtt_email));
+      strncpy(_mqtt_prefs.mqtt_slot_preset[0], old_prefs.mqtt_analyzer_us_enabled == 1 ? "analyzer-us" : "none", sizeof(_mqtt_prefs.mqtt_slot_preset[0]) - 1);
+      strncpy(_mqtt_prefs.mqtt_slot_preset[1], old_prefs.mqtt_analyzer_eu_enabled == 1 ? "analyzer-eu" : "none", sizeof(_mqtt_prefs.mqtt_slot_preset[1]) - 1);
+      if (old_prefs.mqtt_server[0] != '\0' && old_prefs.mqtt_port > 0) {
+        strncpy(_mqtt_prefs.mqtt_slot_preset[2], "custom", sizeof(_mqtt_prefs.mqtt_slot_preset[2]) - 1);
+        strncpy(_mqtt_prefs.mqtt_slot_host[2], old_prefs.mqtt_server, sizeof(_mqtt_prefs.mqtt_slot_host[2]) - 1);
+        _mqtt_prefs.mqtt_slot_port[2] = old_prefs.mqtt_port;
+        strncpy(_mqtt_prefs.mqtt_slot_username[2], old_prefs.mqtt_username, sizeof(_mqtt_prefs.mqtt_slot_username[2]) - 1);
+        strncpy(_mqtt_prefs.mqtt_slot_password[2], old_prefs.mqtt_password, sizeof(_mqtt_prefs.mqtt_slot_password[2]) - 1);
+      } else {
+        strncpy(_mqtt_prefs.mqtt_slot_preset[2], "none", sizeof(_mqtt_prefs.mqtt_slot_preset[2]) - 1);
+      }
+      saveMQTTPrefs(fs);
+    }
+  } else if (file_size > 0 && file_size <= sizeof(ThreeSlotMQTTPrefs)) {
+    // 3-slot → 6-slot migration (array sizes changed, offsets shifted)
+    ThreeSlotMQTTPrefs old3;
+    memset(&old3, 0, sizeof(old3));
+    size_t bytes_to_read = file_size < sizeof(old3) ? file_size : sizeof(old3);
+    size_t bytes_read = file.read((uint8_t *)&old3, bytes_to_read);
+    file.close();
+    if (bytes_read > 0) {
+      memcpy(_mqtt_prefs.mqtt_origin, old3.mqtt_origin, sizeof(_mqtt_prefs.mqtt_origin));
+      memcpy(_mqtt_prefs.mqtt_iata, old3.mqtt_iata, sizeof(_mqtt_prefs.mqtt_iata));
+      _mqtt_prefs.mqtt_status_enabled = old3.mqtt_status_enabled;
+      _mqtt_prefs.mqtt_packets_enabled = old3.mqtt_packets_enabled;
+      _mqtt_prefs.mqtt_raw_enabled = old3.mqtt_raw_enabled;
+      _mqtt_prefs.mqtt_tx_enabled = old3.mqtt_tx_enabled;
+      _mqtt_prefs.mqtt_status_interval = old3.mqtt_status_interval;
+      memcpy(_mqtt_prefs.wifi_ssid, old3.wifi_ssid, sizeof(_mqtt_prefs.wifi_ssid));
+      memcpy(_mqtt_prefs.wifi_password, old3.wifi_password, sizeof(_mqtt_prefs.wifi_password));
+      _mqtt_prefs.wifi_power_save = old3.wifi_power_save;
+      memcpy(_mqtt_prefs.timezone_string, old3.timezone_string, sizeof(_mqtt_prefs.timezone_string));
+      _mqtt_prefs.timezone_offset = old3.timezone_offset;
+      for (int i = 0; i < 3; i++) {
+        memcpy(_mqtt_prefs.mqtt_slot_preset[i], old3.mqtt_slot_preset[i], sizeof(_mqtt_prefs.mqtt_slot_preset[i]));
+        memcpy(_mqtt_prefs.mqtt_slot_host[i], old3.mqtt_slot_host[i], sizeof(_mqtt_prefs.mqtt_slot_host[i]));
+        _mqtt_prefs.mqtt_slot_port[i] = old3.mqtt_slot_port[i];
+        memcpy(_mqtt_prefs.mqtt_slot_username[i], old3.mqtt_slot_username[i], sizeof(_mqtt_prefs.mqtt_slot_username[i]));
+        memcpy(_mqtt_prefs.mqtt_slot_password[i], old3.mqtt_slot_password[i], sizeof(_mqtt_prefs.mqtt_slot_password[i]));
+        memcpy(_mqtt_prefs.mqtt_slot_token[i], old3.mqtt_slot_token[i], sizeof(_mqtt_prefs.mqtt_slot_token[i]));
+        memcpy(_mqtt_prefs.mqtt_slot_topic[i], old3.mqtt_slot_topic[i], sizeof(_mqtt_prefs.mqtt_slot_topic[i]));
+      }
+      memcpy(_mqtt_prefs.mqtt_owner_public_key, old3.mqtt_owner_public_key, sizeof(_mqtt_prefs.mqtt_owner_public_key));
+      memcpy(_mqtt_prefs.mqtt_email, old3.mqtt_email, sizeof(_mqtt_prefs.mqtt_email));
+      saveMQTTPrefs(fs);
+    }
+  } else if (file_size > 0) {
+    // current 6-slot format: read directly (appended fields keep defaults if file is shorter)
+    size_t bytes_to_read = file_size < sizeof(_mqtt_prefs) ? file_size : sizeof(_mqtt_prefs);
+    size_t bytes_read = file.read((uint8_t *)&_mqtt_prefs, bytes_to_read);
+    file.close();
+    if (bytes_read != bytes_to_read) {
+      setMQTTPrefsDefaults(&_mqtt_prefs);
+    }
+  } else {
+    file.close();
+    setMQTTPrefsDefaults(&_mqtt_prefs);
+  }
+}
+
+void CommonCLI::saveMQTTPrefs(FILESYSTEM* fs) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  fs->remove("/mqtt_prefs");
+  File file = fs->open("/mqtt_prefs", FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File file = fs->open("/mqtt_prefs", "w");
+#else
+  File file = fs->open("/mqtt_prefs", "w", true);
+#endif
+  if (file) {
+    file.write((uint8_t *)&_mqtt_prefs, sizeof(_mqtt_prefs));
+    file.close();
+  }
+}
+
+void CommonCLI::syncMQTTPrefsToNodePrefs() {
+  StrHelper::strncpy(_prefs->mqtt_origin, _mqtt_prefs.mqtt_origin, sizeof(_prefs->mqtt_origin));
+  StrHelper::strncpy(_prefs->mqtt_iata, _mqtt_prefs.mqtt_iata, sizeof(_prefs->mqtt_iata));
+  _prefs->mqtt_status_enabled = _mqtt_prefs.mqtt_status_enabled;
+  _prefs->mqtt_packets_enabled = _mqtt_prefs.mqtt_packets_enabled;
+  _prefs->mqtt_raw_enabled = _mqtt_prefs.mqtt_raw_enabled;
+  _prefs->mqtt_tx_enabled = _mqtt_prefs.mqtt_tx_enabled;
+  _prefs->mqtt_rx_enabled = _mqtt_prefs.mqtt_rx_enabled;
+  _prefs->mqtt_status_interval = _mqtt_prefs.mqtt_status_interval;
+  StrHelper::strncpy(_prefs->wifi_ssid, _mqtt_prefs.wifi_ssid, sizeof(_prefs->wifi_ssid));
+  StrHelper::strncpy(_prefs->wifi_password, _mqtt_prefs.wifi_password, sizeof(_prefs->wifi_password));
+  _prefs->wifi_power_save = _mqtt_prefs.wifi_power_save;
+  StrHelper::strncpy(_prefs->timezone_string, _mqtt_prefs.timezone_string, sizeof(_prefs->timezone_string));
+  _prefs->timezone_offset = _mqtt_prefs.timezone_offset;
+  for (int i = 0; i < MAX_MQTT_SLOTS; i++) {
+    StrHelper::strncpy(_prefs->mqtt_slot_preset[i], _mqtt_prefs.mqtt_slot_preset[i], sizeof(_prefs->mqtt_slot_preset[i]));
+    StrHelper::strncpy(_prefs->mqtt_slot_host[i], _mqtt_prefs.mqtt_slot_host[i], sizeof(_prefs->mqtt_slot_host[i]));
+    _prefs->mqtt_slot_port[i] = _mqtt_prefs.mqtt_slot_port[i];
+    StrHelper::strncpy(_prefs->mqtt_slot_username[i], _mqtt_prefs.mqtt_slot_username[i], sizeof(_prefs->mqtt_slot_username[i]));
+    StrHelper::strncpy(_prefs->mqtt_slot_password[i], _mqtt_prefs.mqtt_slot_password[i], sizeof(_prefs->mqtt_slot_password[i]));
+    StrHelper::strncpy(_prefs->mqtt_slot_token[i], _mqtt_prefs.mqtt_slot_token[i], sizeof(_prefs->mqtt_slot_token[i]));
+    StrHelper::strncpy(_prefs->mqtt_slot_topic[i], _mqtt_prefs.mqtt_slot_topic[i], sizeof(_prefs->mqtt_slot_topic[i]));
+    StrHelper::strncpy(_prefs->mqtt_slot_audience[i], _mqtt_prefs.mqtt_slot_audience[i], sizeof(_prefs->mqtt_slot_audience[i]));
+  }
+  StrHelper::strncpy(_prefs->mqtt_owner_public_key, _mqtt_prefs.mqtt_owner_public_key, sizeof(_prefs->mqtt_owner_public_key));
+  StrHelper::strncpy(_prefs->mqtt_email, _mqtt_prefs.mqtt_email, sizeof(_prefs->mqtt_email));
+  _prefs->snmp_enabled = _mqtt_prefs.snmp_enabled;
+  StrHelper::strncpy(_prefs->snmp_community, _mqtt_prefs.snmp_community, sizeof(_prefs->snmp_community));
+}
+
+void CommonCLI::syncNodePrefsToMQTTPrefs() {
+  StrHelper::strncpy(_mqtt_prefs.mqtt_origin, _prefs->mqtt_origin, sizeof(_mqtt_prefs.mqtt_origin));
+  StrHelper::strncpy(_mqtt_prefs.mqtt_iata, _prefs->mqtt_iata, sizeof(_mqtt_prefs.mqtt_iata));
+  _mqtt_prefs.mqtt_status_enabled = _prefs->mqtt_status_enabled;
+  _mqtt_prefs.mqtt_packets_enabled = _prefs->mqtt_packets_enabled;
+  _mqtt_prefs.mqtt_raw_enabled = _prefs->mqtt_raw_enabled;
+  _mqtt_prefs.mqtt_tx_enabled = _prefs->mqtt_tx_enabled;
+  _mqtt_prefs.mqtt_rx_enabled = _prefs->mqtt_rx_enabled;
+  _mqtt_prefs.mqtt_status_interval = _prefs->mqtt_status_interval;
+  StrHelper::strncpy(_mqtt_prefs.wifi_ssid, _prefs->wifi_ssid, sizeof(_mqtt_prefs.wifi_ssid));
+  StrHelper::strncpy(_mqtt_prefs.wifi_password, _prefs->wifi_password, sizeof(_mqtt_prefs.wifi_password));
+  _mqtt_prefs.wifi_power_save = _prefs->wifi_power_save;
+  StrHelper::strncpy(_mqtt_prefs.timezone_string, _prefs->timezone_string, sizeof(_mqtt_prefs.timezone_string));
+  _mqtt_prefs.timezone_offset = _prefs->timezone_offset;
+  for (int i = 0; i < MAX_MQTT_SLOTS; i++) {
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_preset[i], _prefs->mqtt_slot_preset[i], sizeof(_mqtt_prefs.mqtt_slot_preset[i]));
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_host[i], _prefs->mqtt_slot_host[i], sizeof(_mqtt_prefs.mqtt_slot_host[i]));
+    _mqtt_prefs.mqtt_slot_port[i] = _prefs->mqtt_slot_port[i];
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_username[i], _prefs->mqtt_slot_username[i], sizeof(_mqtt_prefs.mqtt_slot_username[i]));
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_password[i], _prefs->mqtt_slot_password[i], sizeof(_mqtt_prefs.mqtt_slot_password[i]));
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_token[i], _prefs->mqtt_slot_token[i], sizeof(_mqtt_prefs.mqtt_slot_token[i]));
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_topic[i], _prefs->mqtt_slot_topic[i], sizeof(_mqtt_prefs.mqtt_slot_topic[i]));
+    StrHelper::strncpy(_mqtt_prefs.mqtt_slot_audience[i], _prefs->mqtt_slot_audience[i], sizeof(_mqtt_prefs.mqtt_slot_audience[i]));
+  }
+  StrHelper::strncpy(_mqtt_prefs.mqtt_owner_public_key, _prefs->mqtt_owner_public_key, sizeof(_mqtt_prefs.mqtt_owner_public_key));
+  StrHelper::strncpy(_mqtt_prefs.mqtt_email, _prefs->mqtt_email, sizeof(_mqtt_prefs.mqtt_email));
+  _mqtt_prefs.snmp_enabled = _prefs->snmp_enabled;
+  StrHelper::strncpy(_mqtt_prefs.snmp_community, _prefs->snmp_community, sizeof(_mqtt_prefs.snmp_community));
+}
+#endif // WITH_MQTT_BRIDGE
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
+  bool is_fresh_install = false;
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
   } else if (fs->exists("/node_prefs")) {
     loadPrefsInt(fs, "/node_prefs");
     savePrefs(fs);  // save to new filename
     fs->remove("/node_prefs");  // remove old
+  } else {
+    is_fresh_install = true;
   }
+#ifdef WITH_MQTT_BRIDGE
+  (void)is_fresh_install;
+  // MQTT config lives in a separate /mqtt_prefs file; load it and mirror into NodePrefs
+  // so the MQTT bridge can read everything from NodePrefs.
+  loadMQTTPrefs(fs);
+  syncMQTTPrefsToNodePrefs();
+#else
+  (void)is_fresh_install;
+#endif
 }
 
 void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
@@ -63,6 +314,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     uint8_t pad[8];
     size_t prefs_size = file.size();
     bool legacy_meshcoreng_v109_tail = prefs_size == 529 + sizeof(AtlasConfig);
+    bool bridge_profile_loaded = false;
 
     file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
     file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
@@ -338,7 +590,32 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&bridge_tcp_ttl, sizeof(bridge_tcp_ttl)) == sizeof(bridge_tcp_ttl)) {
         _prefs->bridge_tcp_ttl = bridge_tcp_ttl;                                                   // 669 + sizeof(AtlasConfig)
       }
-      // next: 670 + sizeof(AtlasConfig)
+      uint8_t bridge_profile = _prefs->bridge_profile;
+      if (file.read((uint8_t *)&bridge_profile, sizeof(bridge_profile)) == sizeof(bridge_profile)) {
+        _prefs->bridge_profile = bridge_profile;                                                   // 670 + sizeof(AtlasConfig)
+        bridge_profile_loaded = true;
+      }
+      char bridge_group[16] = {};
+      if (file.read((uint8_t *)bridge_group, sizeof(bridge_group)) == sizeof(bridge_group)) {
+        memcpy(_prefs->bridge_group, bridge_group, sizeof(bridge_group));                           // 671 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_rf_inject_budget_enabled = _prefs->bridge_rf_inject_budget_enabled;
+      if (file.read((uint8_t *)&bridge_rf_inject_budget_enabled, sizeof(bridge_rf_inject_budget_enabled)) == sizeof(bridge_rf_inject_budget_enabled)) {
+        _prefs->bridge_rf_inject_budget_enabled = bridge_rf_inject_budget_enabled;                   // 687 + sizeof(AtlasConfig)
+      }
+      uint16_t bridge_rf_inject_max_per_min = _prefs->bridge_rf_inject_max_per_min;
+      if (file.read((uint8_t *)&bridge_rf_inject_max_per_min, sizeof(bridge_rf_inject_max_per_min)) == sizeof(bridge_rf_inject_max_per_min)) {
+        _prefs->bridge_rf_inject_max_per_min = bridge_rf_inject_max_per_min;                         // 688 + sizeof(AtlasConfig)
+      }
+      uint32_t bridge_rf_inject_max_airtime_ms_hour = _prefs->bridge_rf_inject_max_airtime_ms_hour;
+      if (file.read((uint8_t *)&bridge_rf_inject_max_airtime_ms_hour, sizeof(bridge_rf_inject_max_airtime_ms_hour)) == sizeof(bridge_rf_inject_max_airtime_ms_hour)) {
+        _prefs->bridge_rf_inject_max_airtime_ms_hour = bridge_rf_inject_max_airtime_ms_hour;         // 690 + sizeof(AtlasConfig)
+      }
+      uint16_t bridge_rf_inject_block_duty_centi_pct = _prefs->bridge_rf_inject_block_duty_centi_pct;
+      if (file.read((uint8_t *)&bridge_rf_inject_block_duty_centi_pct, sizeof(bridge_rf_inject_block_duty_centi_pct)) == sizeof(bridge_rf_inject_block_duty_centi_pct)) {
+        _prefs->bridge_rf_inject_block_duty_centi_pct = bridge_rf_inject_block_duty_centi_pct;       // 694 + sizeof(AtlasConfig)
+      }
+      // next: 696 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -363,6 +640,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_export_filter = constrain(_prefs->bridge_export_filter, 0, 3);
     _prefs->bridge_export_max_hops = constrain(_prefs->bridge_export_max_hops, 0, 63);
     _prefs->bridge_tcp_ttl = constrain(_prefs->bridge_tcp_ttl, 1, 8);
+    _prefs->bridge_profile = constrain(_prefs->bridge_profile, 0, 2);
+    _prefs->bridge_group[sizeof(_prefs->bridge_group) - 1] = 0;
+    if (_prefs->bridge_group[0] == 0 || !isValidName(_prefs->bridge_group)) {
+      StrHelper::strncpy(_prefs->bridge_group, "default", sizeof(_prefs->bridge_group));
+    }
+    _prefs->bridge_rf_inject_budget_enabled = constrain(_prefs->bridge_rf_inject_budget_enabled, 0, 1);
+    _prefs->bridge_rf_inject_max_per_min = constrain(_prefs->bridge_rf_inject_max_per_min, 0, 10000);
+    _prefs->bridge_rf_inject_block_duty_centi_pct = constrain(_prefs->bridge_rf_inject_block_duty_centi_pct, 0, 10000);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -380,22 +665,44 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->low_bat_runtime_valid_min_mv = constrain(_prefs->low_bat_runtime_valid_min_mv, 0, 6000);
     _prefs->low_bat_runtime_retry_secs = constrain(_prefs->low_bat_runtime_retry_secs, 5UL, 86400UL);
 
-    // sanitize TCP flood protection settings
+    // sanitize TCP bridge rate-limit settings
     _prefs->tcp_flood_limit_enable = constrain(_prefs->tcp_flood_limit_enable, 0, 1);
     if (_prefs->tcp_flood_max_packets == 0) _prefs->tcp_flood_max_packets = 100;  // default 100 packets
     if (_prefs->tcp_flood_window_secs == 0) _prefs->tcp_flood_window_secs = 600;  // default 10 minutes
     _prefs->tcp_flood_max_packets = constrain(_prefs->tcp_flood_max_packets, 1, 10000);
     _prefs->tcp_flood_window_secs = constrain(_prefs->tcp_flood_window_secs, 1, 3600);
     
-    // sanitize selective flood protection settings
+    // sanitize selective TCP rate-limit settings
     if (_prefs->tcp_flood_transport_max == 0) _prefs->tcp_flood_transport_max = 20;   // default 20 transport packets
     if (_prefs->tcp_flood_transport_window == 0) _prefs->tcp_flood_transport_window = 120; // default 2 minutes
-    if (_prefs->tcp_flood_control_max == 0) _prefs->tcp_flood_control_max = 20;      // default 20 control packets
     if (_prefs->tcp_flood_control_window == 0) _prefs->tcp_flood_control_window = 120; // default 2 minutes
     _prefs->tcp_flood_transport_max = constrain(_prefs->tcp_flood_transport_max, 1, 10000);
     _prefs->tcp_flood_transport_window = constrain(_prefs->tcp_flood_transport_window, 1, 3600);
     _prefs->tcp_flood_control_max = constrain(_prefs->tcp_flood_control_max, 0, 10000); // 0 = bypass
     _prefs->tcp_flood_control_window = constrain(_prefs->tcp_flood_control_window, 1, 3600);
+
+    if (!bridge_profile_loaded) {
+      if (_prefs->bridge_pkt_src == 2
+          && _prefs->bridge_rf == BRIDGE_RF_LOCAL
+          && _prefs->bridge_export_filter == BRIDGE_EXPORT_MESSAGES
+          && _prefs->bridge_export_max_hops == 4
+          && _prefs->bridge_tcp_ttl == 2) {
+        _prefs->bridge_profile = 1;
+      } else if (_prefs->bridge_pkt_src == 2
+          && _prefs->bridge_rf == BRIDGE_RF_FLOOD
+          && _prefs->bridge_export_filter == BRIDGE_EXPORT_ALL
+          && _prefs->bridge_export_max_hops == 0
+          && _prefs->bridge_tcp_ttl == 2
+          && _prefs->tcp_flood_limit_enable == 0
+          && _prefs->tcp_flood_transport_max == 1000
+          && _prefs->tcp_flood_transport_window == 120
+          && _prefs->tcp_flood_control_max == 0
+          && _prefs->tcp_flood_control_window == 120) {
+        _prefs->bridge_profile = 2;
+      } else {
+        _prefs->bridge_profile = 0;
+      }
+    }
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -417,12 +724,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->daily_reboot_enabled = constrain(_prefs->daily_reboot_enabled, 0, 1);
     if (_prefs->daily_reboot_interval_hours == 0) _prefs->daily_reboot_interval_hours = 24;
     _prefs->daily_reboot_interval_hours = constrain(_prefs->daily_reboot_interval_hours, 1, 168);
-    _prefs->ntp_enabled = constrain(_prefs->ntp_enabled, 0, 1);
-    if (_prefs->ntp_server[0] == '\0') {
-      StrHelper::strncpy(_prefs->ntp_server, "pool.ntp.org", sizeof(_prefs->ntp_server));
+    _prefs->ntp_enabled = 1;
+    if (_prefs->ntp_server[0] == '\0' || strcmp(_prefs->ntp_server, "pool.ntp.org") == 0) {
+      StrHelper::strncpy(_prefs->ntp_server, "nl.pool.ntp.org", sizeof(_prefs->ntp_server));
     }
-    if (_prefs->ntp_interval_secs == 0) _prefs->ntp_interval_secs = 3600;
-    _prefs->ntp_interval_secs = constrain(_prefs->ntp_interval_secs, 300UL, 86400UL);
+    _prefs->ntp_interval_secs = 3600;
 
     file.close();
   }
@@ -531,10 +837,21 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_export_filter, sizeof(_prefs->bridge_export_filter));    // 667 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 668 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 669 + sizeof(AtlasConfig)
-    // next: 670 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_profile, sizeof(_prefs->bridge_profile));                // 670 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_group, sizeof(_prefs->bridge_group));                    // 671 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_budget_enabled, sizeof(_prefs->bridge_rf_inject_budget_enabled)); // 687 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_max_per_min, sizeof(_prefs->bridge_rf_inject_max_per_min)); // 688 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_max_airtime_ms_hour, sizeof(_prefs->bridge_rf_inject_max_airtime_ms_hour)); // 690 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_block_duty_centi_pct, sizeof(_prefs->bridge_rf_inject_block_duty_centi_pct)); // 694 + sizeof(AtlasConfig)
+    // next: 696 + sizeof(AtlasConfig)
 
     file.close();
   }
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT config is persisted separately in /mqtt_prefs (not in the main prefs file).
+  syncNodePrefsToMQTTPrefs();
+  saveMQTTPrefs(fs);
+#endif
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
@@ -913,6 +1230,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->formatRadioStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
+#ifdef WITH_TCP_BRIDGE
+    } else if (sender_timestamp == 0 && strcmp(command, "bridge stats reset") == 0) {
+      _callbacks->resetTcpBridgeStats();
+      strcpy(reply, "OK");
+#endif
     } else {
       strcpy(reply, "Unknown command");
     }
@@ -1422,6 +1744,51 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: ttl must be between 1-8");
     }
+  } else if (memcmp(config, "bridge.group ", 13) == 0) {
+    const char* group = &config[13];
+    if (group[0] == 0 || !isValidName(group) || strlen(group) >= sizeof(_prefs->bridge_group)) {
+      strcpy(reply, "Error: group must be 1-15 chars without []\\:,?*");
+    } else {
+      StrHelper::strncpy(_prefs->bridge_group, group, sizeof(_prefs->bridge_group));
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    }
+  } else if (memcmp(config, "bridge.budget ", 14) == 0) {
+    const char* value = &config[14];
+    if (parseOnOff(value, &_prefs->bridge_rf_inject_budget_enabled)) {
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "bridge.budget.max_per_min ", 26) == 0) {
+    int max = _atoi(&config[26]);
+    if (max >= 0 && max <= 10000) {
+      _prefs->bridge_rf_inject_max_per_min = (uint16_t)max;
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: max_per_min must be 0-10000");
+    }
+  } else if (memcmp(config, "bridge.budget.max_airtime_ms_hour ", 34) == 0) {
+    uint32_t max = _atoi(&config[34]);
+    _prefs->bridge_rf_inject_max_airtime_ms_hour = max;
+    _callbacks->restartBridge();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.budget.block_duty_above_pct ", 35) == 0) {
+    float pct = atof(&config[35]);
+    if (pct >= 0.0f && pct <= 100.0f) {
+      _prefs->bridge_rf_inject_block_duty_centi_pct = (uint16_t)(pct * 100.0f + 0.5f);
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: duty threshold must be 0-100");
+    }
   } else if (memcmp(config, "bridge.profile ", 15) == 0) {
     if (memcmp(&config[15], "island", 6) == 0) {
       _prefs->bridge_pkt_src = 2; // RF RX and RF TX export
@@ -1438,9 +1805,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->bridge_export_filter = BRIDGE_EXPORT_ALL;
       _prefs->bridge_export_max_hops = 0;
       _prefs->bridge_tcp_ttl = 2;
+      _prefs->tcp_flood_limit_enable = 0;
+      _prefs->tcp_flood_transport_max = 1000;
+      _prefs->tcp_flood_transport_window = 120;
+      _prefs->tcp_flood_control_max = 0;
+      _prefs->tcp_flood_control_window = 120;
       _prefs->bridge_profile = 2;
       savePrefs();
-      strcpy(reply, "OK - bridge repeater profile applied");
+      strcpy(reply, "OK - bridge repeater profile applied, TCP rate limit off");
     } else if (memcmp(&config[15], "default", 7) == 0) {
       _prefs->bridge_pkt_src = 0;
       _prefs->bridge_rf = BRIDGE_RF_OFF;
@@ -1516,10 +1888,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
     const char* value = &config[12];
-    if (parseOnOff(value, &_prefs->ntp_enabled)) {
+    uint8_t ignored = 0;
+    if (parseOnOff(value, &ignored)) {
+      _prefs->ntp_enabled = 1;
       _callbacks->restartBridge();
       savePrefs();
-      strcpy(reply, "OK");
+      strcpy(reply, "OK - NTP always enabled");
     } else {
       strcpy(reply, "Error: expected on or off");
     }
@@ -1531,10 +1905,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "ntp.interval ", 13) == 0) {
     uint32_t interval = _atoi(&config[13]);
     if (interval >= 300 && interval <= 86400) {
-      _prefs->ntp_interval_secs = interval;
+      _prefs->ntp_interval_secs = 3600;
       _callbacks->restartBridge();
       savePrefs();
-      strcpy(reply, "OK");
+      strcpy(reply, "OK - NTP sync interval fixed at 3600 seconds");
     } else {
       strcpy(reply, "Error: interval must be between 300-86400 seconds");
     }
@@ -1594,7 +1968,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _callbacks->restartBridge();
       savePrefs();
       if (max == 0) {
-        strcpy(reply, "OK - control packets bypass flood protection");
+        strcpy(reply, "OK - control packets bypass TCP rate limit");
       } else {
         strcpy(reply, "OK");
       }
@@ -1612,6 +1986,215 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: control window must be between 1-3600 seconds");
     }
 #endif
+#ifdef WITH_SNMP
+  } else if (memcmp(config, "snmp.community ", 15) == 0) {
+    StrHelper::strncpy(_prefs->snmp_community, &config[15], sizeof(_prefs->snmp_community));
+    savePrefs();
+    strcpy(reply, "OK - restart to apply");
+  } else if (memcmp(config, "snmp ", 5) == 0) {
+    _prefs->snmp_enabled = memcmp(&config[5], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK - restart to apply");
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  } else if (memcmp(config, "mqtt.origin ", 12) == 0) {
+    StrHelper::strncpy(_prefs->mqtt_origin, &config[12], sizeof(_prefs->mqtt_origin));
+    StrHelper::stripSurroundingQuotes(_prefs->mqtt_origin, sizeof(_prefs->mqtt_origin));
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.iata ", 10) == 0) {
+    StrHelper::strncpy(_prefs->mqtt_iata, &config[10], sizeof(_prefs->mqtt_iata));
+    for (int i = 0; _prefs->mqtt_iata[i]; i++) _prefs->mqtt_iata[i] = toupper(_prefs->mqtt_iata[i]);
+    savePrefs();
+    _callbacks->restartBridge();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.status ", 12) == 0) {
+    _prefs->mqtt_status_enabled = memcmp(&config[12], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.packets ", 13) == 0) {
+    _prefs->mqtt_packets_enabled = memcmp(&config[13], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.raw ", 9) == 0) {
+    _prefs->mqtt_raw_enabled = memcmp(&config[9], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.tx ", 8) == 0) {
+    if (memcmp(&config[8], "advert", 6) == 0) _prefs->mqtt_tx_enabled = 2;
+    else _prefs->mqtt_tx_enabled = memcmp(&config[8], "on", 2) == 0 ? 1 : 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.rx ", 8) == 0) {
+    _prefs->mqtt_rx_enabled = memcmp(&config[8], "on", 2) == 0 ? 1 : 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.interval ", 14) == 0) {
+    uint32_t minutes = _atoi(&config[14]);
+    if (minutes >= 1 && minutes <= 60) {
+      _prefs->mqtt_status_interval = minutes * 60000;
+      savePrefs();
+      _callbacks->restartBridge();
+      sprintf(reply, "OK - interval set to %u minutes", (unsigned)minutes);
+    } else {
+      strcpy(reply, "Error: interval must be between 1-60 minutes");
+    }
+  } else if (memcmp(config, "wifi.ssid ", 10) == 0) {
+    StrHelper::strncpy(_prefs->wifi_ssid, &config[10], sizeof(_prefs->wifi_ssid));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
+  } else if (memcmp(config, "wifi.pwd ", 9) == 0) {
+    StrHelper::strncpy(_prefs->wifi_password, &config[9], sizeof(_prefs->wifi_password));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
+  } else if (memcmp(config, "wifi.password ", 14) == 0) {
+    StrHelper::strncpy(_prefs->wifi_password, &config[14], sizeof(_prefs->wifi_password));
+    savePrefs();
+    strcpy(reply, "OK - reboot to apply");
+  } else if (memcmp(config, "wifi.powersave ", 15) == 0) {
+    const char* value = &config[15];
+    uint8_t ps_value = 1;
+    bool valid = false;
+    if (memcmp(value, "min", 3) == 0) { ps_value = 0; valid = true; }
+    else if (memcmp(value, "none", 4) == 0) { ps_value = 1; valid = true; }
+    else if (memcmp(value, "max", 3) == 0) { ps_value = 2; valid = true; }
+    if (!valid) {
+      strcpy(reply, "Error: must be none, min, or max");
+    } else {
+      _prefs->wifi_power_save = ps_value;
+      savePrefs();
+#ifdef ESP_PLATFORM
+      if (WiFi.status() == WL_CONNECTED) {
+        wifi_ps_type_t ps_mode = (ps_value == 1) ? WIFI_PS_NONE : (ps_value == 2) ? WIFI_PS_MAX_MODEM : WIFI_PS_MIN_MODEM;
+        esp_wifi_set_ps(ps_mode);
+      }
+#endif
+      const char* ps_name = (ps_value == 1) ? "none" : (ps_value == 2) ? "max" : "min";
+      sprintf(reply, "OK - power save set to %s", ps_name);
+    }
+  } else if (memcmp(config, "timezone.offset ", 16) == 0) {
+    int8_t offset = _atoi(&config[16]);
+    if (offset >= -12 && offset <= 14) {
+      _prefs->timezone_offset = offset;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: timezone offset must be between -12 and +14");
+    }
+  } else if (memcmp(config, "timezone ", 9) == 0) {
+    StrHelper::strncpy(_prefs->timezone_string, &config[9], sizeof(_prefs->timezone_string));
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (config[0] == 'm' && config[1] == 'q' && config[2] == 't' && config[3] == 't' &&
+             config[4] >= '1' && config[4] <= ('0' + MAX_MQTT_SLOTS) && config[5] == '.') {
+    // Slot-based commands: set mqttN.preset <name>, set mqttN.server <host>, etc.
+    int slot = config[4] - '1';
+    const char* subcmd = &config[6];
+    if (memcmp(subcmd, "preset ", 7) == 0) {
+      const char* preset_name = &subcmd[7];
+      if (findMQTTPreset(preset_name) != nullptr ||
+          strcmp(preset_name, MQTT_PRESET_CUSTOM) == 0 ||
+          strcmp(preset_name, MQTT_PRESET_NONE) == 0) {
+        int dup_slot = -1;
+        if (findMQTTPreset(preset_name) != nullptr) {
+          for (int s = 0; s < MAX_MQTT_SLOTS; s++) {
+            if (s != slot && strcmp(_prefs->mqtt_slot_preset[s], preset_name) == 0) { dup_slot = s; break; }
+          }
+        }
+        if (dup_slot >= 0) {
+          sprintf(reply, "Error: preset '%s' is already assigned to slot %d", preset_name, dup_slot + 1);
+        } else {
+          StrHelper::strncpy(_prefs->mqtt_slot_preset[slot], preset_name, sizeof(_prefs->mqtt_slot_preset[slot]));
+          savePrefs();
+          _callbacks->restartBridgeSlot(slot);
+          sprintf(reply, "OK - slot %d preset: %s", slot + 1, preset_name);
+        }
+      } else {
+        strcpy(reply, "Error: unknown preset. Use 'get mqtt.presets'");
+      }
+    } else if (memcmp(subcmd, "server ", 7) == 0) {
+      StrHelper::strncpy(_prefs->mqtt_slot_host[slot], &subcmd[7], sizeof(_prefs->mqtt_slot_host[slot]));
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(subcmd, "port ", 5) == 0) {
+      int port = atoi(&subcmd[5]);
+      if (port > 0 && port <= 65535) {
+        _prefs->mqtt_slot_port[slot] = port;
+        savePrefs();
+        strcpy(reply, "OK");
+      } else {
+        strcpy(reply, "Error: port must be between 1 and 65535");
+      }
+    } else if (memcmp(subcmd, "username ", 9) == 0) {
+      StrHelper::strncpy(_prefs->mqtt_slot_username[slot], &subcmd[9], sizeof(_prefs->mqtt_slot_username[slot]));
+      savePrefs();
+      _callbacks->restartBridgeSlot(slot);
+      strcpy(reply, "OK");
+    } else if (memcmp(subcmd, "password ", 9) == 0) {
+      StrHelper::strncpy(_prefs->mqtt_slot_password[slot], &subcmd[9], sizeof(_prefs->mqtt_slot_password[slot]));
+      savePrefs();
+      _callbacks->restartBridgeSlot(slot);
+      strcpy(reply, "OK");
+    } else if (memcmp(subcmd, "token ", 6) == 0) {
+      StrHelper::strncpy(_prefs->mqtt_slot_token[slot], &subcmd[6], sizeof(_prefs->mqtt_slot_token[slot]));
+      savePrefs();
+      _callbacks->restartBridgeSlot(slot);
+      sprintf(reply, "OK - slot %d token set", slot + 1);
+    } else if (memcmp(subcmd, "topic ", 6) == 0) {
+      if (strcmp(_prefs->mqtt_slot_preset[slot], "custom") != 0) {
+        strcpy(reply, "Error: topic template only applies to custom preset slots");
+      } else {
+        StrHelper::strncpy(_prefs->mqtt_slot_topic[slot], &subcmd[6], sizeof(_prefs->mqtt_slot_topic[slot]));
+        savePrefs();
+        _callbacks->restartBridgeSlot(slot);
+        sprintf(reply, "OK - slot %d topic: %s", slot + 1, _prefs->mqtt_slot_topic[slot]);
+      }
+    } else if (memcmp(subcmd, "audience ", 9) == 0) {
+      StrHelper::strncpy(_prefs->mqtt_slot_audience[slot], &subcmd[9], sizeof(_prefs->mqtt_slot_audience[slot]));
+      savePrefs();
+      _callbacks->restartBridgeSlot(slot);
+      if (_prefs->mqtt_slot_audience[slot][0] != '\0')
+        sprintf(reply, "OK - slot %d JWT audience: %s", slot + 1, _prefs->mqtt_slot_audience[slot]);
+      else
+        sprintf(reply, "OK - slot %d JWT audience cleared", slot + 1);
+    } else if (memcmp(subcmd, "audience", 8) == 0 && subcmd[8] == '\0') {
+      _prefs->mqtt_slot_audience[slot][0] = '\0';
+      savePrefs();
+      _callbacks->restartBridgeSlot(slot);
+      sprintf(reply, "OK - slot %d JWT audience cleared", slot + 1);
+    } else {
+      sprintf(reply, "unknown config: %s", config);
+    }
+  } else if (memcmp(config, "mqtt.analyzer.us ", 17) == 0) {
+    StrHelper::strncpy(_prefs->mqtt_slot_preset[0], memcmp(&config[17], "on", 2) == 0 ? "analyzer-us" : MQTT_PRESET_NONE, sizeof(_prefs->mqtt_slot_preset[0]));
+    savePrefs();
+    _callbacks->restartBridgeSlot(0);
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.analyzer.eu ", 17) == 0) {
+    StrHelper::strncpy(_prefs->mqtt_slot_preset[1], memcmp(&config[17], "on", 2) == 0 ? "analyzer-eu" : MQTT_PRESET_NONE, sizeof(_prefs->mqtt_slot_preset[1]));
+    savePrefs();
+    _callbacks->restartBridgeSlot(1);
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.owner ", 11) == 0) {
+    const char* owner_key = &config[11];
+    int key_len = strlen(owner_key);
+    bool valid_key = (key_len == 64);
+    for (int i = 0; valid_key && i < key_len; i++) {
+      char c = owner_key[i];
+      if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) valid_key = false;
+    }
+    if (valid_key) {
+      StrHelper::strncpy(_prefs->mqtt_owner_public_key, owner_key, sizeof(_prefs->mqtt_owner_public_key));
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: public key must be 64 hex characters (32 bytes)");
+    }
+  } else if (memcmp(config, "mqtt.email ", 11) == 0) {
+    StrHelper::strncpy(_prefs->mqtt_email, &config[11], sizeof(_prefs->mqtt_email));
+    savePrefs();
+    strcpy(reply, "OK");
+#endif // WITH_MQTT_BRIDGE
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
@@ -1816,6 +2399,15 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", mode);
   } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
+  } else if (memcmp(config, "bridge.group", 12) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_group);
+  } else if (memcmp(config, "bridge.budget", 13) == 0) {
+    snprintf(reply, 160, "> %s max_per_min=%u max_airtime_ms_hour=%lu block_duty_above=%u.%02u%%",
+             _prefs->bridge_rf_inject_budget_enabled ? "on" : "off",
+             (uint32_t)_prefs->bridge_rf_inject_max_per_min,
+             (unsigned long)_prefs->bridge_rf_inject_max_airtime_ms_hour,
+             (uint32_t)(_prefs->bridge_rf_inject_block_duty_centi_pct / 100),
+             (uint32_t)(_prefs->bridge_rf_inject_block_duty_centi_pct % 100));
   } else if (memcmp(config, "bridge.profile", 14) == 0) {
     const char* profile = _prefs->bridge_profile == 1 ? "island" : (_prefs->bridge_profile == 2 ? "repeater" : "default");
     sprintf(reply, "> %s", profile);
@@ -1873,6 +2465,93 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "tcp.flood.control.window", 24) == 0) {
     sprintf(reply, "> %d seconds", (uint32_t)_prefs->tcp_flood_control_window);
+#endif
+#ifdef WITH_SNMP
+  } else if (memcmp(config, "snmp.community", 14) == 0) {
+    sprintf(reply, "> %s", _prefs->snmp_community);
+  } else if (memcmp(config, "snmp", 4) == 0 && (config[4] == '\0' || config[4] == '\n' || config[4] == '\r')) {
+    strcpy(reply, _prefs->snmp_enabled ? "> on" : "> off");
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  } else if (memcmp(config, "mqtt.origin", 11) == 0) {
+    char effective_origin[32];
+    MQTTBridge::getEffectiveMqttOrigin(_prefs, effective_origin, sizeof(effective_origin));
+    sprintf(reply, "> %s", effective_origin);
+  } else if (memcmp(config, "mqtt.iata", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_iata);
+  } else if (memcmp(config, "mqtt.presets", 12) == 0 && (config[12] == '\0' || config[12] == ' ')) {
+    int start = 0;
+    if (config[12] == ' ') start = (int)_atoi(&config[13]);
+    formatMQTTPresetListReply(reply, 160, start);
+  } else if (memcmp(config, "mqtt.status", 11) == 0) {
+    MQTTBridge::formatMqttStatusReply(reply, 160, _prefs);
+  } else if (memcmp(config, "mqtt.packets", 12) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_packets_enabled ? "on" : "off");
+  } else if (memcmp(config, "mqtt.raw", 8) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_raw_enabled ? "on" : "off");
+  } else if (memcmp(config, "mqtt.tx", 7) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_tx_enabled == 2 ? "advert" : (_prefs->mqtt_tx_enabled ? "on" : "off"));
+  } else if (memcmp(config, "mqtt.rx", 7) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_rx_enabled ? "on" : "off");
+  } else if (memcmp(config, "mqtt.interval", 13) == 0) {
+    uint32_t minutes = (_prefs->mqtt_status_interval + 29999) / 60000;
+    sprintf(reply, "> %u minutes", (unsigned)minutes);
+  } else if (config[0] == 'm' && config[1] == 'q' && config[2] == 't' && config[3] == 't' &&
+             config[4] >= '1' && config[4] <= ('0' + MAX_MQTT_SLOTS) && config[5] == '.') {
+    int slot = config[4] - '1';
+    const char* subcmd = &config[6];
+    if (memcmp(subcmd, "preset", 6) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_preset[slot]);
+    } else if (memcmp(subcmd, "server", 6) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_host[slot]);
+    } else if (memcmp(subcmd, "port", 4) == 0) {
+      sprintf(reply, "> %d", _prefs->mqtt_slot_port[slot]);
+    } else if (memcmp(subcmd, "username", 8) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_username[slot]);
+    } else if (memcmp(subcmd, "password", 8) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_password[slot]);
+    } else if (memcmp(subcmd, "token", 5) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_token[slot][0] ? _prefs->mqtt_slot_token[slot] : "(not set)");
+    } else if (memcmp(subcmd, "topic", 5) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_topic[slot][0] ? _prefs->mqtt_slot_topic[slot] : "(default: meshcore/{iata}/{device}/{type})");
+    } else if (memcmp(subcmd, "audience", 8) == 0) {
+      sprintf(reply, "> %s", _prefs->mqtt_slot_audience[slot][0] ? _prefs->mqtt_slot_audience[slot] : "(not set)");
+    } else if (memcmp(subcmd, "diag", 4) == 0) {
+      MQTTBridge::formatSlotDiagReply(reply, 160, slot);
+    } else {
+      sprintf(reply, "??: %s", config);
+    }
+  } else if (memcmp(config, "wifi.ssid", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->wifi_ssid);
+  } else if (memcmp(config, "wifi.pwd", 8) == 0) {
+    sprintf(reply, "> %s", _prefs->wifi_password);
+  } else if (memcmp(config, "wifi.status", 11) == 0) {
+    wl_status_t status = WiFi.status();
+    if (status == WL_CONNECTED) {
+      sprintf(reply, "> connected, IP: %s, RSSI: %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+    } else {
+      uint8_t reason = MQTTBridge::getLastWifiDisconnectReason();
+      const char* desc = reason ? MQTTBridge::wifiReasonStr(reason) : nullptr;
+      if (desc) sprintf(reply, "> disconnected: %s (reason: %d)", desc, reason);
+      else sprintf(reply, "> disconnected (code: %d)", status);
+    }
+  } else if (memcmp(config, "wifi.powersave", 14) == 0) {
+    uint8_t ps = _prefs->wifi_power_save;
+    sprintf(reply, "> %s", (ps == 1) ? "none" : (ps == 2) ? "max" : "min");
+  } else if (memcmp(config, "timezone.offset", 15) == 0) {
+    sprintf(reply, "> %d", _prefs->timezone_offset);
+  } else if (memcmp(config, "timezone", 8) == 0) {
+    sprintf(reply, "> %s", _prefs->timezone_string);
+  } else if (memcmp(config, "mqtt.analyzer.us", 16) == 0) {
+    sprintf(reply, "> %s", strcmp(_prefs->mqtt_slot_preset[0], "analyzer-us") == 0 ? "on" : "off");
+  } else if (memcmp(config, "mqtt.analyzer.eu", 16) == 0) {
+    sprintf(reply, "> %s", strcmp(_prefs->mqtt_slot_preset[1], "analyzer-eu") == 0 ? "on" : "off");
+  } else if (sender_timestamp == 0 && memcmp(config, "mqtt.owner", 10) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_owner_public_key[0] ? _prefs->mqtt_owner_public_key : "(not set)");
+  } else if (sender_timestamp == 0 && memcmp(config, "mqtt.email", 10) == 0) {
+    sprintf(reply, "> %s", _prefs->mqtt_email[0] ? _prefs->mqtt_email : "(not set)");
+  } else if (memcmp(config, "mqtt.config.valid", 17) == 0) {
+    sprintf(reply, "> %s", MQTTBridge::isConfigValid(_prefs) ? "valid" : "invalid");
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM

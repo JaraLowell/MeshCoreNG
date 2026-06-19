@@ -25,6 +25,22 @@ Om een bridge-wachtwoord voor TCP-clients te vereisen:
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
+De server start standaard ook een statuspagina:
+
+```text
+http://localhost:8080/
+```
+
+Open die pagina op de server zelf, of vervang `localhost` door het IP-adres van de server vanaf een andere machine op hetzelfde netwerk. De pagina toont online en recent geziene bridge-nodes, firmwareversie, heartbeat-status, packet counters en RF dutycycle-budgetverbruik.
+
+De statuspagina houdt per bekende bridge-node een 24-uurs verkeersvenster in geheugen bij. `RX 24h` en `TX 24h` tonen het aantal ontvangen en verzonden packets per node in de laatste 24 uur. Nodes die disconnecten blijven als `offline` zichtbaar zolang ze nog packet-history binnen dat 24-uurs venster hebben. Deze tellers beginnen opnieuw als het Python bridge-serverproces opnieuw start.
+
+Elke bridge-client heeft een eigen begrensde TCP transmit queue. Binnenkomende bridge-packets worden onafhankelijk per andere verbonden node in de queue gezet, zodat een trage TCP-client de fanout naar de rest van de bridge niet blokkeert. De node-kaarten tonen queue depth, queue drops, skipped duplicates, send errors en hoe lang geleden de laatste TCP TX was. Deze counters gaan over levering naar de TCP-socket; RF-forwarding kan daarna nog steeds door de repeater worden tegengehouden door dutycycle, duplicate checks, CAD/channel busy, TTL, hop-limieten of bridge profile-instellingen.
+
+De tegels `Duty used` en `Duty left` tonen het RF TX dutycycle-uurbudget van die node als timers. Nieuwe bridge firmware stuurt cumulatief gemeten RF TX airtime mee in de heartbeat; de server bewaart een baseline zodra hij de node ziet en toont daarna echte RF TX tijd sinds dat moment. `Duty left` wordt berekend uit het ingestelde uurbudget. Bij `set dutycycle 10` is het RF TX-budget 10% van een uur, dus 360 seconden. Als `Duty used` dan `3m 00s` toont, is de helft van het budget op en toont `Duty left` ook `3m 00s`. Oudere bridge firmware zonder cumulatieve RF TX airtime valt terug op de oudere duty-budget telemetry, die tussen heartbeats alweer kan aanvullen.
+
+De server controleert ook GitHub releases en toont bij een node een `update` badge wanneer de gemelde firmwareversie ouder is dan de nieuwste firmware-release waar al `.bin` assets aan hangen. Alleen een tag is dus niet genoeg, omdat de node pas bijgewerkt kan worden wanneer de firmwarebestanden echt bestaan. Standaard wordt `MichTronics/MeshCoreNG` een keer per uur gecontroleerd. Gebruik `--firmware-update-repo owner/repo` om een andere repository te gebruiken, of `--firmware-update-interval 0` om de check uit te zetten.
+
 Voor testen en monitoren kun je de server starten met statusregels en heartbeat-timeout:
 
 ```bash

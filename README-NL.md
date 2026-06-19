@@ -51,7 +51,7 @@ Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI ins
 
 Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Native tracker-packets bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## Wat hebben we nu gedaan?
 
@@ -246,12 +246,15 @@ Voor gecontroleerde RF-eilanden of backbone-links gebruik je de bridge export- e
 ```text
 set bridge.profile island    # RF-eiland bridge: source both, RF local, messages tot 4 RF hops
 set bridge.profile repeater  # gecontroleerde backhaul: source both, RF on, export all
+get bridge.profile           # toont het laatst toegepaste profiel: default, island of repeater
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
 ```
 
-TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. De MeshCore route/path in het packet wordt niet aangepast.
+TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. Bij export van RF flood-packets voegt de TCP bridge-repeater zijn eigen node-hash toe aan het MeshCore path wanneer die nog niet aanwezig is en er ruimte is. Zo blijft zichtbaar via welke RF bridge-node het packet de TCP bridge op ging, zonder dubbele path entries te maken.
+
+De Python TCP bridge server heeft standaard een statuswebsite op poort `8080`. Die toont online en recent geziene bridge-nodes, per node het aantal RX/TX packets in de laatste 24 uur, heartbeat-status, firmwareversie, bridge v1/v2 support en RF dutycycle-budgetverbruik. Nodes die disconnecten blijven zichtbaar zolang ze nog packet-history binnen het 24-uurs venster hebben. De waarde `Duty this hour` is het percentage van het toegestane RF TX dutycycle-uurbudget dat is gebruikt: bij een instelling van 10% dutycycle betekent `100%` dat de volledige zes minuten per uur zijn gebruikt, en `50%` dat drie minuten zijn gebruikt.
 
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
@@ -267,7 +270,7 @@ MeshCoreNG heeft meerdere bridge-routes:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
 | `_bridge_ble` | BLE UART bridge | nRF52- en ESP32-BLE-repeaters kunnen een korte-afstand bridge maken zonder WiFi, USB of extra UART-bedrading. |
 
-Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, recente packet type/route/hop logs, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`.
+Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, recente packet type/route/hop logs, versleutelde peer/DM-metadata, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`. De server rate-limit overmatige DM/group/transport packets voordat ze naar andere bridge-clients gaan, op basis van TCP-client en packetcategorie in plaats van node-naam of advertentie-identiteit. De tracker map op `/map` toont de laatste trackerpositie, snelheid, heading en opgeslagen routegeschiedenis per tracker.
 
 De BLE bridge is beschikbaar voor nRF52 BLE-varianten met Bluefruit en ESP32-varianten met BLE-support. Hij draait tegelijk als central en peripheral, zodat beide repeaters de BLE-link kunnen starten. Flash dezelfde `_bridge_ble` firmware op beide repeaters, zet eventueel op beide kanten dezelfde `bridge.secret` voor een private bridge-pair, en zet daarna `set bridge.enabled on`. Gecombineerde `_bridge_tcp_ble` builds zijn toegevoegd voor ESP32-boards met genoeg flash; 4MB ESP32-boards blijven per board testkandidaten omdat TCP+BLE daar krap kan worden.
 
@@ -686,7 +689,7 @@ set bridge.server <hostnaam of IP>
 set bridge.port   4200
 set bridge.password <bridge wachtwoord>
 set ntp.enabled on
-set ntp.server pool.ntp.org
+set ntp.server nl.pool.ntp.org
 set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on

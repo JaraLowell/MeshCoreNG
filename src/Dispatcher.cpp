@@ -53,6 +53,44 @@ void Dispatcher::updateTxBudget() {
   }
 }
 
+unsigned long Dispatcher::getMaxTxBudget() const {
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  return (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
+}
+
+unsigned long Dispatcher::getEffectiveRemainingTxBudget() const {
+  unsigned long budget = tx_budget_ms;
+  unsigned long elapsed = _ms->getMillis() - last_budget_update;
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  unsigned long refill = (unsigned long)(elapsed * duty_cycle);
+  unsigned long max_budget = getMaxTxBudget();
+
+  if (refill > 0) {
+    budget += refill;
+    if (budget > max_budget) {
+      budget = max_budget;
+    }
+  }
+  return budget;
+}
+
+uint16_t Dispatcher::getDutyCycleLimitCentiPct() const {
+  float duty_cycle_pct = 10000.0f / (1.0f + getAirtimeBudgetFactor());
+  if (duty_cycle_pct < 0.0f) return 0;
+  if (duty_cycle_pct > 10000.0f) return 10000;
+  return (uint16_t)(duty_cycle_pct + 0.5f);
+}
+
+uint16_t Dispatcher::getTxBudgetUsedCentiPct() const {
+  unsigned long max_budget = getMaxTxBudget();
+  if (max_budget == 0) return 0;
+
+  unsigned long remaining = getEffectiveRemainingTxBudget();
+  unsigned long used = remaining >= max_budget ? 0 : (max_budget - remaining);
+  unsigned long pct = (used * 10000UL + (max_budget / 2)) / max_budget;
+  return pct > 10000UL ? 10000 : (uint16_t)pct;
+}
+
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
   return (int) ((pow(10, 0.85f - score) - 1.0) * air_time);
 }

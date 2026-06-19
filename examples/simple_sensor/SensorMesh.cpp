@@ -28,6 +28,9 @@
 #ifndef ADVERT_LON
   #define  ADVERT_LON  0.0
 #endif
+#ifndef GPS_DEFAULT_ENABLED
+  #define GPS_DEFAULT_ENABLED 0
+#endif
 
 #ifndef ADMIN_PASSWORD
   #define  ADMIN_PASSWORD  "password"
@@ -736,7 +739,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.interference_threshold = 0;  // disabled
 
   // GPS defaults
-  _prefs.gps_enabled = 0;
+  _prefs.gps_enabled = GPS_DEFAULT_ENABLED;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
   _prefs.fem_rx_gain = board.getFemRxGain();

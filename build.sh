@@ -16,6 +16,7 @@ Commands:
   build-companion-firmwares: Build all companion firmwares for all build targets.
   build-repeater-firmwares: Build all repeater firmwares for all build targets.
   build-room-server-firmwares: Build all chat room server firmwares for all build targets.
+  build-gps-tracker-firmwares: Build all GPS tracker firmwares for all build targets.
   build-bridge-tcp-firmwares: Build all TCP internet bridge repeater firmwares (ESP32 with WiFi).
   build-bridge-rs232-firmwares: Build all RS232/USB bridge repeater firmwares (all platforms).
   build-bridge-espnow-firmwares: Build all ESPNow bridge repeater firmwares (ESP32 with ESPNow).
@@ -37,6 +38,9 @@ $ bash build.sh build-repeater-firmwares
 
 Build all chat room server firmwares
 $ bash build.sh build-room-server-firmwares
+
+Build all GPS tracker firmwares
+$ bash build.sh build-gps-tracker-firmwares
 
 Build all ESPNow bridge firmwares
 $ bash build.sh build-bridge-espnow-firmwares
@@ -299,6 +303,13 @@ build_room_server_firmwares() {
 
 }
 
+build_gps_tracker_firmwares() {
+
+  # build all GPS tracker firmwares
+  build_all_firmwares_by_suffix "_gps_tracker"
+
+}
+
 build_bridge_tcp_firmwares() {
 
   # build all TCP internet bridge repeater firmwares (ESP32 with WiFi only)
@@ -339,6 +350,7 @@ build_firmwares() {
   build_companion_firmwares
   build_repeater_firmwares
   build_room_server_firmwares
+  build_gps_tracker_firmwares
   build_bridge_tcp_firmwares
   build_bridge_rs232_firmwares
   build_bridge_espnow_firmwares
@@ -375,6 +387,8 @@ elif [[ $1 == "build-repeater-firmwares" ]]; then
   build_repeater_firmwares
 elif [[ $1 == "build-room-server-firmwares" ]]; then
   build_room_server_firmwares
+elif [[ $1 == "build-gps-tracker-firmwares" ]]; then
+  build_gps_tracker_firmwares
 elif [[ $1 == "build-bridge-tcp-firmwares" ]]; then
   build_bridge_tcp_firmwares
 elif [[ $1 == "build-bridge-rs232-firmwares" ]]; then

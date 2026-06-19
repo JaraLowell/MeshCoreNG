@@ -33,6 +33,14 @@ http://localhost:8080/
 
 Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
 
+The status page keeps a 24-hour in-memory traffic window for each known bridge node. It shows `RX 24h` and `TX 24h` per node, and disconnected nodes stay visible as `offline` while they still have packet history inside that 24-hour window. These counters reset when the Python bridge server process restarts.
+
+Each bridge client has its own bounded TCP transmit queue. Incoming bridge packets are queued independently for every other connected node, so one slow TCP client does not block fan-out to the rest of the bridge. The node cards show queue depth, queue drops, skipped duplicates, send errors, and last TCP TX age. These counters show delivery to the TCP socket; RF forwarding can still be suppressed by the repeater because of duty cycle, duplicate checks, CAD/channel busy, TTL, hop limits, or bridge profile settings.
+
+The `Duty used` and `Duty left` tiles show the node's hourly RF transmit duty-cycle budget as timers. Updated bridge firmware sends cumulative measured RF TX airtime in the heartbeat; the server stores a baseline when it first sees the node and then shows real RF TX time consumed since that point. `Duty left` is calculated from the configured one-hour budget. For example, with `set dutycycle 10`, the hourly RF TX budget is 10% of one hour, or 360 seconds. In that case `Duty used` of `3m 00s` means half of the budget is gone, and `Duty left` shows `3m 00s`. Older bridge firmware that does not send cumulative RF TX airtime falls back to the older duty-budget telemetry, which may refill between heartbeats.
+
+The server also checks GitHub releases and marks a node with an `update` badge when its reported firmware version is older than the newest available firmware release that already has `.bin` assets attached. A tag alone is not enough, because the node cannot be updated until the firmware files exist. By default it checks `MichTronics/MeshCoreNG` once per hour. Use `--firmware-update-repo owner/repo` to point it at another repository, or `--firmware-update-interval 0` to disable the check.
+
 Remote management is on a separate page:
 
 ```text

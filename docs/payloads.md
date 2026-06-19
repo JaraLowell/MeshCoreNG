@@ -13,11 +13,13 @@ Inside each [MeshCore Packet](./packet_format.md) is a payload, identified by th
 * Group datagram (unverified).
 * Multi-part packet
 * Control data packet
+* Atlas telemetry packet.
+* Location tracker report.
 * Custom packet (raw bytes, custom encryption).
 
 This document defines the structure of each of these payload types.
 
-NOTE: all 16 and 32-bit integer fields are Little Endian.
+NOTE: unless a section says otherwise, 16-bit and 32-bit integer fields are Little Endian.
 
 ## Important concepts:
 
@@ -56,6 +58,31 @@ Appdata Flags
 | `0x20` | has feature 1  | Reserved for future use.              |
 | `0x40` | has feature 2  | Reserved for future use.              |
 | `0x80` | has name       | appdata contains a node name          |
+
+# Location tracker report
+
+`PAYLOAD_TYPE_LOCATION` (`0x0D`) is a compact native tracker/APRS-like location report used by GPS tracker builds.
+
+This payload uses big-endian integer fields and starts after the normal MeshCore packet header/path fields.
+
+| Field      | Size (bytes) | Description                            |
+|------------|--------------|----------------------------------------|
+| magic      | 4            | `MCL1`                                 |
+| version    | 1            | currently `1`                          |
+| flags      | 1            | reserved                               |
+| node_id    | 4            | first 4 bytes of the sender identity   |
+| lat        | 4            | signed microdegrees                    |
+| lon        | 4            | signed microdegrees                    |
+| altitude   | 2            | signed metres                          |
+| speed      | 2            | centimetres per second                 |
+| heading    | 2            | centidegrees                           |
+| satellites | 1            | GPS satellite count                    |
+| battery    | 2            | millivolts                             |
+| timestamp  | 4            | Unix time from node RTC                |
+| name_len   | 1            | 0-24                                   |
+| name       | variable     | UTF-8 node name                        |
+
+Location packets are flood-routed with a tracker-specific forwarding cap. Repeaters retransmit them only while the packet path contains fewer than two repeater hops.
 
 # Acknowledgement
 
