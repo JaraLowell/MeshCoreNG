@@ -124,6 +124,8 @@ ADMIN_PASSWORD = ""
 ALLOW_PATH_BLOCK_ADMIN = False
 STATUS_BASE_PATH = "/meshbridgestatus"
 COMMAND_TIMEOUT_SECS = 8
+OTA_CHECK_COMMAND_TIMEOUT_SECS = 60
+OTA_UPDATE_COMMAND_TIMEOUT_SECS = 600
 FIRMWARE_UPDATE_REPO = "MichTronics/MeshCoreNG"
 FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = 60 * 60
 FIRMWARE_UPDATE_TIMEOUT_SECS = 5
@@ -751,6 +753,15 @@ def parse_command_reply(payload: bytes) -> tuple[int, str] | None:
         return None
 
     return request_id, raw_reply.decode("utf-8", errors="replace")
+
+
+def command_timeout_for(command: str) -> int:
+    command = (command or "").strip().lower()
+    if command.startswith("ota.update"):
+        return OTA_UPDATE_COMMAND_TIMEOUT_SECS
+    if command.startswith("ota.check"):
+        return OTA_CHECK_COMMAND_TIMEOUT_SECS
+    return COMMAND_TIMEOUT_SECS
 
 
 def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
@@ -1664,7 +1675,7 @@ class BridgeClient:
             self.last_tx_error = str(exc)
             return False
 
-    async def send_command(self, command: str, password: str) -> str:
+    async def send_command(self, command: str, password: str, timeout: int | None = None) -> str:
         global next_command_id
 
         command = command.strip()
@@ -1694,7 +1705,7 @@ class BridgeClient:
         try:
             if not await self.send_payload(payload):
                 raise RuntimeError("send failed")
-            return await asyncio.wait_for(future, timeout=COMMAND_TIMEOUT_SECS)
+            return await asyncio.wait_for(future, timeout=timeout or COMMAND_TIMEOUT_SECS)
         finally:
             pending_commands.pop(request_id, None)
 
@@ -3762,11 +3773,12 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
                         result = "Error: node admin password required"
                     else:
                         try:
-                            reply = await client.send_command(command, node_password)
+                            timeout = command_timeout_for(command)
+                            reply = await client.send_command(command, node_password, timeout=timeout)
                             result = f"{client.display_name}> {command}\n{reply}"
                         except asyncio.TimeoutError:
                             log.warning("%s: remote command timed out: %s", client.addr, command)
-                            result = "Error: command timed out waiting for bridge reply"
+                            result = f"Error: command timed out waiting for bridge reply after {command_timeout_for(command)}s"
                         except Exception as exc:
                             result = f"Error: {exc}"
                 status, content_type = "200 OK", "text/html; charset=utf-8"
