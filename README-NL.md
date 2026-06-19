@@ -51,7 +51,7 @@ Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI ins
 
 Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Native tracker-packets bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Tracker-rapporten worden als Trackers-channel group datagrams verstuurd voor compatibiliteit met oudere repeaters, bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## Wat hebben we nu gedaan?
 

@@ -3,6 +3,7 @@
 #include <helpers/LowBatteryBootGuard.h>
 #include <helpers/LocationReport.h>
 #include <helpers/TxtDataHelpers.h>
+#include <Utils.h>
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -56,6 +57,19 @@ protected:
   unsigned long next_location_report;
 
 #if LOCATION_TRACKER_INTERVAL_SECS > 0 && ENV_INCLUDE_GPS == 1
+  mesh::GroupChannel trackerChannel() {
+    static const uint8_t tracker_group_secret[16] = {
+      0x5F, 0x30, 0x3A, 0xC5, 0x07, 0x5F, 0x80, 0x0F,
+      0x0F, 0x47, 0x11, 0x31, 0x99, 0xD5, 0x10, 0x53
+    };
+
+    mesh::GroupChannel channel;
+    memset(channel.secret, 0, sizeof(channel.secret));
+    memcpy(channel.secret, tracker_group_secret, sizeof(tracker_group_secret));
+    mesh::Utils::sha256(channel.hash, sizeof(channel.hash), tracker_group_secret, sizeof(tracker_group_secret));
+    return channel;
+  }
+
   uint32_t getLocationTrackerIntervalSecs() {
 #if LOCATION_TRACKER_ADAPTIVE_INTERVAL
     LocationProvider* location = sensors.getLocationProvider();
@@ -89,11 +103,15 @@ protected:
     size_t len = meshcore::encodeLocationReport(payload, sizeof(payload), report);
     if (len == 0) return;
 
-    mesh::Packet* pkt = obtainNewPacket();
+    uint8_t group_data[3 + meshcore::LOCATION_REPORT_MAX_ENCODED_LEN];
+    group_data[0] = (uint8_t)(DATA_TYPE_MESHCORENG_TRACKER & 0xFF);
+    group_data[1] = (uint8_t)(DATA_TYPE_MESHCORENG_TRACKER >> 8);
+    group_data[2] = (uint8_t)len;
+    memcpy(&group_data[3], payload, len);
+
+    mesh::GroupChannel channel = trackerChannel();
+    mesh::Packet* pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_DATA, channel, group_data, 3 + len);
     if (!pkt) return;
-    pkt->header = (PAYLOAD_TYPE_LOCATION << PH_TYPE_SHIFT);
-    memcpy(pkt->payload, payload, len);
-    pkt->payload_len = len;
 
     NodePrefs* prefs = getNodePrefs();
     sendFlood(pkt, (uint32_t)0, prefs->path_hash_mode + 1);

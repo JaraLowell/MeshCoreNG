@@ -86,6 +86,7 @@ PAYLOAD_TYPE_MULTIPART = 0x0A
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_LOCATION = 0x0D
+DATA_TYPE_MESHCORENG_TRACKER = 0x0200
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
@@ -104,6 +105,14 @@ MAX_ADVERT_DATA_SIZE = 32
 PATH_HASH_SIZE = 1
 CIPHER_MAC_SIZE = 2
 CIPHER_BLOCK_SIZE = 16
+DEFAULT_PUBLIC_CHANNEL_SECRET = bytes([
+    0x8B, 0x33, 0x87, 0xE9, 0xC5, 0xCD, 0xEA, 0x6A,
+    0xC9, 0xE5, 0xED, 0xBA, 0xA1, 0x15, 0xCD, 0x72,
+]) + (b"\x00" * 16)
+DEFAULT_TRACKER_CHANNEL_SECRET = bytes([
+    0x5F, 0x30, 0x3A, 0xC5, 0x07, 0x5F, 0x80, 0x0F,
+    0x0F, 0x47, 0x11, 0x31, 0x99, 0xD5, 0x10, 0x53,
+]) + (b"\x00" * 16)
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 PUBLIC_CHANNELS_FILE = ""
@@ -263,8 +272,20 @@ def channel_hash(secret: bytes) -> bytes:
     return hashlib.sha256(secret[:key_len]).digest()[:PATH_HASH_SIZE]
 
 
+def add_public_channel(name: str, secret: bytes) -> None:
+    if any(ch["name"] == name and ch["secret"] == secret for ch in public_channels):
+        return
+    public_channels.append({
+        "name": name,
+        "secret": secret,
+        "hash": channel_hash(secret),
+    })
+
+
 def load_public_channels(path: str) -> None:
     public_channels.clear()
+    add_public_channel("Public", DEFAULT_PUBLIC_CHANNEL_SECRET)
+    add_public_channel("Trackers", DEFAULT_TRACKER_CHANNEL_SECRET)
     if not path:
         return
     if Cipher is None:
@@ -291,11 +312,7 @@ def load_public_channels(path: str) -> None:
         if not name or secret is None:
             log.warning("Skipping invalid public channel entry: %s", item)
             continue
-        public_channels.append({
-            "name": name,
-            "secret": secret,
-            "hash": channel_hash(secret),
-        })
+        add_public_channel(name, secret)
 
     log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
 
@@ -449,6 +466,30 @@ def trim_c_string(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").strip()
 
 
+def decrypt_public_channel_plain(parsed: dict) -> tuple[str, bytes] | None:
+    app_payload = parsed.get("app_payload") or b""
+    if not public_channels or len(app_payload) <= PATH_HASH_SIZE + CIPHER_MAC_SIZE:
+        return None
+    packet_hash = app_payload[:PATH_HASH_SIZE]
+    encrypted = app_payload[PATH_HASH_SIZE:]
+    for channel in (ch for ch in public_channels if ch["hash"] == packet_hash):
+        plain = mac_then_decrypt(channel["secret"], encrypted)
+        if plain:
+            return channel["name"], plain
+    return None
+
+
+def decode_group_data_plain(plain: bytes) -> tuple[int, bytes] | None:
+    if len(plain) < 3:
+        return None
+    data_type = plain[0] | (plain[1] << 8)
+    data_len = plain[2]
+    data = plain[3:3 + data_len]
+    if len(data) < data_len:
+        return None
+    return data_type, data
+
+
 def decode_public_channel_payload(parsed: dict) -> dict:
     result = {
         "decoded_channel": "",
@@ -468,44 +509,39 @@ def decode_public_channel_payload(parsed: dict) -> dict:
         result["decoded_status"] = "short-group-payload"
         return result
 
-    packet_hash = app_payload[:PATH_HASH_SIZE]
-    encrypted = app_payload[PATH_HASH_SIZE:]
-    candidates = [ch for ch in public_channels if ch["hash"] == packet_hash]
-    if not candidates:
+    if not any(ch["hash"] == app_payload[:PATH_HASH_SIZE] for ch in public_channels):
         result["decoded_status"] = "unknown-channel"
         return result
 
-    for channel in candidates:
-        plain = mac_then_decrypt(channel["secret"], encrypted)
-        if not plain:
-            continue
-        result["decoded_channel"] = channel["name"]
-        if payload_type == PAYLOAD_TYPE_GRP_TXT:
-            if len(plain) < 5:
-                result["decoded_status"] = "short-group-text"
-                return result
-            txt_type = plain[4]
-            if (txt_type >> 2) != 0:
-                result["decoded_status"] = f"unsupported-text-type-{txt_type}"
-                return result
-            result["decoded_status"] = "decoded"
-            result["decoded_text"] = trim_c_string(plain[5:])
+    decoded = decrypt_public_channel_plain(parsed)
+    if decoded is None:
+        result["decoded_status"] = "mac-failed"
+        return result
+    channel_name, plain = decoded
+    result["decoded_channel"] = channel_name
+    if payload_type == PAYLOAD_TYPE_GRP_TXT:
+        if len(plain) < 5:
+            result["decoded_status"] = "short-group-text"
             return result
-
-        if len(plain) < 3:
-            result["decoded_status"] = "short-group-data"
+        txt_type = plain[4]
+        if (txt_type >> 2) != 0:
+            result["decoded_status"] = f"unsupported-text-type-{txt_type}"
             return result
-        data_type = plain[0] | (plain[1] << 8)
-        data_len = plain[2]
-        data = plain[3:3 + data_len]
         result["decoded_status"] = "decoded"
-        result["decoded_data_type"] = data_type
-        result["decoded_data_len"] = min(data_len, len(data))
-        result["decoded_text"] = f"data_type=0x{data_type:04x} len={min(data_len, len(data))} preview={payload_preview(data)}"
+        result["decoded_text"] = trim_c_string(plain[5:])
         return result
 
-    result["decoded_status"] = "mac-failed"
+    group_data = decode_group_data_plain(plain)
+    if group_data is None:
+        result["decoded_status"] = "short-group-data"
+        return result
+    data_type, data = group_data
+    result["decoded_status"] = "decoded"
+    result["decoded_data_type"] = data_type
+    result["decoded_data_len"] = len(data)
+    result["decoded_text"] = f"data_type=0x{data_type:04x} len={len(data)} preview={payload_preview(data)}"
     return result
+
 
 
 def describe_peer_encrypted_payload(parsed: dict) -> dict:
@@ -922,7 +958,9 @@ def parse_location_report(payload: bytes) -> dict | None:
         "lat": lat_microdeg / 1000000.0,
         "lon": lon_microdeg / 1000000.0,
         "altitude_m": altitude_m,
+        "speed_cms": speed_cms,
         "speed_kmh": round(speed_cms * 0.036, 2),
+        "heading_cdeg": heading_cdeg,
         "heading_deg": round(heading_cdeg / 100.0, 2),
         "satellites": payload[24],
         "battery_mv": battery_mv,
@@ -1010,13 +1048,25 @@ def allow_transport_packet(client: "BridgeClient", parsed: dict | None, now: flo
 
 def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
     parsed = parse_mesh_payload(frame_payload)
-    if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_LOCATION:
+    if not parsed:
         return None
 
-    report = parse_location_report(parsed["app_payload"])
+    report = None
+    if parsed["payload_type"] == PAYLOAD_TYPE_LOCATION:
+        report = parse_location_report(parsed["app_payload"])
+    elif parsed["payload_type"] == PAYLOAD_TYPE_GRP_DATA:
+        decoded = decrypt_public_channel_plain(parsed)
+        if decoded is not None:
+            _channel_name, plain = decoded
+            group_data = decode_group_data_plain(plain)
+            if group_data is not None:
+                data_type, data = group_data
+                if data_type == DATA_TYPE_MESHCORENG_TRACKER:
+                    report = parse_location_report(data)
     if report is None:
         return None
     report["hops"] = parsed["path_hash_count"]
+    report["payload_type"] = parsed["payload_type"]
     return report
 
 

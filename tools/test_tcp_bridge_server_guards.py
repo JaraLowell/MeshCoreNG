@@ -2,6 +2,7 @@
 """Smoke tests for TCP bridge server dedupe, loopguard, groups, and budgets."""
 
 import asyncio
+import hmac
 import time
 
 import tcp_bridge_server as server
@@ -243,6 +244,66 @@ async def test_rf_duty_hour_counter_resets() -> None:
         server.node_traffic_stats = old_stats
 
 
+def encrypt_group_plain(secret: bytes, plain: bytes) -> bytes:
+    assert server.Cipher is not None
+    padded_len = ((len(plain) + server.CIPHER_BLOCK_SIZE - 1) // server.CIPHER_BLOCK_SIZE) * server.CIPHER_BLOCK_SIZE
+    padded = plain + (b"\x00" * (padded_len - len(plain)))
+    cipher = server.Cipher(server.algorithms.AES(secret[:16]), server.modes.ECB())
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(padded) + encryptor.finalize()
+    mac = hmac.new(secret, encrypted, server.hashlib.sha256).digest()[:server.CIPHER_MAC_SIZE]
+    return mac + encrypted
+
+
+async def test_group_tracker_location_decode() -> None:
+    if server.Cipher is None:
+        return
+    old_channels = server.public_channels
+    server.public_channels = []
+    server.load_public_channels("")
+    try:
+        tracker = (
+            b"MCL1"
+            + bytes([1, 0])
+            + bytes.fromhex("01020304")
+            + int(52123456).to_bytes(4, "big", signed=True)
+            + int(5123456).to_bytes(4, "big", signed=True)
+            + int(12).to_bytes(2, "big", signed=True)
+            + int(345).to_bytes(2, "big")
+            + int(9000).to_bytes(2, "big")
+            + bytes([7])
+            + int(4100).to_bytes(2, "big")
+            + int(1780000000).to_bytes(4, "big")
+            + bytes([4])
+            + b"bike"
+        )
+        plain = (
+            int(server.DATA_TYPE_MESHCORENG_TRACKER).to_bytes(2, "little")
+            + bytes([len(tracker)])
+            + tracker
+        )
+        encrypted = encrypt_group_plain(server.DEFAULT_TRACKER_CHANNEL_SECRET, plain)
+        payload = bytes([(server.PAYLOAD_TYPE_GRP_DATA << server.PH_TYPE_SHIFT) | server.ROUTE_TYPE_FLOOD])
+        payload += bytes([0])
+        payload += server.channel_hash(server.DEFAULT_TRACKER_CHANNEL_SECRET)
+        payload += encrypted
+
+        report = server.parse_mesh_location_payload(payload)
+        assert report is not None
+        assert report["node_id"] == "01020304"
+        assert report["lat"] == 52.123456
+        assert report["lon"] == 5.123456
+        assert report["altitude_m"] == 12
+        assert report["speed_cms"] == 345
+        assert report["heading_cdeg"] == 9000
+        assert report["satellites"] == 7
+        assert report["battery_mv"] == 4100
+        assert report["name"] == "bike"
+        assert report["payload_type"] == server.PAYLOAD_TYPE_GRP_DATA
+    finally:
+        server.public_channels = old_channels
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_ttl_allows_resend()
@@ -252,6 +313,7 @@ async def main() -> None:
     await test_caps_v2_group_budget()
     await test_status_hides_unnamed_offline_placeholders()
     await test_rf_duty_hour_counter_resets()
+    await test_group_tracker_location_decode()
     print("tcp bridge guard smoke tests passed")
 
 

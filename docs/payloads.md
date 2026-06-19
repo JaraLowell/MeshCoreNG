@@ -14,7 +14,7 @@ Inside each [MeshCore Packet](./packet_format.md) is a payload, identified by th
 * Multi-part packet
 * Control data packet
 * Atlas telemetry packet.
-* Location tracker report.
+* Location tracker report over group data.
 * Custom packet (raw bytes, custom encryption).
 
 This document defines the structure of each of these payload types.
@@ -61,9 +61,17 @@ Appdata Flags
 
 # Location tracker report
 
-`PAYLOAD_TYPE_LOCATION` (`0x0D`) is a compact native tracker/APRS-like location report used by GPS tracker builds.
+Current MeshCoreNG GPS tracker builds send compact tracker reports as public-channel `PAYLOAD_TYPE_GRP_DATA` (`0x06`) datagrams with `data_type=0x0200` (`DATA_TYPE_MESHCORENG_TRACKER`). This keeps tracker reports compatible with older repeaters that already forward group datagrams.
 
-This payload uses big-endian integer fields and starts after the normal MeshCore packet header/path fields.
+The group datagram body uses the normal MeshCore group-data wrapper:
+
+| Field     | Size (bytes) | Description                           |
+|-----------|--------------|---------------------------------------|
+| data_type | 2            | little-endian `0x0200`                |
+| data_len  | 1            | length of the tracker report body     |
+| data      | variable     | compact tracker report shown below    |
+
+The tracker report body uses big-endian integer fields:
 
 | Field      | Size (bytes) | Description                            |
 |------------|--------------|----------------------------------------|
@@ -82,7 +90,7 @@ This payload uses big-endian integer fields and starts after the normal MeshCore
 | name_len   | 1            | 0-24                                   |
 | name       | variable     | UTF-8 node name                        |
 
-Location packets are flood-routed with a tracker-specific forwarding cap. Repeaters retransmit them only while the packet path contains fewer than two repeater hops.
+Tracker group datagrams are flood-routed like other public group data. The older native `PAYLOAD_TYPE_LOCATION` (`0x0D`) format used the same `MCL1` body directly as its app payload; it is kept as a legacy decode format for existing deployments, but new MeshCoreNG tracker builds should use the group-data format above.
 
 # Acknowledgement
 

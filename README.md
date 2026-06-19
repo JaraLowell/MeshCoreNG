@@ -56,7 +56,7 @@ Repeater, GPS tracker / sensor, and room server builds can tune this from the CL
 
 Repeater, GPS tracker / sensor, and room server builds also include a runtime low-battery guard. While the node is running, it periodically checks battery voltage. If the node is not externally powered and the battery falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further. Tune it with `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min`, and `set runtime.lowbat.retry`. See [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Native tracker packets include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Tracker reports are sent as Trackers-channel group datagrams for older repeater compatibility, include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## What Have We Done So Far?
 
@@ -420,11 +420,11 @@ python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
 
-#### Public channel decryption on the bridge server
+#### Channel decryption on the bridge server
 
-The bridge server can optionally decrypt and display the plaintext of public MeshCore channel messages in its status page and packet log. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
+The bridge server can decrypt selected MeshCore group channels in its status page and packet log. The standard `Public` and MeshCoreNG `Trackers` channels are known by default; the `Trackers` channel is used for compact GPS tracker reports. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
 
-Supply a JSON file listing the channel names and secrets:
+Supply a JSON file to add more channel names and secrets:
 
 ```bash
 TCP_BRIDGE_PUBLIC_CHANNELS_FILE=tools/public_channels.json tools/tcp_bridge_server_ctl.sh start
