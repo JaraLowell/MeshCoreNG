@@ -745,11 +745,32 @@ def parse_caps(payload: bytes) -> dict | None:
         return None
     if payload[4] != CONTROL_TYPE_CAPS:
         return None
-    return {
+    caps = {
         "version": payload[5],
         "flags": payload[6],
         "bridge_v2": bool(payload[6] & 0x01),
+        "bridge_proto_ver": 1,
+        "group": "",
+        "rf_inject_budget_enabled": False,
+        "rf_inject_max_per_min": 0,
+        "rf_inject_max_airtime_ms_per_hour": 0,
+        "rf_inject_block_duty_above_pct": 0.0,
     }
+    if len(payload) >= 9:
+        caps["bridge_proto_ver"] = payload[7] or 1
+        group_len = min(payload[8], 15)
+        group_start = 9
+        group_end = group_start + group_len
+        if len(payload) >= group_end:
+            caps["group"] = payload[group_start:group_end].decode("utf-8", errors="replace").strip()
+            pos = group_end
+            if len(payload) >= pos + 9:
+                caps["rf_inject_budget_enabled"] = payload[pos] != 0
+                caps["rf_inject_max_per_min"] = struct.unpack(">H", payload[pos + 1:pos + 3])[0]
+                caps["rf_inject_max_airtime_ms_per_hour"] = struct.unpack(">I", payload[pos + 3:pos + 7])[0]
+                duty_centi = struct.unpack(">H", payload[pos + 7:pos + 9])[0]
+                caps["rf_inject_block_duty_above_pct"] = duty_centi / 100.0
+    return caps
 
 
 def parse_command_reply(payload: bytes) -> tuple[int, str] | None:
@@ -1339,6 +1360,9 @@ def new_node_stats(key: str) -> dict:
         "node_id": "",
         "firmware_version": "",
         "supports_bridge_v2": False,
+        "bridge_proto_ver": 1,
+        "bridge_group": BRIDGE_GROUP,
+        "node_rf_inject_budget": {},
         "connected": False,
         "client_id": "",
         "addr": "",
@@ -1362,10 +1386,11 @@ def merge_node_stats(target: dict, source: dict) -> None:
     for field in ("last_heartbeat_uptime_ms",):
         if source.get(field):
             target[field] = source[field]
-    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr"):
+    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget"):
         if source.get(field):
             target[field] = source[field]
     target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
+    target["bridge_proto_ver"] = max(target.get("bridge_proto_ver", 1), source.get("bridge_proto_ver", 1))
     target["connected"] = target.get("connected", False) or source.get("connected", False)
 
 
@@ -1385,6 +1410,9 @@ def get_node_stats(client: "BridgeClient") -> dict:
         "node_id": client.node_id,
         "firmware_version": client.firmware_version,
         "supports_bridge_v2": client.supports_bridge_v2,
+        "bridge_proto_ver": client.bridge_proto_ver,
+        "bridge_group": client.bridge_group,
+        "node_rf_inject_budget": dict(client.node_rf_inject_budget),
         "connected": client in connected_clients,
         "client_id": client.client_id,
         "addr": client.addr,
@@ -1451,6 +1479,10 @@ def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> 
     stats["last_seen"] = max(stats.get("last_seen", 0.0), client.last_seen)
 
 
+def has_node_identity(stats: dict) -> bool:
+    return bool((stats.get("node_name") or "").strip() or (stats.get("node_id") or "").strip())
+
+
 def node_stats_status_dict(stats: dict, now: float) -> dict:
     prune_packet_times(stats["rx_times"], now)
     prune_packet_times(stats["tx_times"], now)
@@ -1489,7 +1521,9 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "loop_score": 0,
         "quarantine_active": False,
         "quarantine_seconds_left": 0,
-        "group": BRIDGE_GROUP,
+        "group": stats.get("bridge_group") or BRIDGE_GROUP,
+        "bridge_proto_ver": stats.get("bridge_proto_ver", 1),
+        "node_rf_inject_budget": dict(stats.get("node_rf_inject_budget") or {}),
         "last_fingerprint": "",
         "last_fingerprint_age_seconds": None,
         "rf_inject_budget_remaining_ms": None,
@@ -1501,6 +1535,7 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "heartbeats_rx": stats.get("heartbeats_rx", 0),
         "authenticated": connected,
         "supports_bridge_v2": stats.get("supports_bridge_v2", False),
+        "bridge_proto_ver": stats.get("bridge_proto_ver", 1),
         "last_seen_seconds": int(now - stats["last_seen"]) if stats.get("last_seen") else None,
     }
 
@@ -1510,6 +1545,9 @@ def prune_disconnected_node_stats(now: float) -> None:
         prune_packet_times(stats["rx_times"], now)
         prune_packet_times(stats["tx_times"], now)
         if stats.get("connected"):
+            continue
+        if not has_node_identity(stats):
+            node_traffic_stats.pop(key, None)
             continue
         last_seen = stats.get("last_seen", 0.0)
         if not stats["rx_times"] and not stats["tx_times"] and last_seen < now - PACKET_COUNTER_WINDOW_SECS:
@@ -1545,8 +1583,10 @@ class BridgeClient:
         self.node_id = ""
         self.firmware_version = ""
         self.supports_bridge_v2 = False
+        self.bridge_proto_ver = 1
         self.authenticated = not BRIDGE_PASSWORD
         self.bridge_group = BRIDGE_GROUP
+        self.node_rf_inject_budget: dict = {}
         self._seen_hash_seen_at: dict[bytes, float] = {}
         self._seen_hash_deque: deque[tuple[bytes, float]] = deque(maxlen=256)
         self.tx_queue: asyncio.Queue[tuple[bytes, str, bytes | None]] = asyncio.Queue(maxsize=CLIENT_TX_QUEUE_MAX)
@@ -1738,6 +1778,8 @@ class BridgeClient:
             "quarantine_active": self.quarantine_active(now),
             "quarantine_seconds_left": max(0, int(self.quarantined_until - now)) if self.quarantined_until else 0,
             "group": self.bridge_group,
+            "bridge_proto_ver": self.bridge_proto_ver,
+            "node_rf_inject_budget": dict(self.node_rf_inject_budget),
             "last_fingerprint": fingerprint_hex(self.last_fingerprint) if self.last_fingerprint else "",
             "last_fingerprint_age_seconds": int(now - self.last_fingerprint_at) if self.last_fingerprint_at else None,
             "rf_inject_budget_remaining_ms": self.rf_inject_budget_remaining_ms(now),
@@ -1756,6 +1798,7 @@ class BridgeClient:
             "heartbeats_rx": self.heartbeats_rx,
             "authenticated": self.authenticated,
             "supports_bridge_v2": self.supports_bridge_v2,
+            "bridge_proto_ver": self.bridge_proto_ver,
         })
         return status
 
@@ -2068,9 +2111,20 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             caps = parse_caps(payload)
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
+                client.bridge_proto_ver = int(caps.get("bridge_proto_ver") or 1)
+                group = (caps.get("group") or "").strip()
+                if group:
+                    client.bridge_group = group
+                client.node_rf_inject_budget = {
+                    "enabled": bool(caps.get("rf_inject_budget_enabled")),
+                    "max_per_min": int(caps.get("rf_inject_max_per_min") or 0),
+                    "max_airtime_ms_per_hour": int(caps.get("rf_inject_max_airtime_ms_per_hour") or 0),
+                    "block_duty_above_pct": float(caps.get("rf_inject_block_duty_above_pct") or 0.0),
+                }
                 touch_node_stats(client)
-                log.info("%s: bridge capabilities v%d flags=0x%02x bridge_v2=%s",
-                         client.addr, caps["version"], caps["flags"], client.supports_bridge_v2)
+                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s",
+                         client.addr, caps["version"], client.bridge_proto_ver, caps["flags"],
+                         client.supports_bridge_v2, client.bridge_group)
                 continue
             heartbeat = parse_heartbeat(payload)
             if heartbeat is not None:
@@ -2197,7 +2251,7 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
         offline_clients = [
             node_stats_status_dict(stats, now)
             for key, stats in node_traffic_stats.items()
-            if key not in active_keys and (
+            if key not in active_keys and has_node_identity(stats) and (
                 stats.get("last_seen", 0) >= now - PACKET_COUNTER_WINDOW_SECS
                 or stats["rx_times"]
                 or stats["tx_times"]

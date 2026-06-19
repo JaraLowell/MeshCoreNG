@@ -132,12 +132,85 @@ async def test_rf_budget_drop() -> None:
     server.BRIDGE_RF_INJECT_MAX_PER_MIN = old_max
 
 
+async def test_caps_v2_group_budget() -> None:
+    group = b"GWNL"
+    payload = (
+        b"MCNG"
+        + bytes([server.CONTROL_TYPE_CAPS, 2, 0x07, 2, len(group)])
+        + group
+        + bytes([1])
+        + (120).to_bytes(2, "big")
+        + (360000).to_bytes(4, "big")
+        + (7500).to_bytes(2, "big")
+    )
+    caps = server.parse_caps(payload)
+    assert caps is not None
+    assert caps["bridge_v2"] is True
+    assert caps["bridge_proto_ver"] == 2
+    assert caps["group"] == "GWNL"
+    assert caps["rf_inject_budget_enabled"] is True
+    assert caps["rf_inject_max_per_min"] == 120
+    assert caps["rf_inject_max_airtime_ms_per_hour"] == 360000
+    assert caps["rf_inject_block_duty_above_pct"] == 75.0
+
+
+async def test_status_hides_unnamed_offline_placeholders() -> None:
+    old_clients = server.connected_clients
+    old_stats = server.node_traffic_stats
+    now = time.time()
+    server.connected_clients = set()
+    server.node_traffic_stats = {
+        "host:placeholder": {
+            "key": "host:placeholder",
+            "rx_times": server.deque([now]),
+            "tx_times": server.deque(),
+            "packets_rx": 1,
+            "packets_tx": 0,
+            "heartbeats_rx": 0,
+            "first_seen": now,
+            "last_seen": now,
+            "last_connected": now,
+            "last_disconnect": now,
+            "last_heartbeat": 0.0,
+            "last_heartbeat_uptime_ms": 0,
+            "rf_duty": {},
+            "rf_tx_total_baseline_ms": None,
+            "rf_tx_total_baseline_at": 0.0,
+            "node_name": "",
+            "node_id": "",
+            "firmware_version": "",
+            "supports_bridge_v2": False,
+            "bridge_proto_ver": 1,
+            "bridge_group": "default",
+            "node_rf_inject_budget": {},
+            "connected": False,
+            "client_id": "",
+            "addr": "",
+        },
+        "name:real": {
+            **server.new_node_stats("name:real"),
+            "node_name": "real",
+            "last_seen": now,
+        },
+    }
+    try:
+        snapshot = server.status_snapshot()
+        names = [client["display_name"] for client in snapshot["clients"]]
+        assert "unnamed bridge node" not in names
+        assert "real" in names
+    finally:
+        server.connected_clients = old_clients
+        server.node_traffic_stats = old_stats
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_ttl_allows_resend()
     await test_group_mismatch()
     await test_quarantine()
     await test_rf_budget_drop()
+    await test_caps_v2_group_budget()
+    await test_status_hides_unnamed_offline_placeholders()
     print("tcp bridge guard smoke tests passed")
 
 

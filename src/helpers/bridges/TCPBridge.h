@@ -51,6 +51,7 @@ public:
   void getStatusStr(char *reply) const;
   void setNodeId(const uint8_t *node_id, size_t len);
   void setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms);
+  void resetGuardStats();
   
   /**
    * @brief Get the total number of packets dropped by TCP rate limiting (all categories)
@@ -112,6 +113,7 @@ private:
   static constexpr uint8_t  CONTROL_TYPE_COMMAND     = 0x10;
   static constexpr uint8_t  CONTROL_TYPE_COMMAND_REPLY = 0x11;
   static constexpr uint8_t  CONTROL_TYPE_BRIDGE_PACKET = 0x20;
+  static constexpr uint8_t  BRIDGE_PROTO_VERSION = 2;
   static constexpr uint8_t  BRIDGE_PACKET_VERSION = 1;
   static constexpr uint8_t  BRIDGE_PACKET_FLAG_RF_RX = 0x01;
 
@@ -149,6 +151,11 @@ private:
   uint32_t    _rf_tx_total_ms = 0;
   uint16_t    _rf_duty_limit_centi_pct = 0;
   uint16_t    _rf_tx_used_centi_pct = 0;
+  uint32_t    _rf_inject_minute_start_ms = 0;
+  uint16_t    _rf_inject_minute_count = 0;
+  uint32_t    _rf_inject_hour_start_ms = 0;
+  uint32_t    _rf_inject_hour_airtime_ms = 0;
+  uint32_t    _rf_inject_dropped_count = 0;
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
   bool appendSelfToTcpExportPath(mesh::Packet *packet) const;
@@ -156,6 +163,9 @@ private:
   bool shouldExportPacket(const mesh::Packet *packet) const;
   bool isChannelPacket(const mesh::Packet *packet) const;
   bool isMessagePacket(const mesh::Packet *packet) const;
+  uint32_t estimateInjectAirtimeMs(uint16_t packet_len) const;
+  bool canInjectFromTcp(uint16_t packet_len);
+  void recordInjectFromTcp(uint16_t packet_len);
   uint32_t getBridgeId();
   void sendAuth();
   void sendNodeInfo();

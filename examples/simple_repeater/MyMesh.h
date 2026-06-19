@@ -491,6 +491,14 @@ public:
     bridge.getStatusStr(reply);
 #endif
   }
+
+  void resetTcpBridgeStats() override {
+#if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
+    tcp_bridge.resetGuardStats();
+#else
+    bridge.resetGuardStats();
+#endif
+  }
 #endif
 
 #if defined(WITH_BLE_BRIDGE)

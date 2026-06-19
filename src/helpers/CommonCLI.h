@@ -125,6 +125,11 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
   uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
   uint8_t bridge_profile;         // 0=default, 1=island, 2=repeater
+  char bridge_group[16];          // TCP bridge scope/group advertised to the server
+  uint8_t bridge_rf_inject_budget_enabled;      // locally gate TCP->RF injection
+  uint16_t bridge_rf_inject_max_per_min;        // 0 = no packet count cap
+  uint32_t bridge_rf_inject_max_airtime_ms_hour; // 0 = no airtime cap
+  uint16_t bridge_rf_inject_block_duty_centi_pct; // 0 = no duty threshold
 #ifdef WITH_MQTT_BRIDGE
   // MQTT bridge settings — mirrored in memory from the separate /mqtt_prefs file so the
   // bridge can read everything from NodePrefs. Appended at the end of NodePrefs so the main
@@ -312,6 +317,10 @@ public:
 
   virtual void formatTcpBridgeStatusReply(char *reply) {
     reply[0] = 0;
+  }
+
+  virtual void resetTcpBridgeStats() {
+    // no op by default
   }
 
   virtual void formatBleBridgeStatusReply(char *reply) {

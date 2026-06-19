@@ -595,7 +595,27 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
         _prefs->bridge_profile = bridge_profile;                                                   // 670 + sizeof(AtlasConfig)
         bridge_profile_loaded = true;
       }
-      // next: 671 + sizeof(AtlasConfig)
+      char bridge_group[16] = {};
+      if (file.read((uint8_t *)bridge_group, sizeof(bridge_group)) == sizeof(bridge_group)) {
+        memcpy(_prefs->bridge_group, bridge_group, sizeof(bridge_group));                           // 671 + sizeof(AtlasConfig)
+      }
+      uint8_t bridge_rf_inject_budget_enabled = _prefs->bridge_rf_inject_budget_enabled;
+      if (file.read((uint8_t *)&bridge_rf_inject_budget_enabled, sizeof(bridge_rf_inject_budget_enabled)) == sizeof(bridge_rf_inject_budget_enabled)) {
+        _prefs->bridge_rf_inject_budget_enabled = bridge_rf_inject_budget_enabled;                   // 687 + sizeof(AtlasConfig)
+      }
+      uint16_t bridge_rf_inject_max_per_min = _prefs->bridge_rf_inject_max_per_min;
+      if (file.read((uint8_t *)&bridge_rf_inject_max_per_min, sizeof(bridge_rf_inject_max_per_min)) == sizeof(bridge_rf_inject_max_per_min)) {
+        _prefs->bridge_rf_inject_max_per_min = bridge_rf_inject_max_per_min;                         // 688 + sizeof(AtlasConfig)
+      }
+      uint32_t bridge_rf_inject_max_airtime_ms_hour = _prefs->bridge_rf_inject_max_airtime_ms_hour;
+      if (file.read((uint8_t *)&bridge_rf_inject_max_airtime_ms_hour, sizeof(bridge_rf_inject_max_airtime_ms_hour)) == sizeof(bridge_rf_inject_max_airtime_ms_hour)) {
+        _prefs->bridge_rf_inject_max_airtime_ms_hour = bridge_rf_inject_max_airtime_ms_hour;         // 690 + sizeof(AtlasConfig)
+      }
+      uint16_t bridge_rf_inject_block_duty_centi_pct = _prefs->bridge_rf_inject_block_duty_centi_pct;
+      if (file.read((uint8_t *)&bridge_rf_inject_block_duty_centi_pct, sizeof(bridge_rf_inject_block_duty_centi_pct)) == sizeof(bridge_rf_inject_block_duty_centi_pct)) {
+        _prefs->bridge_rf_inject_block_duty_centi_pct = bridge_rf_inject_block_duty_centi_pct;       // 694 + sizeof(AtlasConfig)
+      }
+      // next: 696 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -621,6 +641,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_export_max_hops = constrain(_prefs->bridge_export_max_hops, 0, 63);
     _prefs->bridge_tcp_ttl = constrain(_prefs->bridge_tcp_ttl, 1, 8);
     _prefs->bridge_profile = constrain(_prefs->bridge_profile, 0, 2);
+    _prefs->bridge_group[sizeof(_prefs->bridge_group) - 1] = 0;
+    if (_prefs->bridge_group[0] == 0 || !isValidName(_prefs->bridge_group)) {
+      StrHelper::strncpy(_prefs->bridge_group, "default", sizeof(_prefs->bridge_group));
+    }
+    _prefs->bridge_rf_inject_budget_enabled = constrain(_prefs->bridge_rf_inject_budget_enabled, 0, 1);
+    _prefs->bridge_rf_inject_max_per_min = constrain(_prefs->bridge_rf_inject_max_per_min, 0, 10000);
+    _prefs->bridge_rf_inject_block_duty_centi_pct = constrain(_prefs->bridge_rf_inject_block_duty_centi_pct, 0, 10000);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -811,7 +838,12 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_export_max_hops, sizeof(_prefs->bridge_export_max_hops)); // 668 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_tcp_ttl, sizeof(_prefs->bridge_tcp_ttl));                // 669 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_profile, sizeof(_prefs->bridge_profile));                // 670 + sizeof(AtlasConfig)
-    // next: 671 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_group, sizeof(_prefs->bridge_group));                    // 671 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_budget_enabled, sizeof(_prefs->bridge_rf_inject_budget_enabled)); // 687 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_max_per_min, sizeof(_prefs->bridge_rf_inject_max_per_min)); // 688 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_max_airtime_ms_hour, sizeof(_prefs->bridge_rf_inject_max_airtime_ms_hour)); // 690 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_rf_inject_block_duty_centi_pct, sizeof(_prefs->bridge_rf_inject_block_duty_centi_pct)); // 694 + sizeof(AtlasConfig)
+    // next: 696 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1198,6 +1230,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->formatRadioStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
+#ifdef WITH_TCP_BRIDGE
+    } else if (sender_timestamp == 0 && strcmp(command, "bridge stats reset") == 0) {
+      _callbacks->resetTcpBridgeStats();
+      strcpy(reply, "OK");
+#endif
     } else {
       strcpy(reply, "Unknown command");
     }
@@ -1706,6 +1743,51 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: ttl must be between 1-8");
+    }
+  } else if (memcmp(config, "bridge.group ", 13) == 0) {
+    const char* group = &config[13];
+    if (group[0] == 0 || !isValidName(group) || strlen(group) >= sizeof(_prefs->bridge_group)) {
+      strcpy(reply, "Error: group must be 1-15 chars without []\\:,?*");
+    } else {
+      StrHelper::strncpy(_prefs->bridge_group, group, sizeof(_prefs->bridge_group));
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    }
+  } else if (memcmp(config, "bridge.budget ", 14) == 0) {
+    const char* value = &config[14];
+    if (parseOnOff(value, &_prefs->bridge_rf_inject_budget_enabled)) {
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "bridge.budget.max_per_min ", 26) == 0) {
+    int max = _atoi(&config[26]);
+    if (max >= 0 && max <= 10000) {
+      _prefs->bridge_rf_inject_max_per_min = (uint16_t)max;
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: max_per_min must be 0-10000");
+    }
+  } else if (memcmp(config, "bridge.budget.max_airtime_ms_hour ", 34) == 0) {
+    uint32_t max = _atoi(&config[34]);
+    _prefs->bridge_rf_inject_max_airtime_ms_hour = max;
+    _callbacks->restartBridge();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.budget.block_duty_above_pct ", 35) == 0) {
+    float pct = atof(&config[35]);
+    if (pct >= 0.0f && pct <= 100.0f) {
+      _prefs->bridge_rf_inject_block_duty_centi_pct = (uint16_t)(pct * 100.0f + 0.5f);
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: duty threshold must be 0-100");
     }
   } else if (memcmp(config, "bridge.profile ", 15) == 0) {
     if (memcmp(&config[15], "island", 6) == 0) {
@@ -2317,6 +2399,15 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", mode);
   } else if (memcmp(config, "bridge.tcp.ttl", 14) == 0) {
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
+  } else if (memcmp(config, "bridge.group", 12) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_group);
+  } else if (memcmp(config, "bridge.budget", 13) == 0) {
+    snprintf(reply, 160, "> %s max_per_min=%u max_airtime_ms_hour=%lu block_duty_above=%u.%02u%%",
+             _prefs->bridge_rf_inject_budget_enabled ? "on" : "off",
+             (uint32_t)_prefs->bridge_rf_inject_max_per_min,
+             (unsigned long)_prefs->bridge_rf_inject_max_airtime_ms_hour,
+             (uint32_t)(_prefs->bridge_rf_inject_block_duty_centi_pct / 100),
+             (uint32_t)(_prefs->bridge_rf_inject_block_duty_centi_pct % 100));
   } else if (memcmp(config, "bridge.profile", 14) == 0) {
     const char* profile = _prefs->bridge_profile == 1 ? "island" : (_prefs->bridge_profile == 2 ? "repeater" : "default");
     sprintf(reply, "> %s", profile);
