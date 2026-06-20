@@ -1586,6 +1586,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bridge_rf_inject_max_per_min = 0;
   _prefs.bridge_rf_inject_max_airtime_ms_hour = 0;
   _prefs.bridge_rf_inject_block_duty_centi_pct = 0;
+  _prefs.bridge_id[0] = 0;
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 

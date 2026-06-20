@@ -2,9 +2,10 @@
 """
 MeshCore TCP Bridge Server
 
-Forwards mesh packets between connected repeaters so geographically separated
-LoRa networks can act as one mesh. Each packet received from one repeater is
-broadcast to all other connected repeaters.
+Forwards selected mesh packets between connected repeaters as a controlled
+backhaul for geographically separated RF islands. This is deliberately not a
+blind transparent internet mesh: TCP-only metadata, dedupe, origin IDs, TTL,
+groups, rate limits, and RF-inject budgets constrain how packets move.
 
 Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
@@ -70,7 +71,9 @@ CONTROL_TYPE_COMMAND = 0x10
 CONTROL_TYPE_COMMAND_REPLY = 0x11
 CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
+BRIDGE_PACKET_FLAG_RF_RX = 0x01
 BRIDGE_V2_OVERHEAD = 14
+SUPPORTED_BRIDGE_PACKET_VERSIONS = {BRIDGE_PACKET_VERSION}
 IP_ADDRESS_RE = re.compile(
     r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\w.])"
     r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
@@ -167,6 +170,7 @@ transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 packet_fingerprint_cache: OrderedDict[int, dict] = OrderedDict()
+bridge_guard_counters: dict[str, int] = {}
 public_channels: list[dict] = []
 latest_firmware_info: dict = {
     "enabled": True,
@@ -215,6 +219,10 @@ CONTROL_TYPE_NAMES = {
     CONTROL_TYPE_COMMAND_REPLY: "command-reply",
     CONTROL_TYPE_BRIDGE_PACKET: "bridge-v2-packet",
 }
+
+
+def inc_bridge_guard_counter(name: str, amount: int = 1) -> None:
+    bridge_guard_counters[name] = bridge_guard_counters.get(name, 0) + amount
 
 
 def fletcher16(data: bytes) -> int:
@@ -791,6 +799,7 @@ def parse_caps(payload: bytes) -> dict | None:
         "rf_inject_max_per_min": 0,
         "rf_inject_max_airtime_ms_per_hour": 0,
         "rf_inject_block_duty_above_pct": 0.0,
+        "bridge_id": 0,
     }
     if len(payload) >= 9:
         caps["bridge_proto_ver"] = payload[7] or 1
@@ -806,6 +815,9 @@ def parse_caps(payload: bytes) -> dict | None:
                 caps["rf_inject_max_airtime_ms_per_hour"] = struct.unpack(">I", payload[pos + 3:pos + 7])[0]
                 duty_centi = struct.unpack(">H", payload[pos + 7:pos + 9])[0]
                 caps["rf_inject_block_duty_above_pct"] = duty_centi / 100.0
+                pos += 9
+            if len(payload) >= pos + 4:
+                caps["bridge_id"] = struct.unpack(">I", payload[pos:pos + 4])[0]
     return caps
 
 
@@ -846,7 +858,7 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         return None
     if payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
         return None
-    if payload[5] != BRIDGE_PACKET_VERSION:
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
         return None
 
     packet_len = struct.unpack(">H", payload[12:14])[0]
@@ -861,6 +873,21 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         "packet_len": packet_len,
         "mesh_payload": payload[BRIDGE_V2_OVERHEAD:BRIDGE_V2_OVERHEAD + packet_len],
     }
+
+
+def parse_bridge_packet_error(payload: bytes) -> str:
+    if not payload.startswith(CONTROL_PREFIX) or len(payload) < 5 or payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
+        return ""
+    if len(payload) < BRIDGE_V2_OVERHEAD:
+        return "short bridge packet envelope"
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
+        return f"unsupported bridge packet version {payload[5]}"
+    packet_len = struct.unpack(">H", payload[12:14])[0]
+    if packet_len == 0:
+        return "zero mesh payload length"
+    if len(payload) < BRIDGE_V2_OVERHEAD + packet_len:
+        return f"truncated mesh payload {len(payload) - BRIDGE_V2_OVERHEAD}/{packet_len}"
+    return ""
 
 
 def mesh_payload_for_parsing(payload: bytes) -> bytes:
@@ -1646,6 +1673,7 @@ class BridgeClient:
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.bridge_proto_ver = 1
+        self.bridge_id = 0
         self.authenticated = not BRIDGE_PASSWORD
         self.bridge_group = BRIDGE_GROUP
         self.node_rf_inject_budget: dict = {}
@@ -1743,13 +1771,13 @@ class BridgeClient:
         if BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT > 0:
             used_pct = float((self.rf_duty or {}).get("tx_used_pct") or 0.0)
             if used_pct >= BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT:
-                return False, "skipped_rf_budget"
+                return False, "skipped_rf_inject_budget"
         if BRIDGE_RF_INJECT_MAX_PER_MIN > 0 and len(self.rf_inject_minute_times) >= BRIDGE_RF_INJECT_MAX_PER_MIN:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         estimate = self.estimated_airtime_ms(payload)
         remaining = self.rf_inject_budget_remaining_ms(now)
         if remaining is not None and estimate > remaining:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         return True, ""
 
     def record_rf_inject(self, payload: bytes, now: float | None = None) -> None:
@@ -1841,6 +1869,7 @@ class BridgeClient:
             "quarantine_seconds_left": max(0, int(self.quarantined_until - now)) if self.quarantined_until else 0,
             "group": self.bridge_group,
             "bridge_proto_ver": self.bridge_proto_ver,
+            "bridge_id": f"0x{self.bridge_id:08x}" if self.bridge_id else "",
             "node_rf_inject_budget": dict(self.node_rf_inject_budget),
             "last_fingerprint": fingerprint_hex(self.last_fingerprint) if self.last_fingerprint else "",
             "last_fingerprint_age_seconds": int(now - self.last_fingerprint_at) if self.last_fingerprint_at else None,
@@ -2045,8 +2074,9 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     now = time.time()
     forwarded_payload = decrement_bridge_ttl(payload)
     if forwarded_payload is None:
-        sender.record_skip("skipped_dup_ttl_zero")
-        log.debug("%s: skipped_dup_ttl_zero", sender.addr)
+        sender.record_skip("skipped_ttl_expired")
+        inc_bridge_guard_counter("skipped_ttl_expired")
+        log.debug("%s: skipped_ttl_expired", sender.addr)
         return
 
     # Mark the sender as having seen this payload so it is skipped if it reconnects
@@ -2062,6 +2092,13 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     for client in connected_clients:
         if client is sender:
             client.record_skip("skipped_dup_loopback")
+            inc_bridge_guard_counter("skipped_duplicate")
+            continue
+        if envelope is not None and envelope["origin_id"] and client.bridge_id == envelope["origin_id"]:
+            client.record_skip("skipped_own_origin")
+            inc_bridge_guard_counter("skipped_own_origin")
+            log.debug("%s: skipped_own_origin target=%s origin=0x%08x",
+                      sender.addr, client.addr, envelope["origin_id"])
             continue
         if BRIDGE_REQUIRE_GROUP_MATCH and client.bridge_group != sender.bridge_group:
             client.record_skip("skipped_group_mismatch")
@@ -2069,18 +2106,22 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
             continue
         if client.quarantine_active(now):
             client.record_skip("skipped_quarantine")
+            inc_bridge_guard_counter("skipped_bridge_loop")
             log.warning("%s: skipped_quarantine target=%s", sender.addr, client.addr)
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["sent_to"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if client.has_seen_payload(forwarded_payload):
             client.record_skip("skipped_dup_fingerprint")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_fingerprint target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         client_payload = forwarded_payload
@@ -2089,8 +2130,9 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         ok_budget, reason = client.can_accept_rf_inject(forwarded_payload, now)
         if not ok_budget:
             client.rf_budget_drops += 1
-            client.record_skip(reason or "skipped_rf_budget")
-            log.warning("%s: skipped_rf_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
+            client.record_skip(reason or "skipped_rf_inject_budget")
+            inc_bridge_guard_counter("skipped_rf_inject_budget")
+            log.warning("%s: skipped_rf_inject_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if not client.enqueue_payload(client_payload, source=sender.display_name, seen_payload=forwarded_payload):
             log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
@@ -2174,6 +2216,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
                 client.bridge_proto_ver = int(caps.get("bridge_proto_ver") or 1)
+                client.bridge_id = int(caps.get("bridge_id") or 0)
                 group = (caps.get("group") or "").strip()
                 if group:
                     client.bridge_group = group
@@ -2184,9 +2227,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     "block_duty_above_pct": float(caps.get("rf_inject_block_duty_above_pct") or 0.0),
                 }
                 touch_node_stats(client)
-                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s",
+                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s bridge_id=%s",
                          client.addr, caps["version"], client.bridge_proto_ver, caps["flags"],
-                         client.supports_bridge_v2, client.bridge_group)
+                         client.supports_bridge_v2, client.bridge_group,
+                         f"0x{client.bridge_id:08x}" if client.bridge_id else "unknown")
                 continue
             heartbeat = parse_heartbeat(payload)
             if heartbeat is not None:
@@ -2220,7 +2264,14 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 else:
                     log.info("%s: node name is %s node_id=%s", client.addr, client.node_name, client.node_id or "unknown")
                 continue
+            bridge_packet_error = parse_bridge_packet_error(payload)
+            if bridge_packet_error:
+                client.record_skip("skipped_bridge_parse_error")
+                inc_bridge_guard_counter("skipped_bridge_parse_error")
+                log.warning("%s: skipped_bridge_parse_error %s", client.addr, bridge_packet_error)
+                continue
             client.packets_rx += 1
+            inc_bridge_guard_counter("accepted_tcp_packet")
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
@@ -2233,6 +2284,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             sent_at = record["sent_to"].get(client.bridge_key)
             if BRIDGE_LOOPGUARD_ENABLED and sent_at and now - sent_at <= max(1, BRIDGE_LOOPGUARD_WINDOW_SECS):
                 client.record_loopguard_hit(now)
+                inc_bridge_guard_counter("skipped_bridge_loop")
                 if client.quarantine_active(now):
                     client.record_skip("skipped_quarantine")
                     log.warning("%s: skipped_quarantine source=%s fp=%s",
@@ -2240,11 +2292,13 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     continue
             if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
                 client.record_skip("skipped_dup_fingerprint")
+                inc_bridge_guard_counter("skipped_duplicate")
                 log.debug("%s: skipped_dup_fingerprint source=%s fp=%s",
                           client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
             if client.quarantine_active(now):
                 client.record_skip("skipped_quarantine")
+                inc_bridge_guard_counter("skipped_bridge_loop")
                 log.warning("%s: skipped_quarantine source=%s fp=%s",
                             client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
@@ -2252,6 +2306,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             client.mark_seen_payload(payload)
             parsed_payload = parse_mesh_payload(mesh_payload)
             if not allow_transport_packet(client, parsed_payload, now):
+                inc_bridge_guard_counter("skipped_rate_limited")
                 packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
                 log.warning(
                     "%s: dropping transport flood packet from %s (%d/%ds client, %d/%ds global): %s",
@@ -2342,6 +2397,7 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "dedupe_ttl_sec": BRIDGE_DEDUPE_TTL_SECS,
             "dedupe_max_entries": BRIDGE_DEDUPE_MAX_ENTRIES,
             "dedupe_entries": len(packet_fingerprint_cache),
+            "counters": dict(bridge_guard_counters),
             "loopguard_enabled": BRIDGE_LOOPGUARD_ENABLED,
             "loopguard_window_sec": BRIDGE_LOOPGUARD_WINDOW_SECS,
             "loopguard_threshold": BRIDGE_LOOPGUARD_THRESHOLD,

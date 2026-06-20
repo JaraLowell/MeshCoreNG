@@ -12,6 +12,8 @@ When enabled, each category tracks packets within its own time window. When a ca
 
 The Python TCP bridge server also has a server-side transport limiter. It drops excessive DM/group/transport packets before broadcasting them to other bridge clients. This limiter is based on the TCP bridge client and packet category, not on MeshCore node name or advertised identity, so changing names or node IDs does not bypass it.
 
+The TCP bridge is a controlled backhaul between selected RF islands, not a blind transparent internet mesh. MeshCore RF packets remain compatible, while TCP-only metadata and guards handle origin identity, TTL, duplicate suppression, export filtering, and RF injection budgets at the backhaul boundary.
+
 The same server exposes bridge status on the HTTP status page. It keeps per-node RX/TX packet timestamps for a 24-hour in-memory window, so nodes that disconnect remain visible as offline while they still have traffic inside that window. The page also shows RF duty telemetry from updated bridge firmware. `Duty this hour` is normalized to the configured hourly duty-cycle budget: with a 10% duty-cycle limit, `100%` means 360 seconds of RF TX have been used in the current accounting window.
 
 ## Packet Categories

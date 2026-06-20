@@ -274,6 +274,7 @@ Multi-bridge environments need additional safeguards because the same packet may
 
 Implemented protections:
 - TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; RF flood packets exported to TCP also get the exporting bridge-repeater's node hash added to the MeshCore path when it is not already present.
+- Stable bridge identity advertised in TCP caps metadata. By default it is derived from node/device identity; `set bridge.id <8-hex>` can pin it for hardware replacement or multi-interface deployments.
 - Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
 
 Planned or under consideration:
@@ -284,6 +285,8 @@ Planned or under consideration:
 - bridge scoping
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
+
+The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. It keeps MeshCore RF packets compatible, while the TCP boundary remains semi-transparent through TCP-only metadata, duplicate suppression, origin IDs, TTL, export filters, and RF injection controls.
 
 #### Bridge FAQ
 
@@ -340,6 +343,7 @@ get bridge.profile           # returns the last profile applied: default, island
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
+get bridge.id
 ```
 
 TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. When RF flood packets are exported to TCP, the exporting bridge-repeater adds its own node hash to the MeshCore path when it is not already present and the path still has room.

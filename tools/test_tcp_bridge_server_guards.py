@@ -54,6 +54,17 @@ async def with_clients(*clients):
         server.packet_fingerprint_cache = old_cache
 
 
+def make_bridge_packet(mesh_payload: bytes, ttl: int = 2, origin_id: int = 0x12345678) -> bytes:
+    return (
+        server.CONTROL_PREFIX
+        + bytes([server.CONTROL_TYPE_BRIDGE_PACKET, server.BRIDGE_PACKET_VERSION, ttl & 0xFF])
+        + origin_id.to_bytes(4, "big")
+        + bytes([server.BRIDGE_PACKET_FLAG_RF_RX])
+        + len(mesh_payload).to_bytes(2, "big")
+        + mesh_payload
+    )
+
+
 async def test_basic_dedupe() -> None:
     a, b, c = make_client("A"), make_client("B"), make_client("C")
     async for _ in with_clients(a, b, c):
@@ -128,9 +139,61 @@ async def test_rf_budget_drop() -> None:
         await server.broadcast(b"mesh-five-b", sender=a)
         await settle()
         assert len(b.writer.sent) == 1
-        assert b.skip_reasons.get("skipped_rf_budget", 0) == 1
+        assert b.skip_reasons.get("skipped_rf_inject_budget", 0) == 1
     server.BRIDGE_RF_INJECT_ENABLED = old_enabled
     server.BRIDGE_RF_INJECT_MAX_PER_MIN = old_max
+
+
+async def test_bridge_ttl_zero_dropped() -> None:
+    a, b = make_client("A"), make_client("B")
+    async for _ in with_clients(a, b):
+        await server.broadcast(make_bridge_packet(b"mesh-ttl-zero", ttl=0), sender=a)
+        await settle()
+        assert len(b.writer.sent) == 0
+        assert a.skip_reasons.get("skipped_ttl_expired", 0) == 1
+
+
+async def test_bridge_origin_not_sent_back_to_origin_id() -> None:
+    a, b = make_client("A"), make_client("B")
+    a.bridge_id = 0xAABBCCDD
+    b.bridge_id = 0x01020304
+    async for _ in with_clients(a, b):
+        await server.broadcast(make_bridge_packet(b"mesh-origin", ttl=2, origin_id=a.bridge_id), sender=b)
+        await settle()
+        assert len(a.writer.sent) == 0
+        assert a.skip_reasons.get("skipped_own_origin", 0) == 1
+
+
+async def test_bridge_packet_does_not_bounce_forever() -> None:
+    a, b = make_client("A"), make_client("B")
+    a.bridge_id = 0x11111111
+    b.bridge_id = 0x22222222
+    payload = make_bridge_packet(b"mesh-bounce", ttl=2, origin_id=a.bridge_id)
+    async for _ in with_clients(a, b):
+        await server.broadcast(payload, sender=a)
+        await settle()
+        assert len(b.writer.sent) == 1
+        forwarded_payload = server.decrement_bridge_ttl(payload)
+        assert forwarded_payload is not None
+        await server.broadcast(forwarded_payload, sender=b)
+        await settle()
+        assert len(a.writer.sent) == 0
+        assert b.skip_reasons.get("skipped_ttl_expired", 0) == 1
+
+
+async def test_unknown_bridge_packet_version_is_parse_error() -> None:
+    payload = bytearray(make_bridge_packet(b"mesh-future", ttl=2))
+    payload[5] = 99
+    assert server.parse_bridge_packet_envelope(bytes(payload)) is None
+    assert "unsupported bridge packet version 99" == server.parse_bridge_packet_error(bytes(payload))
+
+
+async def test_raw_frame_still_passes_through() -> None:
+    a, b = make_client("A"), make_client("B")
+    async for _ in with_clients(a, b):
+        await server.broadcast(b"legacy-raw-frame", sender=a)
+        await settle()
+        assert len(b.writer.sent) == 1
 
 
 async def test_caps_v2_group_budget() -> None:
@@ -153,6 +216,25 @@ async def test_caps_v2_group_budget() -> None:
     assert caps["rf_inject_max_per_min"] == 120
     assert caps["rf_inject_max_airtime_ms_per_hour"] == 360000
     assert caps["rf_inject_block_duty_above_pct"] == 75.0
+
+
+async def test_caps_v3_bridge_id() -> None:
+    group = b"GWNL"
+    payload = (
+        b"MCNG"
+        + bytes([server.CONTROL_TYPE_CAPS, 3, 0x0F, 3, len(group)])
+        + group
+        + bytes([1])
+        + (120).to_bytes(2, "big")
+        + (360000).to_bytes(4, "big")
+        + (7500).to_bytes(2, "big")
+        + (0xAABBCCDD).to_bytes(4, "big")
+    )
+    caps = server.parse_caps(payload)
+    assert caps is not None
+    assert caps["bridge_v2"] is True
+    assert caps["bridge_proto_ver"] == 3
+    assert caps["bridge_id"] == 0xAABBCCDD
 
 
 async def test_status_hides_unnamed_offline_placeholders() -> None:
@@ -310,7 +392,13 @@ async def main() -> None:
     await test_group_mismatch()
     await test_quarantine()
     await test_rf_budget_drop()
+    await test_bridge_ttl_zero_dropped()
+    await test_bridge_origin_not_sent_back_to_origin_id()
+    await test_bridge_packet_does_not_bounce_forever()
+    await test_unknown_bridge_packet_version_is_parse_error()
+    await test_raw_frame_still_passes_through()
     await test_caps_v2_group_budget()
+    await test_caps_v3_bridge_id()
     await test_status_hides_unnamed_offline_placeholders()
     await test_rf_duty_hour_counter_resets()
     await test_group_tracker_location_decode()

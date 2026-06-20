@@ -615,7 +615,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&bridge_rf_inject_block_duty_centi_pct, sizeof(bridge_rf_inject_block_duty_centi_pct)) == sizeof(bridge_rf_inject_block_duty_centi_pct)) {
         _prefs->bridge_rf_inject_block_duty_centi_pct = bridge_rf_inject_block_duty_centi_pct;       // 694 + sizeof(AtlasConfig)
       }
-      // next: 696 + sizeof(AtlasConfig)
+      char bridge_id[sizeof(_prefs->bridge_id)];
+      memset(bridge_id, 0, sizeof(bridge_id));
+      if (file.read((uint8_t *)&bridge_id, sizeof(bridge_id)) == sizeof(bridge_id)) {
+        memcpy(_prefs->bridge_id, bridge_id, sizeof(bridge_id));                                     // 696 + sizeof(AtlasConfig)
+      }
+      // next: 705 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -648,6 +653,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_rf_inject_budget_enabled = constrain(_prefs->bridge_rf_inject_budget_enabled, 0, 1);
     _prefs->bridge_rf_inject_max_per_min = constrain(_prefs->bridge_rf_inject_max_per_min, 0, 10000);
     _prefs->bridge_rf_inject_block_duty_centi_pct = constrain(_prefs->bridge_rf_inject_block_duty_centi_pct, 0, 10000);
+    _prefs->bridge_id[sizeof(_prefs->bridge_id) - 1] = 0;
+    for (size_t i = 0; _prefs->bridge_id[i]; i++) {
+      bool is_hex = (_prefs->bridge_id[i] >= '0' && _prefs->bridge_id[i] <= '9')
+                 || (_prefs->bridge_id[i] >= 'a' && _prefs->bridge_id[i] <= 'f')
+                 || (_prefs->bridge_id[i] >= 'A' && _prefs->bridge_id[i] <= 'F');
+      if (!is_hex) {
+        _prefs->bridge_id[0] = 0;
+        break;
+      }
+    }
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
@@ -843,7 +858,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_rf_inject_max_per_min, sizeof(_prefs->bridge_rf_inject_max_per_min)); // 688 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf_inject_max_airtime_ms_hour, sizeof(_prefs->bridge_rf_inject_max_airtime_ms_hour)); // 690 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf_inject_block_duty_centi_pct, sizeof(_prefs->bridge_rf_inject_block_duty_centi_pct)); // 694 + sizeof(AtlasConfig)
-    // next: 696 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_id, sizeof(_prefs->bridge_id));                         // 696 + sizeof(AtlasConfig)
+    // next: 705 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1754,6 +1770,23 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "bridge.id ", 10) == 0) {
+    const char* id = &config[10];
+    size_t len = strlen(id);
+    bool valid = len == 0 || len == 8;
+    for (size_t i = 0; valid && i < len; i++) {
+      valid = (id[i] >= '0' && id[i] <= '9')
+           || (id[i] >= 'a' && id[i] <= 'f')
+           || (id[i] >= 'A' && id[i] <= 'F');
+    }
+    if (valid) {
+      StrHelper::strncpy(_prefs->bridge_id, id, sizeof(_prefs->bridge_id));
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: bridge.id must be empty or 8 hex chars");
+    }
   } else if (memcmp(config, "bridge.budget ", 14) == 0) {
     const char* value = &config[14];
     if (parseOnOff(value, &_prefs->bridge_rf_inject_budget_enabled)) {
@@ -2401,6 +2434,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
   } else if (memcmp(config, "bridge.group", 12) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_group);
+  } else if (memcmp(config, "bridge.id", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_id[0] ? _prefs->bridge_id : "auto");
   } else if (memcmp(config, "bridge.budget", 13) == 0) {
     snprintf(reply, 160, "> %s max_per_min=%u max_airtime_ms_hour=%lu block_duty_above=%u.%02u%%",
              _prefs->bridge_rf_inject_budget_enabled ? "on" : "off",
