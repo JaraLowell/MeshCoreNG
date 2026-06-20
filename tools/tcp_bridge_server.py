@@ -171,6 +171,7 @@ recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 packet_fingerprint_cache: OrderedDict[int, dict] = OrderedDict()
 bridge_guard_counters: dict[str, int] = {}
+packet_log_total = 0
 public_channels: list[dict] = []
 latest_firmware_info: dict = {
     "enabled": True,
@@ -681,6 +682,8 @@ def record_packet_log(
     source: str = "",
     target: str = "",
 ) -> dict:
+    global packet_log_total
+
     description = describe_packet(payload)
     mesh_payload = mesh_payload_for_parsing(payload)
     source = source or ("server" if direction == "TX" else client.display_name)
@@ -698,6 +701,7 @@ def record_packet_log(
         "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
         **description,
     }
+    packet_log_total += 1
     recent_packets.appendleft(entry)
     return entry
 
@@ -2436,6 +2440,7 @@ def sensors_snapshot() -> dict:
     for report in latest_sensors.values():
         item = dict(report)
         item["age_seconds"] = max(0, now - item["received_at"])
+        item["node_id_short"] = item.get("node_id", "")[:2]
         sensors.append(item)
     sensors.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
     return {
@@ -2455,6 +2460,8 @@ def packets_snapshot() -> dict:
     return {
         "generated_at": now,
         "packet_count": len(packets),
+        "packet_capacity": recent_packets.maxlen or len(packets),
+        "packet_total": packet_log_total,
         "packets": packets,
     }
 
@@ -2781,7 +2788,9 @@ def build_status_html(base_path: str = "") -> str:
 
     <section class="status-strip" aria-label="Live counters">
       <div class="metric"><div class="label">Bridge nodes online</div><div id="metricConnected" class="value">--</div></div>
-      <div class="metric"><div class="label">Packets in buffer</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packet history</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packets total</div><div id="metricPacketsTotal" class="value">--</div></div>
+      <div class="metric"><div class="label">Total dedups</div><div id="metricDedups" class="value">--</div></div>
       <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
       <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
       <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
@@ -2895,8 +2904,13 @@ def build_status_html(base_path: str = "") -> str:
     function renderMetrics(status, packets, sensors) {{
       const rx24 = status.clients.reduce((sum, client) => sum + (client.packets_rx_24h || 0), 0);
       const tx24 = status.clients.reduce((sum, client) => sum + (client.packets_tx_24h || 0), 0);
+      const guardCounters = (status.bridge_guards && status.bridge_guards.counters) || {{}};
+      const clientDedups = status.clients.reduce((sum, client) => sum + (client.skipped_dup_total || 0), 0);
+      const totalDedups = guardCounters.skipped_duplicate || clientDedups;
       document.getElementById("metricConnected").textContent = status.connected_count;
-      document.getElementById("metricPackets").textContent = packets.packet_count;
+      document.getElementById("metricPackets").textContent = `${{packets.packet_count}}/${{packets.packet_capacity || 200}}`;
+      document.getElementById("metricPacketsTotal").textContent = packets.packet_total || packets.packet_count || 0;
+      document.getElementById("metricDedups").textContent = totalDedups;
       document.getElementById("metricSensors").textContent = sensors.sensor_count;
       document.getElementById("metricTraffic").textContent = `${{rx24}} / ${{tx24}}`;
       document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
@@ -3088,10 +3102,12 @@ def build_status_html(base_path: str = "") -> str:
       setStatus("sensorStatus", `${{sensorData.sensors.length}} detected`, "ok");
       rows.innerHTML = sensorData.sensors.map((sensor) => {{
         const location = sensor.lat !== null && sensor.lon !== null ? `${{Number(sensor.lat).toFixed(6)}}, ${{Number(sensor.lon).toFixed(6)}}` : "not shared";
+        const nodeId = sensor.node_id || "";
+        const shortNodeId = sensor.node_id_short || nodeId.slice(0, 2) || "--";
         return `
           <tr>
             <td>${{escapeHtml(sensor.name || "unknown")}}</td>
-            <td>${{escapeHtml(sensor.node_id)}}</td>
+            <td title="${{escapeHtml(nodeId)}}">${{escapeHtml(shortNodeId)}}</td>
             <td>${{age(sensor.age_seconds)}} ago</td>
             <td>${{sensor.seen_count}}</td>
             <td>${{text(sensor.hops, "")}}</td>
