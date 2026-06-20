@@ -2,6 +2,7 @@
 """Smoke tests for TCP bridge server dedupe, loopguard, groups, and budgets."""
 
 import asyncio
+import hmac
 import time
 
 import tcp_bridge_server as server
@@ -51,6 +52,17 @@ async def with_clients(*clients):
             client.close()
         server.connected_clients = old_clients
         server.packet_fingerprint_cache = old_cache
+
+
+def make_bridge_packet(mesh_payload: bytes, ttl: int = 2, origin_id: int = 0x12345678) -> bytes:
+    return (
+        server.CONTROL_PREFIX
+        + bytes([server.CONTROL_TYPE_BRIDGE_PACKET, server.BRIDGE_PACKET_VERSION, ttl & 0xFF])
+        + origin_id.to_bytes(4, "big")
+        + bytes([server.BRIDGE_PACKET_FLAG_RF_RX])
+        + len(mesh_payload).to_bytes(2, "big")
+        + mesh_payload
+    )
 
 
 async def test_basic_dedupe() -> None:
@@ -173,9 +185,61 @@ async def test_rf_budget_drop() -> None:
         await server.broadcast(b"mesh-five-b", sender=a)
         await settle()
         assert len(b.writer.sent) == 1
-        assert b.skip_reasons.get("skipped_rf_budget", 0) == 1
+        assert b.skip_reasons.get("skipped_rf_inject_budget", 0) == 1
     server.BRIDGE_RF_INJECT_ENABLED = old_enabled
     server.BRIDGE_RF_INJECT_MAX_PER_MIN = old_max
+
+
+async def test_bridge_ttl_zero_dropped() -> None:
+    a, b = make_client("A"), make_client("B")
+    async for _ in with_clients(a, b):
+        await server.broadcast(make_bridge_packet(b"mesh-ttl-zero", ttl=0), sender=a)
+        await settle()
+        assert len(b.writer.sent) == 0
+        assert a.skip_reasons.get("skipped_ttl_expired", 0) == 1
+
+
+async def test_bridge_origin_not_sent_back_to_origin_id() -> None:
+    a, b = make_client("A"), make_client("B")
+    a.bridge_id = 0xAABBCCDD
+    b.bridge_id = 0x01020304
+    async for _ in with_clients(a, b):
+        await server.broadcast(make_bridge_packet(b"mesh-origin", ttl=2, origin_id=a.bridge_id), sender=b)
+        await settle()
+        assert len(a.writer.sent) == 0
+        assert a.skip_reasons.get("skipped_own_origin", 0) == 1
+
+
+async def test_bridge_packet_does_not_bounce_forever() -> None:
+    a, b = make_client("A"), make_client("B")
+    a.bridge_id = 0x11111111
+    b.bridge_id = 0x22222222
+    payload = make_bridge_packet(b"mesh-bounce", ttl=2, origin_id=a.bridge_id)
+    async for _ in with_clients(a, b):
+        await server.broadcast(payload, sender=a)
+        await settle()
+        assert len(b.writer.sent) == 1
+        forwarded_payload = server.decrement_bridge_ttl(payload)
+        assert forwarded_payload is not None
+        await server.broadcast(forwarded_payload, sender=b)
+        await settle()
+        assert len(a.writer.sent) == 0
+        assert b.skip_reasons.get("skipped_ttl_expired", 0) == 1
+
+
+async def test_unknown_bridge_packet_version_is_parse_error() -> None:
+    payload = bytearray(make_bridge_packet(b"mesh-future", ttl=2))
+    payload[5] = 99
+    assert server.parse_bridge_packet_envelope(bytes(payload)) is None
+    assert "unsupported bridge packet version 99" == server.parse_bridge_packet_error(bytes(payload))
+
+
+async def test_raw_frame_still_passes_through() -> None:
+    a, b = make_client("A"), make_client("B")
+    async for _ in with_clients(a, b):
+        await server.broadcast(b"legacy-raw-frame", sender=a)
+        await settle()
+        assert len(b.writer.sent) == 1
 
 
 async def test_caps_v2_group_budget() -> None:
@@ -198,6 +262,25 @@ async def test_caps_v2_group_budget() -> None:
     assert caps["rf_inject_max_per_min"] == 120
     assert caps["rf_inject_max_airtime_ms_per_hour"] == 360000
     assert caps["rf_inject_block_duty_above_pct"] == 75.0
+
+
+async def test_caps_v3_bridge_id() -> None:
+    group = b"GWNL"
+    payload = (
+        b"MCNG"
+        + bytes([server.CONTROL_TYPE_CAPS, 3, 0x0F, 3, len(group)])
+        + group
+        + bytes([1])
+        + (120).to_bytes(2, "big")
+        + (360000).to_bytes(4, "big")
+        + (7500).to_bytes(2, "big")
+        + (0xAABBCCDD).to_bytes(4, "big")
+    )
+    caps = server.parse_caps(payload)
+    assert caps is not None
+    assert caps["bridge_v2"] is True
+    assert caps["bridge_proto_ver"] == 3
+    assert caps["bridge_id"] == 0xAABBCCDD
 
 
 async def test_status_hides_unnamed_offline_placeholders() -> None:
@@ -289,6 +372,66 @@ async def test_rf_duty_hour_counter_resets() -> None:
         server.node_traffic_stats = old_stats
 
 
+def encrypt_group_plain(secret: bytes, plain: bytes) -> bytes:
+    assert server.Cipher is not None
+    padded_len = ((len(plain) + server.CIPHER_BLOCK_SIZE - 1) // server.CIPHER_BLOCK_SIZE) * server.CIPHER_BLOCK_SIZE
+    padded = plain + (b"\x00" * (padded_len - len(plain)))
+    cipher = server.Cipher(server.algorithms.AES(secret[:16]), server.modes.ECB())
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(padded) + encryptor.finalize()
+    mac = hmac.new(secret, encrypted, server.hashlib.sha256).digest()[:server.CIPHER_MAC_SIZE]
+    return mac + encrypted
+
+
+async def test_group_tracker_location_decode() -> None:
+    if server.Cipher is None:
+        return
+    old_channels = server.public_channels
+    server.public_channels = []
+    server.load_public_channels("")
+    try:
+        tracker = (
+            b"MCL1"
+            + bytes([1, 0])
+            + bytes.fromhex("01020304")
+            + int(52123456).to_bytes(4, "big", signed=True)
+            + int(5123456).to_bytes(4, "big", signed=True)
+            + int(12).to_bytes(2, "big", signed=True)
+            + int(345).to_bytes(2, "big")
+            + int(9000).to_bytes(2, "big")
+            + bytes([7])
+            + int(4100).to_bytes(2, "big")
+            + int(1780000000).to_bytes(4, "big")
+            + bytes([4])
+            + b"bike"
+        )
+        plain = (
+            int(server.DATA_TYPE_MESHCORENG_TRACKER).to_bytes(2, "little")
+            + bytes([len(tracker)])
+            + tracker
+        )
+        encrypted = encrypt_group_plain(server.DEFAULT_TRACKER_CHANNEL_SECRET, plain)
+        payload = bytes([(server.PAYLOAD_TYPE_GRP_DATA << server.PH_TYPE_SHIFT) | server.ROUTE_TYPE_FLOOD])
+        payload += bytes([0])
+        payload += server.channel_hash(server.DEFAULT_TRACKER_CHANNEL_SECRET)
+        payload += encrypted
+
+        report = server.parse_mesh_location_payload(payload)
+        assert report is not None
+        assert report["node_id"] == "01020304"
+        assert report["lat"] == 52.123456
+        assert report["lon"] == 5.123456
+        assert report["altitude_m"] == 12
+        assert report["speed_cms"] == 345
+        assert report["heading_cdeg"] == 9000
+        assert report["satellites"] == 7
+        assert report["battery_mv"] == 4100
+        assert report["name"] == "bike"
+        assert report["payload_type"] == server.PAYLOAD_TYPE_GRP_DATA
+    finally:
+        server.public_channels = old_channels
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_dedupe_ignores_bridge_export_path()
@@ -297,9 +440,16 @@ async def main() -> None:
     await test_group_mismatch()
     await test_quarantine()
     await test_rf_budget_drop()
+    await test_bridge_ttl_zero_dropped()
+    await test_bridge_origin_not_sent_back_to_origin_id()
+    await test_bridge_packet_does_not_bounce_forever()
+    await test_unknown_bridge_packet_version_is_parse_error()
+    await test_raw_frame_still_passes_through()
     await test_caps_v2_group_budget()
+    await test_caps_v3_bridge_id()
     await test_status_hides_unnamed_offline_placeholders()
     await test_rf_duty_hour_counter_resets()
+    await test_group_tracker_location_decode()
     print("tcp bridge guard smoke tests passed")
 
 

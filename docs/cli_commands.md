@@ -1547,6 +1547,8 @@ Bridge support is optional and defaults to disabled. MeshCoreNG remains RF-first
 
 Operators are responsible for choosing what should be bridged and for avoiding unnecessary rebroadcast into RF networks. Prefer scoped, private bridge groups and preserve RF locality where possible.
 
+The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. It preserves the MeshCore RF packet format, but TCP-only metadata, duplicate suppression, origin IDs, TTL, export filters, and RF injection controls make it deliberately semi-transparent at the transport boundary.
+
 #### Configure a TCP bridge
 
 The TCP bridge connects bridge-capable repeaters to a selected bridge server. Use it to transport selected traffic between controlled MeshCore RF deployments. A server is required; see `tools/tcp_bridge_server.py`.
@@ -1698,6 +1700,20 @@ This is useful for RF island bridges where channel packets heard from several RF
 The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and TTL outside the MeshCore packet. RF flood packets exported to TCP also carry the exporting bridge-repeater in the MeshCore path, using the packet's existing path hash size and avoiding duplicate entries.
 
 **Default:** `2`
+
+---
+
+#### View or set the TCP bridge identity override
+**Usage:**
+- `get bridge.id`
+- `set bridge.id <id>`
+
+**Parameters:**
+- `id`: Empty string for automatic identity, or exactly 8 hex characters.
+
+By default the TCP bridge derives a stable bridge ID from the node identity when available, then from device identity fallbacks. Set `bridge.id` only when an operator needs a fixed bridge identity across hardware replacement or a known multi-interface deployment. The active ID is logged at bridge startup and advertised to the TCP bridge server in caps metadata.
+
+**Default:** `auto`
 
 ---
 

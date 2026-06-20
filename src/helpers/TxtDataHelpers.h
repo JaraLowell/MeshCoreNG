@@ -7,6 +7,7 @@
 #define TXT_TYPE_CLI_DATA       1      // a CLI command
 #define TXT_TYPE_SIGNED_PLAIN   2      // plain text, signed by sender
 #define DATA_TYPE_RESERVED      0x0000 // reserved for future use
+#define DATA_TYPE_MESHCORENG_TRACKER 0x0200 // MeshCoreNG compact tracker reports in PAYLOAD_TYPE_GRP_DATA
 #define DATA_TYPE_DEV           0xFFFF // developer namespace for experimenting with group/channel datagrams and building apps
 
 #ifndef TXT_MALFORMED_PLACEHOLDER

@@ -113,7 +113,7 @@ private:
   static constexpr uint8_t  CONTROL_TYPE_COMMAND     = 0x10;
   static constexpr uint8_t  CONTROL_TYPE_COMMAND_REPLY = 0x11;
   static constexpr uint8_t  CONTROL_TYPE_BRIDGE_PACKET = 0x20;
-  static constexpr uint8_t  BRIDGE_PROTO_VERSION = 2;
+  static constexpr uint8_t  BRIDGE_PROTO_VERSION = 3;
   static constexpr uint8_t  BRIDGE_PACKET_VERSION = 1;
   static constexpr uint8_t  BRIDGE_PACKET_FLAG_RF_RX = 0x01;
 
@@ -156,11 +156,21 @@ private:
   uint32_t    _rf_inject_hour_start_ms = 0;
   uint32_t    _rf_inject_hour_airtime_ms = 0;
   uint32_t    _rf_inject_dropped_count = 0;
+  uint32_t    _skipped_duplicate_count = 0;
+  uint32_t    _skipped_own_origin_count = 0;
+  uint32_t    _skipped_ttl_expired_count = 0;
+  uint32_t    _skipped_bridge_loop_count = 0;
+  uint32_t    _skipped_export_disabled_count = 0;
+  uint32_t    _skipped_max_hops_count = 0;
+  uint32_t    _skipped_rf_inject_budget_count = 0;
+  uint32_t    _accepted_tcp_packet_count = 0;
+  uint32_t    _exported_rf_to_tcp_count = 0;
+  uint32_t    _injected_tcp_to_rf_count = 0;
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
   bool appendSelfToTcpExportPath(mesh::Packet *packet) const;
   bool pathContainsSelf(const mesh::Packet *packet) const;
-  bool shouldExportPacket(const mesh::Packet *packet) const;
+  bool shouldExportPacket(const mesh::Packet *packet);
   bool isChannelPacket(const mesh::Packet *packet) const;
   bool isMessagePacket(const mesh::Packet *packet) const;
   uint32_t estimateInjectAirtimeMs(uint16_t packet_len) const;

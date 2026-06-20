@@ -51,7 +51,7 @@ Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI ins
 
 Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Native tracker-packets bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Tracker-rapporten worden als Trackers-channel group datagrams verstuurd voor compatibiliteit met oudere repeaters, bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## Wat hebben we nu gedaan?
 
@@ -189,6 +189,8 @@ Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra 
 
 MeshCoreNG blijft RF-first. De bridge is optioneel transport/backhaul voor specifieke deployments, geen vervanging voor lokale RF-werking.
 
+De TCP bridge is een gecontroleerde backhaul, geen blind transparante internet-mesh. Het MeshCore RF packet-format blijft hetzelfde, maar de TCP-rand gebruikt eigen metadata, duplicate suppression, origin-ID's, TTL, exportfilters en RF-injectiecontroles. Daardoor is de bridge bewust semi-transparant: operators kiezen wat over de backhaul mag en wat lokaal RF blijft.
+
 De bridge is bedoeld voor:
 - gescheiden geografische MeshCore RF-regio's die bewust geselecteerd verkeer moeten uitwisselen
 - remote RF-gateways met gecontroleerde backhaul
@@ -250,9 +252,12 @@ get bridge.profile           # toont het laatst toegepaste profiel: default, isl
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
+get bridge.id
 ```
 
 TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. Bij export van RF flood-packets voegt de TCP bridge-repeater zijn eigen node-hash toe aan het MeshCore path wanneer die nog niet aanwezig is en er ruimte is. Zo blijft zichtbaar via welke RF bridge-node het packet de TCP bridge op ging, zonder dubbele path entries te maken.
+
+Nieuwe bridge-builds adverteren daarnaast een stabiele bridge-ID aan de server. Standaard wordt die veilig afgeleid uit de node/device-identiteit; met `set bridge.id <8-hex>` kan een beheerder hem expliciet vastzetten voor hardwarevervanging of multi-interface setups.
 
 De Python TCP bridge server heeft standaard een statuswebsite op poort `8080`. Die toont online en recent geziene bridge-nodes, per node het aantal RX/TX packets in de laatste 24 uur, heartbeat-status, firmwareversie, bridge v1/v2 support en RF dutycycle-budgetverbruik. Nodes die disconnecten blijven zichtbaar zolang ze nog packet-history binnen het 24-uurs venster hebben. De waarde `Duty this hour` is het percentage van het toegestane RF TX dutycycle-uurbudget dat is gebruikt: bij een instelling van 10% dutycycle betekent `100%` dat de volledige zes minuten per uur zijn gebruikt, en `50%` dat drie minuten zijn gebruikt.
 

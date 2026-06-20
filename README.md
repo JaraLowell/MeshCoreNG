@@ -56,7 +56,7 @@ Repeater, GPS tracker / sensor, and room server builds can tune this from the CL
 
 Repeater, GPS tracker / sensor, and room server builds also include a runtime low-battery guard. While the node is running, it periodically checks battery voltage. If the node is not externally powered and the battery falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further. Tune it with `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min`, and `set runtime.lowbat.retry`. See [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Native tracker packets include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Tracker reports are sent as Trackers-channel group datagrams for older repeater compatibility, include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## What Have We Done So Far?
 
@@ -274,6 +274,7 @@ Multi-bridge environments need additional safeguards because the same packet may
 
 Implemented protections:
 - TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; RF flood packets exported to TCP also get the exporting bridge-repeater's node hash added to the MeshCore path when it is not already present.
+- Stable bridge identity advertised in TCP caps metadata. By default it is derived from node/device identity; `set bridge.id <8-hex>` can pin it for hardware replacement or multi-interface deployments.
 - Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
 
 Planned or under consideration:
@@ -284,6 +285,8 @@ Planned or under consideration:
 - bridge scoping
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
+
+The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. It keeps MeshCore RF packets compatible, while the TCP boundary remains semi-transparent through TCP-only metadata, duplicate suppression, origin IDs, TTL, export filters, and RF injection controls.
 
 #### Bridge FAQ
 
@@ -340,6 +343,7 @@ get bridge.profile           # returns the last profile applied: default, island
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
+get bridge.id
 ```
 
 TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. When RF flood packets are exported to TCP, the exporting bridge-repeater adds its own node hash to the MeshCore path when it is not already present and the path still has room.
@@ -420,11 +424,11 @@ python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
 
-#### Public channel decryption on the bridge server
+#### Channel decryption on the bridge server
 
-The bridge server can optionally decrypt and display the plaintext of public MeshCore channel messages in its status page and packet log. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
+The bridge server can decrypt selected MeshCore group channels in its status page and packet log. The standard `Public` and MeshCoreNG `Trackers` channels are known by default; the `Trackers` channel is used for compact GPS tracker reports. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
 
-Supply a JSON file listing the channel names and secrets:
+Supply a JSON file to add more channel names and secrets:
 
 ```bash
 TCP_BRIDGE_PUBLIC_CHANNELS_FILE=tools/public_channels.json tools/tcp_bridge_server_ctl.sh start

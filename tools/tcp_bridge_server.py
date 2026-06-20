@@ -2,9 +2,10 @@
 """
 MeshCore TCP Bridge Server
 
-Forwards mesh packets between connected repeaters so geographically separated
-LoRa networks can act as one mesh. Each packet received from one repeater is
-broadcast to all other connected repeaters.
+Forwards selected mesh packets between connected repeaters as a controlled
+backhaul for geographically separated RF islands. This is deliberately not a
+blind transparent internet mesh: TCP-only metadata, dedupe, origin IDs, TTL,
+groups, rate limits, and RF-inject budgets constrain how packets move.
 
 Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
@@ -70,7 +71,9 @@ CONTROL_TYPE_COMMAND = 0x10
 CONTROL_TYPE_COMMAND_REPLY = 0x11
 CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
+BRIDGE_PACKET_FLAG_RF_RX = 0x01
 BRIDGE_V2_OVERHEAD = 14
+SUPPORTED_BRIDGE_PACKET_VERSIONS = {BRIDGE_PACKET_VERSION}
 IP_ADDRESS_RE = re.compile(
     r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\w.])"
     r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
@@ -87,6 +90,7 @@ PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
 PAYLOAD_TYPE_TRACE = 0x09
 PAYLOAD_TYPE_LOCATION = 0x0D
+DATA_TYPE_MESHCORENG_TRACKER = 0x0200
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
@@ -105,6 +109,14 @@ MAX_ADVERT_DATA_SIZE = 32
 PATH_HASH_SIZE = 1
 CIPHER_MAC_SIZE = 2
 CIPHER_BLOCK_SIZE = 16
+DEFAULT_PUBLIC_CHANNEL_SECRET = bytes([
+    0x8B, 0x33, 0x87, 0xE9, 0xC5, 0xCD, 0xEA, 0x6A,
+    0xC9, 0xE5, 0xED, 0xBA, 0xA1, 0x15, 0xCD, 0x72,
+]) + (b"\x00" * 16)
+DEFAULT_TRACKER_CHANNEL_SECRET = bytes([
+    0x5F, 0x30, 0x3A, 0xC5, 0x07, 0x5F, 0x80, 0x0F,
+    0x0F, 0x47, 0x11, 0x31, 0x99, 0xD5, 0x10, 0x53,
+]) + (b"\x00" * 16)
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 PUBLIC_CHANNELS_FILE = ""
@@ -159,6 +171,8 @@ transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 packet_fingerprint_cache: OrderedDict[int, dict] = OrderedDict()
+bridge_guard_counters: dict[str, int] = {}
+packet_log_total = 0
 public_channels: list[dict] = []
 latest_firmware_info: dict = {
     "enabled": True,
@@ -207,6 +221,10 @@ CONTROL_TYPE_NAMES = {
     CONTROL_TYPE_COMMAND_REPLY: "command-reply",
     CONTROL_TYPE_BRIDGE_PACKET: "bridge-v2-packet",
 }
+
+
+def inc_bridge_guard_counter(name: str, amount: int = 1) -> None:
+    bridge_guard_counters[name] = bridge_guard_counters.get(name, 0) + amount
 
 
 def fletcher16(data: bytes) -> int:
@@ -264,8 +282,20 @@ def channel_hash(secret: bytes) -> bytes:
     return hashlib.sha256(secret[:key_len]).digest()[:PATH_HASH_SIZE]
 
 
+def add_public_channel(name: str, secret: bytes) -> None:
+    if any(ch["name"] == name and ch["secret"] == secret for ch in public_channels):
+        return
+    public_channels.append({
+        "name": name,
+        "secret": secret,
+        "hash": channel_hash(secret),
+    })
+
+
 def load_public_channels(path: str) -> None:
     public_channels.clear()
+    add_public_channel("Public", DEFAULT_PUBLIC_CHANNEL_SECRET)
+    add_public_channel("Trackers", DEFAULT_TRACKER_CHANNEL_SECRET)
     if not path:
         return
     if Cipher is None:
@@ -292,11 +322,7 @@ def load_public_channels(path: str) -> None:
         if not name or secret is None:
             log.warning("Skipping invalid public channel entry: %s", item)
             continue
-        public_channels.append({
-            "name": name,
-            "secret": secret,
-            "hash": channel_hash(secret),
-        })
+        add_public_channel(name, secret)
 
     log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
 
@@ -450,6 +476,30 @@ def trim_c_string(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").strip()
 
 
+def decrypt_public_channel_plain(parsed: dict) -> tuple[str, bytes] | None:
+    app_payload = parsed.get("app_payload") or b""
+    if not public_channels or len(app_payload) <= PATH_HASH_SIZE + CIPHER_MAC_SIZE:
+        return None
+    packet_hash = app_payload[:PATH_HASH_SIZE]
+    encrypted = app_payload[PATH_HASH_SIZE:]
+    for channel in (ch for ch in public_channels if ch["hash"] == packet_hash):
+        plain = mac_then_decrypt(channel["secret"], encrypted)
+        if plain:
+            return channel["name"], plain
+    return None
+
+
+def decode_group_data_plain(plain: bytes) -> tuple[int, bytes] | None:
+    if len(plain) < 3:
+        return None
+    data_type = plain[0] | (plain[1] << 8)
+    data_len = plain[2]
+    data = plain[3:3 + data_len]
+    if len(data) < data_len:
+        return None
+    return data_type, data
+
+
 def decode_public_channel_payload(parsed: dict) -> dict:
     result = {
         "decoded_channel": "",
@@ -469,44 +519,39 @@ def decode_public_channel_payload(parsed: dict) -> dict:
         result["decoded_status"] = "short-group-payload"
         return result
 
-    packet_hash = app_payload[:PATH_HASH_SIZE]
-    encrypted = app_payload[PATH_HASH_SIZE:]
-    candidates = [ch for ch in public_channels if ch["hash"] == packet_hash]
-    if not candidates:
+    if not any(ch["hash"] == app_payload[:PATH_HASH_SIZE] for ch in public_channels):
         result["decoded_status"] = "unknown-channel"
         return result
 
-    for channel in candidates:
-        plain = mac_then_decrypt(channel["secret"], encrypted)
-        if not plain:
-            continue
-        result["decoded_channel"] = channel["name"]
-        if payload_type == PAYLOAD_TYPE_GRP_TXT:
-            if len(plain) < 5:
-                result["decoded_status"] = "short-group-text"
-                return result
-            txt_type = plain[4]
-            if (txt_type >> 2) != 0:
-                result["decoded_status"] = f"unsupported-text-type-{txt_type}"
-                return result
-            result["decoded_status"] = "decoded"
-            result["decoded_text"] = trim_c_string(plain[5:])
+    decoded = decrypt_public_channel_plain(parsed)
+    if decoded is None:
+        result["decoded_status"] = "mac-failed"
+        return result
+    channel_name, plain = decoded
+    result["decoded_channel"] = channel_name
+    if payload_type == PAYLOAD_TYPE_GRP_TXT:
+        if len(plain) < 5:
+            result["decoded_status"] = "short-group-text"
             return result
-
-        if len(plain) < 3:
-            result["decoded_status"] = "short-group-data"
+        txt_type = plain[4]
+        if (txt_type >> 2) != 0:
+            result["decoded_status"] = f"unsupported-text-type-{txt_type}"
             return result
-        data_type = plain[0] | (plain[1] << 8)
-        data_len = plain[2]
-        data = plain[3:3 + data_len]
         result["decoded_status"] = "decoded"
-        result["decoded_data_type"] = data_type
-        result["decoded_data_len"] = min(data_len, len(data))
-        result["decoded_text"] = f"data_type=0x{data_type:04x} len={min(data_len, len(data))} preview={payload_preview(data)}"
+        result["decoded_text"] = trim_c_string(plain[5:])
         return result
 
-    result["decoded_status"] = "mac-failed"
+    group_data = decode_group_data_plain(plain)
+    if group_data is None:
+        result["decoded_status"] = "short-group-data"
+        return result
+    data_type, data = group_data
+    result["decoded_status"] = "decoded"
+    result["decoded_data_type"] = data_type
+    result["decoded_data_len"] = len(data)
+    result["decoded_text"] = f"data_type=0x{data_type:04x} len={len(data)} preview={payload_preview(data)}"
     return result
+
 
 
 def describe_peer_encrypted_payload(parsed: dict) -> dict:
@@ -638,6 +683,8 @@ def record_packet_log(
     source: str = "",
     target: str = "",
 ) -> dict:
+    global packet_log_total
+
     description = describe_packet(payload)
     mesh_payload = mesh_payload_for_parsing(payload)
     source = source or ("server" if direction == "TX" else client.display_name)
@@ -655,6 +702,7 @@ def record_packet_log(
         "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
         **description,
     }
+    packet_log_total += 1
     recent_packets.appendleft(entry)
     return entry
 
@@ -756,6 +804,7 @@ def parse_caps(payload: bytes) -> dict | None:
         "rf_inject_max_per_min": 0,
         "rf_inject_max_airtime_ms_per_hour": 0,
         "rf_inject_block_duty_above_pct": 0.0,
+        "bridge_id": 0,
     }
     if len(payload) >= 9:
         caps["bridge_proto_ver"] = payload[7] or 1
@@ -771,6 +820,9 @@ def parse_caps(payload: bytes) -> dict | None:
                 caps["rf_inject_max_airtime_ms_per_hour"] = struct.unpack(">I", payload[pos + 3:pos + 7])[0]
                 duty_centi = struct.unpack(">H", payload[pos + 7:pos + 9])[0]
                 caps["rf_inject_block_duty_above_pct"] = duty_centi / 100.0
+                pos += 9
+            if len(payload) >= pos + 4:
+                caps["bridge_id"] = struct.unpack(">I", payload[pos:pos + 4])[0]
     return caps
 
 
@@ -811,7 +863,7 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         return None
     if payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
         return None
-    if payload[5] != BRIDGE_PACKET_VERSION:
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
         return None
 
     packet_len = struct.unpack(">H", payload[12:14])[0]
@@ -826,6 +878,21 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         "packet_len": packet_len,
         "mesh_payload": payload[BRIDGE_V2_OVERHEAD:BRIDGE_V2_OVERHEAD + packet_len],
     }
+
+
+def parse_bridge_packet_error(payload: bytes) -> str:
+    if not payload.startswith(CONTROL_PREFIX) or len(payload) < 5 or payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
+        return ""
+    if len(payload) < BRIDGE_V2_OVERHEAD:
+        return "short bridge packet envelope"
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
+        return f"unsupported bridge packet version {payload[5]}"
+    packet_len = struct.unpack(">H", payload[12:14])[0]
+    if packet_len == 0:
+        return "zero mesh payload length"
+    if len(payload) < BRIDGE_V2_OVERHEAD + packet_len:
+        return f"truncated mesh payload {len(payload) - BRIDGE_V2_OVERHEAD}/{packet_len}"
+    return ""
 
 
 def mesh_payload_for_parsing(payload: bytes) -> bytes:
@@ -934,7 +1001,9 @@ def parse_location_report(payload: bytes) -> dict | None:
         "lat": lat_microdeg / 1000000.0,
         "lon": lon_microdeg / 1000000.0,
         "altitude_m": altitude_m,
+        "speed_cms": speed_cms,
         "speed_kmh": round(speed_cms * 0.036, 2),
+        "heading_cdeg": heading_cdeg,
         "heading_deg": round(heading_cdeg / 100.0, 2),
         "satellites": payload[24],
         "battery_mv": battery_mv,
@@ -1023,13 +1092,25 @@ def allow_transport_packet(client: "BridgeClient", parsed: dict | None, now: flo
 
 def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
     parsed = parse_mesh_payload(frame_payload)
-    if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_LOCATION:
+    if not parsed:
         return None
 
-    report = parse_location_report(parsed["app_payload"])
+    report = None
+    if parsed["payload_type"] == PAYLOAD_TYPE_LOCATION:
+        report = parse_location_report(parsed["app_payload"])
+    elif parsed["payload_type"] == PAYLOAD_TYPE_GRP_DATA:
+        decoded = decrypt_public_channel_plain(parsed)
+        if decoded is not None:
+            _channel_name, plain = decoded
+            group_data = decode_group_data_plain(plain)
+            if group_data is not None:
+                data_type, data = group_data
+                if data_type == DATA_TYPE_MESHCORENG_TRACKER:
+                    report = parse_location_report(data)
     if report is None:
         return None
     report["hops"] = parsed["path_hash_count"]
+    report["payload_type"] = parsed["payload_type"]
     return report
 
 
@@ -1609,6 +1690,7 @@ class BridgeClient:
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.bridge_proto_ver = 1
+        self.bridge_id = 0
         self.authenticated = not BRIDGE_PASSWORD
         self.bridge_group = BRIDGE_GROUP
         self.node_rf_inject_budget: dict = {}
@@ -1706,13 +1788,13 @@ class BridgeClient:
         if BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT > 0:
             used_pct = float((self.rf_duty or {}).get("tx_used_pct") or 0.0)
             if used_pct >= BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT:
-                return False, "skipped_rf_budget"
+                return False, "skipped_rf_inject_budget"
         if BRIDGE_RF_INJECT_MAX_PER_MIN > 0 and len(self.rf_inject_minute_times) >= BRIDGE_RF_INJECT_MAX_PER_MIN:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         estimate = self.estimated_airtime_ms(payload)
         remaining = self.rf_inject_budget_remaining_ms(now)
         if remaining is not None and estimate > remaining:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         return True, ""
 
     def record_rf_inject(self, payload: bytes, now: float | None = None) -> None:
@@ -1802,6 +1884,7 @@ class BridgeClient:
             "quarantine_seconds_left": max(0, int(self.quarantined_until - now)) if self.quarantined_until else 0,
             "group": self.bridge_group,
             "bridge_proto_ver": self.bridge_proto_ver,
+            "bridge_id": f"0x{self.bridge_id:08x}" if self.bridge_id else "",
             "node_rf_inject_budget": dict(self.node_rf_inject_budget),
             "last_fingerprint": fingerprint_hex(self.last_fingerprint) if self.last_fingerprint else "",
             "last_fingerprint_age_seconds": int(now - self.last_fingerprint_at) if self.last_fingerprint_at else None,
@@ -2006,8 +2089,9 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     now = time.time()
     forwarded_payload = decrement_bridge_ttl(payload)
     if forwarded_payload is None:
-        sender.record_skip("skipped_dup_ttl_zero")
-        log.debug("%s: skipped_dup_ttl_zero", sender.addr)
+        sender.record_skip("skipped_ttl_expired")
+        inc_bridge_guard_counter("skipped_ttl_expired")
+        log.debug("%s: skipped_ttl_expired", sender.addr)
         return
 
     # Mark the sender as having seen this payload so it is skipped if it reconnects
@@ -2023,6 +2107,13 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     for client in connected_clients:
         if client is sender:
             client.record_skip("skipped_dup_loopback")
+            inc_bridge_guard_counter("skipped_duplicate")
+            continue
+        if envelope is not None and envelope["origin_id"] and client.bridge_id == envelope["origin_id"]:
+            client.record_skip("skipped_own_origin")
+            inc_bridge_guard_counter("skipped_own_origin")
+            log.debug("%s: skipped_own_origin target=%s origin=0x%08x",
+                      sender.addr, client.addr, envelope["origin_id"])
             continue
         if BRIDGE_REQUIRE_GROUP_MATCH and client.bridge_group != sender.bridge_group:
             client.record_skip("skipped_group_mismatch")
@@ -2030,18 +2121,22 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
             continue
         if client.quarantine_active(now):
             client.record_skip("skipped_quarantine")
+            inc_bridge_guard_counter("skipped_bridge_loop")
             log.warning("%s: skipped_quarantine target=%s", sender.addr, client.addr)
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["sent_to"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if client.has_seen_payload(forwarded_payload):
             client.record_skip("skipped_dup_fingerprint")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_fingerprint target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         client_payload = forwarded_payload
@@ -2050,8 +2145,9 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         ok_budget, reason = client.can_accept_rf_inject(forwarded_payload, now)
         if not ok_budget:
             client.rf_budget_drops += 1
-            client.record_skip(reason or "skipped_rf_budget")
-            log.warning("%s: skipped_rf_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
+            client.record_skip(reason or "skipped_rf_inject_budget")
+            inc_bridge_guard_counter("skipped_rf_inject_budget")
+            log.warning("%s: skipped_rf_inject_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if not client.enqueue_payload(client_payload, source=sender.display_name, seen_payload=forwarded_payload):
             log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
@@ -2135,6 +2231,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
                 client.bridge_proto_ver = int(caps.get("bridge_proto_ver") or 1)
+                client.bridge_id = int(caps.get("bridge_id") or 0)
                 group = (caps.get("group") or "").strip()
                 if group:
                     client.bridge_group = group
@@ -2145,9 +2242,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     "block_duty_above_pct": float(caps.get("rf_inject_block_duty_above_pct") or 0.0),
                 }
                 touch_node_stats(client)
-                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s",
+                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s bridge_id=%s",
                          client.addr, caps["version"], client.bridge_proto_ver, caps["flags"],
-                         client.supports_bridge_v2, client.bridge_group)
+                         client.supports_bridge_v2, client.bridge_group,
+                         f"0x{client.bridge_id:08x}" if client.bridge_id else "unknown")
                 continue
             heartbeat = parse_heartbeat(payload)
             if heartbeat is not None:
@@ -2181,7 +2279,14 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 else:
                     log.info("%s: node name is %s node_id=%s", client.addr, client.node_name, client.node_id or "unknown")
                 continue
+            bridge_packet_error = parse_bridge_packet_error(payload)
+            if bridge_packet_error:
+                client.record_skip("skipped_bridge_parse_error")
+                inc_bridge_guard_counter("skipped_bridge_parse_error")
+                log.warning("%s: skipped_bridge_parse_error %s", client.addr, bridge_packet_error)
+                continue
             client.packets_rx += 1
+            inc_bridge_guard_counter("accepted_tcp_packet")
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
@@ -2194,6 +2299,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             sent_at = record["sent_to"].get(client.bridge_key)
             if BRIDGE_LOOPGUARD_ENABLED and sent_at and now - sent_at <= max(1, BRIDGE_LOOPGUARD_WINDOW_SECS):
                 client.record_loopguard_hit(now)
+                inc_bridge_guard_counter("skipped_bridge_loop")
                 if client.quarantine_active(now):
                     client.record_skip("skipped_quarantine")
                     log.warning("%s: skipped_quarantine source=%s fp=%s",
@@ -2201,11 +2307,13 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     continue
             if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
                 client.record_skip("skipped_dup_fingerprint")
+                inc_bridge_guard_counter("skipped_duplicate")
                 log.debug("%s: skipped_dup_fingerprint source=%s fp=%s",
                           client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
             if client.quarantine_active(now):
                 client.record_skip("skipped_quarantine")
+                inc_bridge_guard_counter("skipped_bridge_loop")
                 log.warning("%s: skipped_quarantine source=%s fp=%s",
                             client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
@@ -2213,6 +2321,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             client.mark_seen_payload(payload)
             parsed_payload = parse_mesh_payload(mesh_payload)
             if not allow_transport_packet(client, parsed_payload, now):
+                inc_bridge_guard_counter("skipped_rate_limited")
                 packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
                 log.warning(
                     "%s: dropping transport flood packet from %s (%d/%ds client, %d/%ds global): %s",
@@ -2303,6 +2412,7 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "dedupe_ttl_sec": BRIDGE_DEDUPE_TTL_SECS,
             "dedupe_max_entries": BRIDGE_DEDUPE_MAX_ENTRIES,
             "dedupe_entries": len(packet_fingerprint_cache),
+            "counters": dict(bridge_guard_counters),
             "loopguard_enabled": BRIDGE_LOOPGUARD_ENABLED,
             "loopguard_window_sec": BRIDGE_LOOPGUARD_WINDOW_SECS,
             "loopguard_threshold": BRIDGE_LOOPGUARD_THRESHOLD,
@@ -2341,6 +2451,7 @@ def sensors_snapshot() -> dict:
     for report in latest_sensors.values():
         item = dict(report)
         item["age_seconds"] = max(0, now - item["received_at"])
+        item["node_id_short"] = item.get("node_id", "")[:2]
         sensors.append(item)
     sensors.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
     return {
@@ -2360,6 +2471,8 @@ def packets_snapshot() -> dict:
     return {
         "generated_at": now,
         "packet_count": len(packets),
+        "packet_capacity": recent_packets.maxlen or len(packets),
+        "packet_total": packet_log_total,
         "packets": packets,
     }
 
@@ -2686,7 +2799,9 @@ def build_status_html(base_path: str = "") -> str:
 
     <section class="status-strip" aria-label="Live counters">
       <div class="metric"><div class="label">Bridge nodes online</div><div id="metricConnected" class="value">--</div></div>
-      <div class="metric"><div class="label">Packets in buffer</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packet history</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packets total</div><div id="metricPacketsTotal" class="value">--</div></div>
+      <div class="metric"><div class="label">Total dedups</div><div id="metricDedups" class="value">--</div></div>
       <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
       <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
       <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
@@ -2800,8 +2915,13 @@ def build_status_html(base_path: str = "") -> str:
     function renderMetrics(status, packets, sensors) {{
       const rx24 = status.clients.reduce((sum, client) => sum + (client.packets_rx_24h || 0), 0);
       const tx24 = status.clients.reduce((sum, client) => sum + (client.packets_tx_24h || 0), 0);
+      const guardCounters = (status.bridge_guards && status.bridge_guards.counters) || {{}};
+      const clientDedups = status.clients.reduce((sum, client) => sum + (client.skipped_dup_total || 0), 0);
+      const totalDedups = guardCounters.skipped_duplicate || clientDedups;
       document.getElementById("metricConnected").textContent = status.connected_count;
-      document.getElementById("metricPackets").textContent = packets.packet_count;
+      document.getElementById("metricPackets").textContent = `${{packets.packet_count}}/${{packets.packet_capacity || 200}}`;
+      document.getElementById("metricPacketsTotal").textContent = packets.packet_total || packets.packet_count || 0;
+      document.getElementById("metricDedups").textContent = totalDedups;
       document.getElementById("metricSensors").textContent = sensors.sensor_count;
       document.getElementById("metricTraffic").textContent = `${{rx24}} / ${{tx24}}`;
       document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
@@ -2993,10 +3113,12 @@ def build_status_html(base_path: str = "") -> str:
       setStatus("sensorStatus", `${{sensorData.sensors.length}} detected`, "ok");
       rows.innerHTML = sensorData.sensors.map((sensor) => {{
         const location = sensor.lat !== null && sensor.lon !== null ? `${{Number(sensor.lat).toFixed(6)}}, ${{Number(sensor.lon).toFixed(6)}}` : "not shared";
+        const nodeId = sensor.node_id || "";
+        const shortNodeId = sensor.node_id_short || nodeId.slice(0, 2) || "--";
         return `
           <tr>
             <td>${{escapeHtml(sensor.name || "unknown")}}</td>
-            <td>${{escapeHtml(sensor.node_id)}}</td>
+            <td title="${{escapeHtml(nodeId)}}">${{escapeHtml(shortNodeId)}}</td>
             <td>${{age(sensor.age_seconds)}} ago</td>
             <td>${{sensor.seen_count}}</td>
             <td>${{text(sensor.hops, "")}}</td>

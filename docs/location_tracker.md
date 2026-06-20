@@ -1,14 +1,14 @@
 # MeshCoreNG Location Tracker
 
-MeshCoreNG has an experimental native location-report payload for APRS-like tracker deployments.
+MeshCoreNG has an experimental compact Trackers-channel location-report payload for APRS-like tracker deployments.
 
 ## Flow
 
 ```text
-GPS tracker node -> LoRa mesh flood -> bridge repeater -> TCP bridge server -> /map and /locations.json
+GPS tracker node -> Trackers channel group-data flood -> bridge repeater -> TCP bridge server -> /map and /locations.json
 ```
 
-The TCP bridge server decodes `PAYLOAD_TYPE_LOCATION` packets and keeps the latest position per tracker node in memory.
+The TCP bridge server decodes MeshCoreNG tracker `PAYLOAD_TYPE_GRP_DATA` packets on the Trackers channel and keeps the latest position per tracker node in memory.
 
 ## Tracker firmware
 
@@ -67,7 +67,7 @@ The tracker home screen shows the node name, GPS state, satellite count, battery
 - latitude, longitude, and altitude when a GPS fix is available
 - waiting-for-fix status, LoRa frequency/SF, and tracker TX interval while no GPS fix is available
 
-The tracker still only sends `PAYLOAD_TYPE_LOCATION` packets after the GPS provider has a valid fix. Without a GPS fix, the node may still send normal MeshCore packets such as adverts or replies, but it does not send a map position.
+The tracker still only sends tracker group-data reports after the GPS provider has a valid fix. Without a GPS fix, the node may still send normal MeshCore packets such as adverts or replies, but it does not send a map position.
 
 ## Gateway
 
@@ -88,9 +88,15 @@ The tracker map includes a `Replay 24h` mode. It uses the persisted track data t
 
 ## Payload
 
-`PAYLOAD_TYPE_LOCATION` is `0x0D`.
+Tracker reports are sent as `PAYLOAD_TYPE_GRP_DATA` (`0x06`) on the Trackers channel with `data_type=0x0200` (`DATA_TYPE_MESHCORENG_TRACKER`). This avoids the newer native `PAYLOAD_TYPE_LOCATION` packet type so older repeaters that already forward group datagrams can repeat tracker reports.
 
-The payload starts after the normal MeshCore packet header/path fields:
+The decrypted group-data payload starts with:
+
+| Field | Size | Notes |
+|-------|------|-------|
+| data_type | 2 | little-endian `0x0200` |
+| data_len | 1 | tracker report body length |
+| data | variable | compact tracker report body |
 
 All multi-byte integer fields in the location payload are big-endian.
 
@@ -111,4 +117,4 @@ All multi-byte integer fields in the location payload are big-endian.
 | name_len | 1 | 0-24 |
 | name | variable | UTF-8 node name |
 
-Location packets are flood-routed, so normal repeater forwarding rules still apply. They also have a tracker-specific hop cap: a `PAYLOAD_TYPE_LOCATION` packet is only retransmitted while its path contains fewer than two repeater hops. After two repeaters have forwarded it, the next repeater will receive and release it without forwarding it again.
+Tracker packets are flood-routed as normal public group data, so normal repeater forwarding rules apply. The TCP bridge server still accepts the older native `PAYLOAD_TYPE_LOCATION` (`0x0D`) format for existing nodes, but new tracker firmware sends the Trackers-channel group-data format above.

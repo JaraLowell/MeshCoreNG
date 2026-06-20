@@ -326,6 +326,7 @@ Remaining bytes:                Binary payload (variable length)
 |-----------------|----------------------|----------------------------------------------------------------------------------------|
 | 0x0000          | `DATA_TYPE_RESERVED` | Reserved; invalid on send                                                              |
 | 0x0001 – 0x00FF | —                    | Reserved for internal use                                                              |
+| 0x0200          | `DATA_TYPE_MESHCORENG_TRACKER` | MeshCoreNG compact tracker reports                                       |
 | 0x0100 – 0xFEFF | —                    | Registered application namespaces (see [number_allocations.md](number_allocations.md)) |
 | 0xFF00 – 0xFFFE | —                    | Testing/development; no registration required                                          |
 | 0xFFFF          | `DATA_TYPE_DEV`      | Developer/experimental namespace                                                       |
