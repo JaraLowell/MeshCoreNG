@@ -283,6 +283,33 @@ async def test_caps_v3_bridge_id() -> None:
     assert caps["bridge_id"] == 0xAABBCCDD
 
 
+async def test_heartbeat_radio_stats_parse() -> None:
+    payload = (
+        b"MCNG"
+        + bytes([server.CONTROL_TYPE_HEARTBEAT])
+        + (1234).to_bytes(4, "big")
+        + b"RF"
+        + bytes([2])
+        + (1000).to_bytes(4, "big")
+        + (360000).to_bytes(4, "big")
+        + (3600000).to_bytes(4, "big")
+        + (1000).to_bytes(2, "big")
+        + (25).to_bytes(2, "big")
+        + (5000).to_bytes(4, "big")
+        + b"RS"
+        + bytes([1])
+        + int(-118).to_bytes(2, "big", signed=True)
+        + int(-73).to_bytes(2, "big", signed=True)
+        + int(31).to_bytes(1, "big", signed=True)
+    )
+    heartbeat = server.parse_heartbeat(payload)
+    assert heartbeat is not None
+    assert heartbeat["uptime_ms"] == 1234
+    assert heartbeat["radio_stats"]["noise_floor"] == -118
+    assert heartbeat["radio_stats"]["last_rssi"] == -73
+    assert heartbeat["radio_stats"]["last_snr"] == 7.75
+
+
 async def test_status_hides_unnamed_offline_placeholders() -> None:
     old_clients = server.connected_clients
     old_stats = server.node_traffic_stats
@@ -529,6 +556,7 @@ async def main() -> None:
     await test_raw_frame_still_passes_through()
     await test_caps_v2_group_budget()
     await test_caps_v3_bridge_id()
+    await test_heartbeat_radio_stats_parse()
     await test_status_hides_unnamed_offline_placeholders()
     await test_rf_duty_hour_counter_resets()
     await test_group_tracker_location_decode()

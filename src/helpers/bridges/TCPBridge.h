@@ -50,7 +50,8 @@ public:
   void onPacketReceived(mesh::Packet *packet) override;
   void getStatusStr(char *reply) const;
   void setNodeId(const uint8_t *node_id, size_t len);
-  void setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms);
+  void setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms,
+                      int16_t noise_floor = 0, int16_t last_rssi = 0, int16_t last_snr_quarter_db = 0);
   void resetGuardStats();
   
   /**
@@ -155,6 +156,9 @@ private:
   uint32_t    _rf_tx_total_ms = 0;
   uint16_t    _rf_duty_limit_centi_pct = 0;
   uint16_t    _rf_tx_used_centi_pct = 0;
+  int16_t     _radio_noise_floor = 0;
+  int16_t     _radio_last_rssi = 0;
+  int16_t     _radio_last_snr_quarter_db = 0;
   uint32_t    _rf_inject_minute_start_ms = 0;
   uint16_t    _rf_inject_minute_count = 0;
   uint32_t    _rf_inject_hour_start_ms = 0;
