@@ -984,7 +984,7 @@ bool TCPBridge::handlePathBlockCommand(const char *command, char *reply, size_t 
   }
   if (strcmp(command, "clear path.block") == 0 || strcmp(command, "set path.block clear") == 0) {
     clearPathBlocks();
-    snprintf(reply, reply_size, "OK - path.block cleared");
+    snprintf(reply, reply_size, "OK");
     return true;
   }
   if (strncmp(command, "set path.block ", 15) != 0) return false;
@@ -995,34 +995,34 @@ bool TCPBridge::handlePathBlockCommand(const char *command, char *reply, size_t 
   const char *parts[4];
   int n = mesh::Utils::parseTextParts(tmp, parts, 4);
   if (n < 1) {
-    snprintf(reply, reply_size, "Error: path.block action missing");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   if (strcmp(parts[0], "clear") == 0) {
     clearPathBlocks();
-    snprintf(reply, reply_size, "OK - path.block cleared");
+    snprintf(reply, reply_size, "OK");
     return true;
   }
   if ((strcmp(parts[0], "add") != 0 && strcmp(parts[0], "del") != 0) || n < 2) {
-    snprintf(reply, reply_size, "Error: use set path.block add|del <path> [duration]");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   PathBlockEntry entry;
   if (!parsePathBlockSpec(parts[1], &entry)) {
-    snprintf(reply, reply_size, "Error: expected aa, aa/bb, or aa/bb/cc");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   if (strcmp(parts[0], "del") == 0) {
     bool removed = delPathBlock(entry);
-    snprintf(reply, reply_size, removed ? "OK - path.block removed" : "OK - path.block not present");
+    snprintf(reply, reply_size, removed ? "OK" : "Error");
     return true;
   }
   uint32_t duration = parseDurationSecs(n >= 3 ? parts[2] : nullptr, 60UL * 60UL);
   if (!addPathBlock(entry, duration)) {
-    snprintf(reply, reply_size, "Error: path.block list full");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
-  snprintf(reply, reply_size, "OK - path.block added %lus", (unsigned long)duration);
+  snprintf(reply, reply_size, "OK %lus", (unsigned long)duration);
   return true;
 }
 
@@ -1124,7 +1124,7 @@ bool TCPBridge::handleNodeBlockCommand(const char *command, char *reply, size_t 
   }
   if (strcmp(command, "clear node.block") == 0 || strcmp(command, "set node.block clear") == 0) {
     clearNodeBlocks();
-    snprintf(reply, reply_size, "OK - node.block cleared");
+    snprintf(reply, reply_size, "OK");
     return true;
   }
   if (strncmp(command, "set node.block ", 15) != 0) return false;
@@ -1135,34 +1135,34 @@ bool TCPBridge::handleNodeBlockCommand(const char *command, char *reply, size_t 
   const char *parts[4];
   int n = mesh::Utils::parseTextParts(tmp, parts, 4);
   if (n < 1) {
-    snprintf(reply, reply_size, "Error: node.block action missing");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   if (strcmp(parts[0], "clear") == 0) {
     clearNodeBlocks();
-    snprintf(reply, reply_size, "OK - node.block cleared");
+    snprintf(reply, reply_size, "OK");
     return true;
   }
   if ((strcmp(parts[0], "add") != 0 && strcmp(parts[0], "del") != 0) || n < 2) {
-    snprintf(reply, reply_size, "Error: use set node.block add|del <aa> [duration]");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   uint8_t id = 0;
   if (!parseHex8(parts[1], &id)) {
-    snprintf(reply, reply_size, "Error: node id must be one hex byte, e.g. a7");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
   if (strcmp(parts[0], "del") == 0) {
     bool removed = delNodeBlock(id);
-    snprintf(reply, reply_size, removed ? "OK - node.block removed %02x" : "OK - node.block not present %02x", id);
+    snprintf(reply, reply_size, removed ? "OK %02x" : "Error %02x", id);
     return true;
   }
   uint32_t duration = parseDurationSecs(n >= 3 ? parts[2] : nullptr, 15UL * 60UL);
   if (!addNodeBlock(id, duration)) {
-    snprintf(reply, reply_size, "Error: node.block list full");
+    snprintf(reply, reply_size, "Error");
     return true;
   }
-  snprintf(reply, reply_size, "OK - node.block added %02x %lus", id, (unsigned long)duration);
+  snprintf(reply, reply_size, "OK %02x %lus", id, (unsigned long)duration);
   return true;
 }
 

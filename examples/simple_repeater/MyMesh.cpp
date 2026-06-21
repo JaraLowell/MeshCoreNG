@@ -783,17 +783,17 @@ void MyMesh::handleNodeBlockCommand(char* command, char* reply) {
       while (*ttl_text == ' ') ttl_text++;
     }
     if (strlen(spec) != 2 || !mesh::Utils::isHexChar(spec[0]) || !mesh::Utils::isHexChar(spec[1])) {
-      strcpy(reply, "Error: expected one-byte hex id, e.g. a7");
+      strcpy(reply, "Error");
       return;
     }
     uint8_t id = 0;
     if (!mesh::Utils::fromHex(&id, 1, spec)) {
-      strcpy(reply, "Error: bad node id");
+      strcpy(reply, "Error");
       return;
     }
     uint32_t ttl_secs;
     if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
-      strcpy(reply, "Error: duration must be seconds, Nm, Nh, or Nd");
+      strcpy(reply, "Error");
       return;
     }
     int slot = -1;
@@ -805,7 +805,7 @@ void MyMesh::handleNodeBlockCommand(char* command, char* reply) {
       }
     }
     if (slot < 0) {
-      strcpy(reply, "Error: node.block list full");
+      strcpy(reply, "Error");
       return;
     }
     node_blocks[slot].id = id;
@@ -819,12 +819,12 @@ void MyMesh::handleNodeBlockCommand(char* command, char* reply) {
   if (memcmp(command, "set node.block del ", 19) == 0) {
     char* spec = &command[19];
     if (strlen(spec) != 2 || !mesh::Utils::isHexChar(spec[0]) || !mesh::Utils::isHexChar(spec[1])) {
-      strcpy(reply, "Error: expected one-byte hex id, e.g. a7");
+      strcpy(reply, "Error");
       return;
     }
     uint8_t id = 0;
     if (!mesh::Utils::fromHex(&id, 1, spec)) {
-      strcpy(reply, "Error: bad node id");
+      strcpy(reply, "Error");
       return;
     }
     for (int i = 0; i < MAX_NODE_BLOCKS; i++) {
@@ -834,11 +834,11 @@ void MyMesh::handleNodeBlockCommand(char* command, char* reply) {
         return;
       }
     }
-    strcpy(reply, "Error: not found");
+    strcpy(reply, "Error");
     return;
   }
 
-  strcpy(reply, "Error: use get node.block, clear node.block, set node.block add/del");
+  strcpy(reply, "Error");
 }
 
 void MyMesh::formatPathBlocksReply(char* reply) {
@@ -903,7 +903,7 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
       return;
     }
     if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
-      strcpy(reply, "Error: duration must be seconds, Nm, Nh, or Nd");
+      strcpy(reply, "Error");
       return;
     }
 
@@ -919,7 +919,7 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
     }
 
     if (slot < 0) {
-      strcpy(reply, "Error: path.block list full");
+      strcpy(reply, "Error");
       return;
     }
 
@@ -945,11 +945,11 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
         return;
       }
     }
-    strcpy(reply, "Error: not found");
+    strcpy(reply, "Error");
     return;
   }
 
-  strcpy(reply, "Error: use get path.block, clear path.block, set path.block add/del");
+  strcpy(reply, "Error");
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
