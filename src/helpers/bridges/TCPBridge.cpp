@@ -2,8 +2,10 @@
 
 #ifdef WITH_TCP_BRIDGE
 
+#include "Utils.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -45,6 +47,34 @@ bool parseHex32(const char *hex, uint32_t *value) {
   if (hex[8] != 0) return false;
   *value = parsed;
   return true;
+}
+
+bool parseHex8(const char *hex, uint8_t *value) {
+  if (!hex || !value) return false;
+  uint8_t hi = hexNibble(hex[0]);
+  uint8_t lo = hexNibble(hex[1]);
+  if (hi > 0x0F || lo > 0x0F || hex[2] != 0) return false;
+  *value = (hi << 4) | lo;
+  return true;
+}
+
+uint32_t parseDurationSecs(const char *value, uint32_t fallback_secs) {
+  if (!value || value[0] == 0) return fallback_secs;
+  char *end = nullptr;
+  unsigned long amount = strtoul(value, &end, 10);
+  if (amount == 0) return fallback_secs;
+  uint32_t mult = 1;
+  if (end && *end) {
+    if (end[1] != 0) return fallback_secs;
+    if (*end == 'm' || *end == 'M') mult = 60;
+    else if (*end == 'h' || *end == 'H') mult = 3600;
+    else if (*end == 'd' || *end == 'D') mult = 86400;
+    else if (*end == 's' || *end == 'S') mult = 1;
+    else return fallback_secs;
+  }
+  unsigned long seconds = amount * mult;
+  if (seconds > 86400UL * 30UL) seconds = 86400UL * 30UL;
+  return (uint32_t)seconds;
 }
 
 }  // namespace
@@ -275,6 +305,13 @@ void TCPBridge::readIncoming() {
             mesh::Packet *pkt = _mgr->allocNew();
             if (pkt) {
               if (pkt->readFrom(_rx_buffer + 4, len)) {
+                if (isBlockedForBridgeRf(pkt)) {
+                  _skipped_node_block_count++;
+                  BRIDGE_DEBUG_PRINTLN("TCP bridge: skipped node/path block TCP->RF\n");
+                  _mgr->free(pkt);
+                  _rx_buffer_pos = 0;
+                  continue;
+                }
                 _accepted_tcp_packet_count++;
                 recordInjectFromTcp(len);
                 _injected_tcp_to_rf_count++;
@@ -513,6 +550,12 @@ void TCPBridge::handleBridgePacketPayload(const uint8_t *payload, uint16_t len) 
     return;
   }
   if (pkt->readFrom(payload + BRIDGE_V2_OVERHEAD, packet_len)) {
+    if (isBlockedForBridgeRf(pkt)) {
+      _skipped_node_block_count++;
+      BRIDGE_DEBUG_PRINTLN("TCP bridge: skipped node/path block TCP->RF\n");
+      _mgr->free(pkt);
+      return;
+    }
     _accepted_tcp_packet_count++;
     BRIDGE_DEBUG_PRINTLN("TCP bridge: RX bridge packet ttl=%d origin=0x%08lx flags=0x%02x len=%d\n",
                          ttl, (unsigned long)origin_id, flags, packet_len);
@@ -561,7 +604,22 @@ void TCPBridge::handleCommandPayload(const uint8_t *payload, uint16_t len) {
 
   char reply[192];
   reply[0] = 0;
-  _command_handler->handleTcpBridgeCommand(password, command, reply, sizeof(reply));
+  bool handled_node_block = handleNodeBlockCommand(command, reply, sizeof(reply));
+  bool handled_path_block = false;
+  if (!handled_node_block) {
+    handled_path_block = handlePathBlockCommand(command, reply, sizeof(reply));
+  }
+  if (handled_node_block || handled_path_block) {
+    char mesh_reply[192];
+    mesh_reply[0] = 0;
+    _command_handler->handleTcpBridgeCommand(password, command, mesh_reply, sizeof(mesh_reply));
+    if (mesh_reply[0] != 0) {
+      strncpy(reply, mesh_reply, sizeof(reply));
+      reply[sizeof(reply) - 1] = 0;
+    }
+  } else {
+    _command_handler->handleTcpBridgeCommand(password, command, reply, sizeof(reply));
+  }
   if (reply[0] == 0) {
     strncpy(reply, "OK", sizeof(reply));
     reply[sizeof(reply) - 1] = 0;
@@ -724,6 +782,13 @@ bool TCPBridge::shouldExportPacket(const mesh::Packet *packet) {
     return false;
   }
 
+  uint8_t short_id = 0;
+  if (sourceShortId(packet, &short_id) && isNodeBlocked(short_id)) {
+    _skipped_node_block_count++;
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: skipped node.block RF->TCP id=%02x\n", short_id);
+    return false;
+  }
+
   if (_prefs->bridge_export_max_hops > 0 &&
       packet->getPathHashCount() > _prefs->bridge_export_max_hops) {
     _skipped_max_hops_count++;
@@ -750,6 +815,355 @@ bool TCPBridge::shouldExportPacket(const mesh::Packet *packet) {
     default:
       return true;
   }
+}
+
+bool TCPBridge::sourceShortId(const mesh::Packet *packet, uint8_t *id) const {
+  if (!packet || !id || packet->payload_len == 0) return false;
+  uint8_t type = packet->getPayloadType();
+  if (type == PAYLOAD_TYPE_ADVERT && packet->payload_len >= 1) {
+    *id = packet->payload[0];
+    return true;
+  }
+  if (type == PAYLOAD_TYPE_LOCATION && packet->payload_len >= 10 &&
+      packet->payload[0] == 'M' && packet->payload[1] == 'C' &&
+      packet->payload[2] == 'L' && packet->payload[3] == '1') {
+    *id = packet->payload[6];
+    return true;
+  }
+  if ((type == PAYLOAD_TYPE_PATH || type == PAYLOAD_TYPE_REQ ||
+       type == PAYLOAD_TYPE_RESPONSE || type == PAYLOAD_TYPE_TXT_MSG) &&
+      packet->payload_len >= 2) {
+    *id = packet->payload[1];
+    return true;
+  }
+  *id = packet->payload[0];
+  return true;
+}
+
+bool TCPBridge::parsePathBlockSpec(const char *spec, PathBlockEntry *entry) const {
+  if (!spec || !entry) return false;
+  memset(entry, 0, sizeof(*entry));
+  uint8_t hash_size = 0;
+  uint8_t hop_count = 0;
+  const char *pos = spec;
+  while (*pos != 0) {
+    if (hop_count >= PATH_BLOCK_MAX_HOPS) return false;
+    const char *slash = strchr(pos, '/');
+    size_t hex_len = slash ? (size_t)(slash - pos) : strlen(pos);
+    if (hex_len != 2 && hex_len != 4 && hex_len != 6) return false;
+    uint8_t this_hash_size = hex_len / 2;
+    if (hash_size == 0) hash_size = this_hash_size;
+    else if (this_hash_size != hash_size) return false;
+
+    char hex[7];
+    memcpy(hex, pos, hex_len);
+    hex[hex_len] = 0;
+    for (size_t i = 0; i < hex_len; i++) {
+      if (hexNibble(hex[i]) > 0x0F) return false;
+    }
+    if (!mesh::Utils::fromHex(&entry->path[hop_count * PATH_BLOCK_MAX_HASH_SIZE], hash_size, hex)) return false;
+    hop_count++;
+    if (!slash) break;
+    pos = slash + 1;
+    if (*pos == 0) return false;
+  }
+  entry->hash_size = hash_size;
+  entry->hop_count = hop_count;
+  return hop_count > 0;
+}
+
+bool TCPBridge::pathBlockMatches(const mesh::Packet *packet, const PathBlockEntry &entry) const {
+  if (!packet || entry.hop_count == 0) return false;
+  if (!packet->isRouteFlood()) return false;
+  if (packet->getPathHashSize() != entry.hash_size) return false;
+  if (packet->getPathHashCount() < entry.hop_count) return false;
+  uint8_t packet_hops = packet->getPathHashCount();
+  uint8_t hash_size = packet->getPathHashSize();
+  for (uint8_t start = 0; start + entry.hop_count <= packet_hops; start++) {
+    bool match = true;
+    for (uint8_t hop = 0; hop < entry.hop_count; hop++) {
+      const uint8_t *packet_hash = &packet->path[(start + hop) * hash_size];
+      const uint8_t *block_hash = &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE];
+      if (memcmp(packet_hash, block_hash, hash_size) != 0) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+void TCPBridge::prunePathBlocks() {
+  uint32_t now = millis();
+  for (uint8_t i = 0; i < PATH_BLOCK_MAX_ENTRIES; i++) {
+    if (_path_blocks[i].hop_count > 0 && _path_blocks[i].until_ms != 0 &&
+        (int32_t)(now - _path_blocks[i].until_ms) >= 0) {
+      memset(&_path_blocks[i], 0, sizeof(_path_blocks[i]));
+    }
+  }
+}
+
+bool TCPBridge::isPathBlocked(const mesh::Packet *packet) {
+  prunePathBlocks();
+  for (uint8_t i = 0; i < PATH_BLOCK_MAX_ENTRIES; i++) {
+    if (pathBlockMatches(packet, _path_blocks[i])) return true;
+  }
+  return false;
+}
+
+bool TCPBridge::addPathBlock(const PathBlockEntry &entry, uint32_t duration_secs) {
+  prunePathBlocks();
+  int8_t free_slot = -1;
+  for (uint8_t i = 0; i < PATH_BLOCK_MAX_ENTRIES; i++) {
+    if (_path_blocks[i].hop_count == 0 && free_slot < 0) free_slot = i;
+    if (_path_blocks[i].hop_count == entry.hop_count &&
+        _path_blocks[i].hash_size == entry.hash_size &&
+        memcmp(_path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+      free_slot = i;
+      break;
+    }
+  }
+  if (free_slot < 0) return false;
+  _path_blocks[free_slot] = entry;
+  _path_blocks[free_slot].until_ms = millis() + (duration_secs * 1000UL);
+  return true;
+}
+
+bool TCPBridge::delPathBlock(const PathBlockEntry &entry) {
+  bool removed = false;
+  for (uint8_t i = 0; i < PATH_BLOCK_MAX_ENTRIES; i++) {
+    if (_path_blocks[i].hop_count == entry.hop_count &&
+        _path_blocks[i].hash_size == entry.hash_size &&
+        memcmp(_path_blocks[i].path, entry.path, entry.hop_count * PATH_BLOCK_MAX_HASH_SIZE) == 0) {
+      memset(&_path_blocks[i], 0, sizeof(_path_blocks[i]));
+      removed = true;
+    }
+  }
+  return removed;
+}
+
+void TCPBridge::clearPathBlocks() {
+  memset(_path_blocks, 0, sizeof(_path_blocks));
+}
+
+void TCPBridge::formatPathBlocks(char *reply, size_t reply_size) {
+  prunePathBlocks();
+  size_t pos = 0;
+  int written = snprintf(reply, reply_size, "> path.block");
+  if (written < 0) return;
+  pos = (size_t)written < reply_size ? (size_t)written : reply_size - 1;
+  uint32_t now = millis();
+  bool any = false;
+  for (uint8_t i = 0; i < PATH_BLOCK_MAX_ENTRIES && pos < reply_size - 1; i++) {
+    const PathBlockEntry &entry = _path_blocks[i];
+    if (entry.hop_count == 0) continue;
+    any = true;
+    if (pos < reply_size - 1) reply[pos++] = ' ';
+    for (uint8_t hop = 0; hop < entry.hop_count && pos < reply_size - 1; hop++) {
+      if (hop > 0 && pos < reply_size - 1) reply[pos++] = '/';
+      mesh::Utils::toHex(reply + pos, &entry.path[hop * PATH_BLOCK_MAX_HASH_SIZE], entry.hash_size);
+      pos += entry.hash_size * 2;
+    }
+    uint32_t left = 0;
+    if (entry.until_ms != 0 && (int32_t)(entry.until_ms - now) > 0) {
+      left = (entry.until_ms - now + 999UL) / 1000UL;
+    }
+    written = snprintf(reply + pos, reply_size - pos, ":%lus", (unsigned long)left);
+    if (written < 0) break;
+    size_t available = reply_size - pos - 1;
+    pos += ((size_t)written < available) ? (size_t)written : available;
+  }
+  if (!any) snprintf(reply, reply_size, "> path.block empty");
+}
+
+bool TCPBridge::handlePathBlockCommand(const char *command, char *reply, size_t reply_size) {
+  if (strcmp(command, "get path.block") == 0 || strcmp(command, "path.block") == 0) {
+    formatPathBlocks(reply, reply_size);
+    return true;
+  }
+  if (strcmp(command, "clear path.block") == 0 || strcmp(command, "set path.block clear") == 0) {
+    clearPathBlocks();
+    snprintf(reply, reply_size, "OK - path.block cleared");
+    return true;
+  }
+  if (strncmp(command, "set path.block ", 15) != 0) return false;
+
+  char tmp[64];
+  strncpy(tmp, command + 15, sizeof(tmp));
+  tmp[sizeof(tmp) - 1] = 0;
+  const char *parts[4];
+  int n = mesh::Utils::parseTextParts(tmp, parts, 4);
+  if (n < 1) {
+    snprintf(reply, reply_size, "Error: path.block action missing");
+    return true;
+  }
+  if (strcmp(parts[0], "clear") == 0) {
+    clearPathBlocks();
+    snprintf(reply, reply_size, "OK - path.block cleared");
+    return true;
+  }
+  if ((strcmp(parts[0], "add") != 0 && strcmp(parts[0], "del") != 0) || n < 2) {
+    snprintf(reply, reply_size, "Error: use set path.block add|del <path> [duration]");
+    return true;
+  }
+  PathBlockEntry entry;
+  if (!parsePathBlockSpec(parts[1], &entry)) {
+    snprintf(reply, reply_size, "Error: expected aa, aa/bb, or aa/bb/cc");
+    return true;
+  }
+  if (strcmp(parts[0], "del") == 0) {
+    bool removed = delPathBlock(entry);
+    snprintf(reply, reply_size, removed ? "OK - path.block removed" : "OK - path.block not present");
+    return true;
+  }
+  uint32_t duration = parseDurationSecs(n >= 3 ? parts[2] : nullptr, 60UL * 60UL);
+  if (!addPathBlock(entry, duration)) {
+    snprintf(reply, reply_size, "Error: path.block list full");
+    return true;
+  }
+  snprintf(reply, reply_size, "OK - path.block added %lus", (unsigned long)duration);
+  return true;
+}
+
+bool TCPBridge::isBlockedForBridgeRf(const mesh::Packet *packet) {
+  return isNodeBlockedForPacket(packet) || isPathBlocked(packet);
+}
+
+void TCPBridge::pruneNodeBlocks() {
+  uint32_t now = millis();
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES; i++) {
+    if (_node_blocks[i].active && _node_blocks[i].until_ms != 0 &&
+        (int32_t)(now - _node_blocks[i].until_ms) >= 0) {
+      BRIDGE_DEBUG_PRINTLN("TCP bridge: node.block expired id=%02x\n", _node_blocks[i].id);
+      _node_blocks[i].active = false;
+    }
+  }
+}
+
+bool TCPBridge::isNodeBlocked(uint8_t id) {
+  pruneNodeBlocks();
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES; i++) {
+    if (_node_blocks[i].active && _node_blocks[i].id == id) return true;
+  }
+  return false;
+}
+
+bool TCPBridge::isNodeBlockedForPacket(const mesh::Packet *packet) {
+  uint8_t id = 0;
+  return sourceShortId(packet, &id) && isNodeBlocked(id);
+}
+
+bool TCPBridge::addNodeBlock(uint8_t id, uint32_t duration_secs) {
+  pruneNodeBlocks();
+  uint32_t now = millis();
+  uint32_t duration_ms = duration_secs > 0 ? duration_secs * 1000UL : 0;
+  uint32_t until_ms = duration_ms ? now + duration_ms : 0;
+  int8_t free_slot = -1;
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES; i++) {
+    if (_node_blocks[i].active && _node_blocks[i].id == id) {
+      _node_blocks[i].until_ms = until_ms;
+      return true;
+    }
+    if (!_node_blocks[i].active && free_slot < 0) free_slot = i;
+  }
+  if (free_slot < 0) return false;
+  _node_blocks[free_slot].id = id;
+  _node_blocks[free_slot].until_ms = until_ms;
+  _node_blocks[free_slot].active = true;
+  return true;
+}
+
+bool TCPBridge::delNodeBlock(uint8_t id) {
+  bool removed = false;
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES; i++) {
+    if (_node_blocks[i].active && _node_blocks[i].id == id) {
+      _node_blocks[i].active = false;
+      removed = true;
+    }
+  }
+  return removed;
+}
+
+void TCPBridge::clearNodeBlocks() {
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES; i++) {
+    _node_blocks[i].active = false;
+  }
+}
+
+void TCPBridge::formatNodeBlocks(char *reply, size_t reply_size) {
+  pruneNodeBlocks();
+  size_t pos = 0;
+  int written = snprintf(reply, reply_size, "> node.block");
+  if (written < 0) return;
+  pos = (size_t)written < reply_size ? (size_t)written : reply_size - 1;
+  uint32_t now = millis();
+  bool any = false;
+  for (uint8_t i = 0; i < NODE_BLOCK_MAX_ENTRIES && pos < reply_size - 1; i++) {
+    if (!_node_blocks[i].active) continue;
+    any = true;
+    uint32_t left = 0;
+    if (_node_blocks[i].until_ms != 0 && (int32_t)(_node_blocks[i].until_ms - now) > 0) {
+      left = (_node_blocks[i].until_ms - now + 999UL) / 1000UL;
+    }
+    written = snprintf(reply + pos, reply_size - pos, " %02x:%lus",
+                       _node_blocks[i].id, (unsigned long)left);
+    if (written < 0) break;
+    size_t available = reply_size - pos - 1;
+    pos += ((size_t)written < available) ? (size_t)written : available;
+  }
+  if (!any) {
+    snprintf(reply, reply_size, "> node.block empty");
+  }
+}
+
+bool TCPBridge::handleNodeBlockCommand(const char *command, char *reply, size_t reply_size) {
+  if (strcmp(command, "get node.block") == 0 || strcmp(command, "node.block") == 0) {
+    formatNodeBlocks(reply, reply_size);
+    return true;
+  }
+  if (strcmp(command, "clear node.block") == 0 || strcmp(command, "set node.block clear") == 0) {
+    clearNodeBlocks();
+    snprintf(reply, reply_size, "OK - node.block cleared");
+    return true;
+  }
+  if (strncmp(command, "set node.block ", 15) != 0) return false;
+
+  char tmp[64];
+  strncpy(tmp, command + 15, sizeof(tmp));
+  tmp[sizeof(tmp) - 1] = 0;
+  const char *parts[4];
+  int n = mesh::Utils::parseTextParts(tmp, parts, 4);
+  if (n < 1) {
+    snprintf(reply, reply_size, "Error: node.block action missing");
+    return true;
+  }
+  if (strcmp(parts[0], "clear") == 0) {
+    clearNodeBlocks();
+    snprintf(reply, reply_size, "OK - node.block cleared");
+    return true;
+  }
+  if ((strcmp(parts[0], "add") != 0 && strcmp(parts[0], "del") != 0) || n < 2) {
+    snprintf(reply, reply_size, "Error: use set node.block add|del <aa> [duration]");
+    return true;
+  }
+  uint8_t id = 0;
+  if (!parseHex8(parts[1], &id)) {
+    snprintf(reply, reply_size, "Error: node id must be one hex byte, e.g. a7");
+    return true;
+  }
+  if (strcmp(parts[0], "del") == 0) {
+    bool removed = delNodeBlock(id);
+    snprintf(reply, reply_size, removed ? "OK - node.block removed %02x" : "OK - node.block not present %02x", id);
+    return true;
+  }
+  uint32_t duration = parseDurationSecs(n >= 3 ? parts[2] : nullptr, 15UL * 60UL);
+  if (!addNodeBlock(id, duration)) {
+    snprintf(reply, reply_size, "Error: node.block list full");
+    return true;
+  }
+  snprintf(reply, reply_size, "OK - node.block added %02x %lus", id, (unsigned long)duration);
+  return true;
 }
 
 bool TCPBridge::isChannelPacket(const mesh::Packet *packet) const {
@@ -880,6 +1294,7 @@ void TCPBridge::resetGuardStats() {
   _skipped_export_disabled_count = 0;
   _skipped_max_hops_count = 0;
   _skipped_rf_inject_budget_count = 0;
+  _skipped_node_block_count = 0;
   _accepted_tcp_packet_count = 0;
   _exported_rf_to_tcp_count = 0;
   _injected_tcp_to_rf_count = 0;
@@ -929,7 +1344,7 @@ void TCPBridge::getStatusStr(char *reply) const {
   }
   char bridgeStatsStr[96] = "";
   snprintf(bridgeStatsStr, sizeof(bridgeStatsStr),
-           " | B:%08lx a:%lu x:%lu i:%lu d:%lu o:%lu t:%lu l:%lu f:%lu h:%lu b:%lu",
+           " | B:%08lx a:%lu x:%lu i:%lu d:%lu o:%lu t:%lu l:%lu f:%lu h:%lu b:%lu n:%lu",
            (unsigned long)_bridge_id,
            (unsigned long)_accepted_tcp_packet_count,
            (unsigned long)_exported_rf_to_tcp_count,
@@ -940,7 +1355,8 @@ void TCPBridge::getStatusStr(char *reply) const {
            (unsigned long)_skipped_bridge_loop_count,
            (unsigned long)_skipped_export_disabled_count,
            (unsigned long)_skipped_max_hops_count,
-           (unsigned long)_skipped_rf_inject_budget_count);
+           (unsigned long)_skipped_rf_inject_budget_count,
+           (unsigned long)_skipped_node_block_count);
 
   // Show TCP rate-limit stats if enabled and packets were dropped
   if (_prefs->tcp_flood_limit_enable && (_transport_dropped_count > 0 || _control_dropped_count > 0)) {

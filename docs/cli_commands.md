@@ -756,7 +756,31 @@ get path.block
 clear path.block
 ```
 
-**Note:** This is a runtime quarantine list for repeaters. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+**Note:** This is a runtime quarantine list for repeaters. Matching packets are not retransmitted on RF and are not exported to bridge transports. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+
+---
+
+#### Temporarily block TCP bridge packets by 1-byte source node id
+**Usage:**
+- `get node.block`
+- `set node.block add <id> [duration]`
+- `set node.block del <id>`
+- `clear node.block`
+- `set node.block clear`
+
+**Parameters:**
+- `id`: one byte in hex, for example `a7`
+- `duration`: optional temporary block duration. Use seconds, `Nm`, `Nh`, or `Nd`. Default is `15m`; maximum is 30 days.
+
+**Examples:**
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+**Note:** This is a runtime quarantine list on the bridge/repeater itself. Matching packets are not retransmitted on RF, not exported from RF to TCP, and not injected from TCP to RF on that bridge. Because only one byte is matched, unrelated nodes with the same byte are blocked too.
 
 ---
 
@@ -1558,7 +1582,7 @@ The TCP bridge connects bridge-capable repeaters to a selected bridge server. Us
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-Optional web-admin path quarantine on `/manage`:
+Optional web-admin path/node quarantine on `/manage`:
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200 \
@@ -1566,7 +1590,7 @@ python3 tools/tcp_bridge_server.py --port 4200 \
   --allow-path-block-admin
 ```
 
-This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
+This lets bridge web admins send only the whitelisted `path.block` and `node.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
 
 **2. Configure each intended bridge repeater via CLI:**
 ```

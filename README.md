@@ -350,6 +350,17 @@ TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. When 
 
 The Python TCP bridge server includes a status website on port `8080` by default. It shows online and recently seen bridge nodes, per-node RX/TX packet counts for the last 24 hours, heartbeat status, firmware version, bridge v1/v2 support, and RF duty-cycle budget use. Disconnected nodes remain visible while they still have packet history inside the 24-hour window. The `Duty this hour` value is the percentage of the allowed hourly RF TX duty-cycle budget that has been used: with a 10% duty-cycle setting, `100%` means the full six minutes per hour have been used, while `50%` means three minutes have been used.
 
+Bridge nodes can also block a 1-byte source id locally through the server management page. This is a temporary runtime quarantine on the bridge/repeater itself: packets with the same byte are no longer retransmitted on RF, exported from RF to TCP, or injected from TCP to RF on that bridge. This intentionally blocks every packet with the same byte, even if another node collides with that byte:
+
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+The server `/manage` page can send these `node.block` commands to one selected bridge node or all connected bridge nodes, the same way as path quarantine.
+
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
 #### Bridge firmware types

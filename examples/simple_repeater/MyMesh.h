@@ -105,11 +105,19 @@ struct SpamStats {
 #define MAX_PATH_BLOCKS          8
 #define PATH_BLOCK_MAX_HOPS      3
 #define PATH_BLOCK_MAX_HASH_SIZE 3
+#define MAX_NODE_BLOCKS          16
 
 struct PathBlockEntry {
   uint8_t hash_size;
   uint8_t hop_count;
   uint8_t path[PATH_BLOCK_MAX_HOPS * PATH_BLOCK_MAX_HASH_SIZE];
+  uint32_t expires_at;
+  uint32_t drops;
+};
+
+struct NodeBlockEntry {
+  uint8_t id;
+  uint8_t active;
   uint32_t expires_at;
   uint32_t drops;
 };
@@ -185,6 +193,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   PowerSavingStats power_stats;
   SpamStats spam_stats;
   PathBlockEntry path_blocks[MAX_PATH_BLOCKS];
+  NodeBlockEntry node_blocks[MAX_NODE_BLOCKS];
   dense_mesh_stats_t dense_buckets[DENSE_MESH_BUCKETS];
   uint8_t dense_bucket_idx;
   unsigned long dense_bucket_started;
@@ -253,6 +262,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   bool parsePathBlockSpec(const char* spec, PathBlockEntry* entry) const;
   bool pathBlockMatches(const mesh::Packet* packet, const PathBlockEntry& entry) const;
   bool shouldBlockPath(const mesh::Packet* packet);
+  void clearExpiredNodeBlocks();
+  bool sourceShortId(const mesh::Packet* packet, uint8_t* id) const;
+  bool shouldBlockNode(const mesh::Packet* packet);
+  bool shouldBlockBridgeOrRepeater(const mesh::Packet* packet);
+  void formatNodeBlocksReply(char* reply);
+  void handleNodeBlockCommand(char* command, char* reply);
   void formatPathBlocksReply(char* reply);
   void handlePathBlockCommand(char* command, char* reply);
   void scheduleDailyReboot();

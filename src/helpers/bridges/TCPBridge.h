@@ -116,6 +116,10 @@ private:
   static constexpr uint8_t  BRIDGE_PROTO_VERSION = 3;
   static constexpr uint8_t  BRIDGE_PACKET_VERSION = 1;
   static constexpr uint8_t  BRIDGE_PACKET_FLAG_RF_RX = 0x01;
+  static constexpr uint8_t  NODE_BLOCK_MAX_ENTRIES = 16;
+  static constexpr uint8_t  PATH_BLOCK_MAX_ENTRIES = 8;
+  static constexpr uint8_t  PATH_BLOCK_MAX_HOPS = 3;
+  static constexpr uint8_t  PATH_BLOCK_MAX_HASH_SIZE = 3;
 
   enum class State : uint8_t {
     IDLE,           // waiting for reconnect timer
@@ -163,14 +167,47 @@ private:
   uint32_t    _skipped_export_disabled_count = 0;
   uint32_t    _skipped_max_hops_count = 0;
   uint32_t    _skipped_rf_inject_budget_count = 0;
+  uint32_t    _skipped_node_block_count = 0;
   uint32_t    _accepted_tcp_packet_count = 0;
   uint32_t    _exported_rf_to_tcp_count = 0;
   uint32_t    _injected_tcp_to_rf_count = 0;
+  struct NodeBlockEntry {
+    uint8_t id = 0;
+    uint32_t until_ms = 0;
+    bool active = false;
+  };
+  struct PathBlockEntry {
+    uint8_t hash_size = 0;
+    uint8_t hop_count = 0;
+    uint8_t path[PATH_BLOCK_MAX_HOPS * PATH_BLOCK_MAX_HASH_SIZE] = {0};
+    uint32_t until_ms = 0;
+  };
+  NodeBlockEntry _node_blocks[NODE_BLOCK_MAX_ENTRIES];
+  PathBlockEntry _path_blocks[PATH_BLOCK_MAX_ENTRIES];
   bool sendPayloadFrame(const uint8_t *payload, uint16_t len);
   bool sendBridgePacket(mesh::Packet *packet);
   bool appendSelfToTcpExportPath(mesh::Packet *packet) const;
   bool pathContainsSelf(const mesh::Packet *packet) const;
   bool shouldExportPacket(const mesh::Packet *packet);
+  bool sourceShortId(const mesh::Packet *packet, uint8_t *id) const;
+  bool parsePathBlockSpec(const char *spec, PathBlockEntry *entry) const;
+  bool pathBlockMatches(const mesh::Packet *packet, const PathBlockEntry &entry) const;
+  void prunePathBlocks();
+  bool isPathBlocked(const mesh::Packet *packet);
+  bool addPathBlock(const PathBlockEntry &entry, uint32_t duration_secs);
+  bool delPathBlock(const PathBlockEntry &entry);
+  void clearPathBlocks();
+  void formatPathBlocks(char *reply, size_t reply_size);
+  bool handlePathBlockCommand(const char *command, char *reply, size_t reply_size);
+  bool isBlockedForBridgeRf(const mesh::Packet *packet);
+  void pruneNodeBlocks();
+  bool isNodeBlocked(uint8_t id);
+  bool isNodeBlockedForPacket(const mesh::Packet *packet);
+  bool addNodeBlock(uint8_t id, uint32_t duration_secs);
+  bool delNodeBlock(uint8_t id);
+  void clearNodeBlocks();
+  void formatNodeBlocks(char *reply, size_t reply_size);
+  bool handleNodeBlockCommand(const char *command, char *reply, size_t reply_size);
   bool isChannelPacket(const mesh::Packet *packet) const;
   bool isMessagePacket(const mesh::Packet *packet) const;
   uint32_t estimateInjectAirtimeMs(uint16_t packet_len) const;

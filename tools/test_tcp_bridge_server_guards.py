@@ -432,6 +432,88 @@ async def test_group_tracker_location_decode() -> None:
         server.public_channels = old_channels
 
 
+async def test_short_id_quarantine_blocks_broadcast() -> None:
+    old_enabled = server.SHORT_ID_QUARANTINE_ENABLED
+    old_quarantine = server.short_id_quarantine
+    old_hits = server.short_id_bad_hits
+    server.SHORT_ID_QUARANTINE_ENABLED = True
+    server.short_id_quarantine = {}
+    server.short_id_bad_hits = {}
+    a, b = make_client("A"), make_client("B")
+    header = (server.PAYLOAD_TYPE_GRP_DATA << server.PH_TYPE_SHIFT) | server.ROUTE_TYPE_FLOOD
+    payload = bytes([header, 0, 0xA7, 0x01, 0x02])
+    try:
+        assert server.source_short_id(payload) == 0xA7
+        server.short_id_quarantine[0xA7] = {
+            "id": 0xA7,
+            "until": time.time() + 60,
+            "reason": "test",
+            "source": "test",
+            "hits": 1,
+        }
+        async for _ in with_clients(a, b):
+            await server.broadcast(payload, sender=a)
+            await settle()
+            assert len(b.writer.sent) == 0
+            assert a.skip_reasons.get("skipped_short_id_quarantine", 0) == 1
+    finally:
+        a.close()
+        b.close()
+        server.SHORT_ID_QUARANTINE_ENABLED = old_enabled
+        server.short_id_quarantine = old_quarantine
+        server.short_id_bad_hits = old_hits
+
+
+async def test_short_id_bad_hits_start_quarantine() -> None:
+    old_enabled = server.SHORT_ID_QUARANTINE_ENABLED
+    old_threshold = server.SHORT_ID_QUARANTINE_THRESHOLD
+    old_window = server.SHORT_ID_QUARANTINE_WINDOW_SECS
+    old_secs = server.SHORT_ID_QUARANTINE_SECS
+    old_quarantine = server.short_id_quarantine
+    old_hits = server.short_id_bad_hits
+    client = make_client("Noisy")
+    try:
+        server.SHORT_ID_QUARANTINE_ENABLED = True
+        server.SHORT_ID_QUARANTINE_THRESHOLD = 2
+        server.SHORT_ID_QUARANTINE_WINDOW_SECS = 60
+        server.SHORT_ID_QUARANTINE_SECS = 30
+        server.short_id_quarantine = {}
+        server.short_id_bad_hits = {}
+        now = time.time()
+        server.record_short_id_bad_hit(0xA7, "duplicate", client, now)
+        assert not server.short_id_quarantine_active(0xA7, now)
+        server.record_short_id_bad_hit(0xA7, "duplicate", client, now + 1)
+        assert server.short_id_quarantine_active(0xA7, now + 1)
+        snapshot = server.short_id_quarantine_snapshot(now + 1)
+        assert snapshot[0]["id"] == "0xa7"
+    finally:
+        client.close()
+        server.SHORT_ID_QUARANTINE_ENABLED = old_enabled
+        server.SHORT_ID_QUARANTINE_THRESHOLD = old_threshold
+        server.SHORT_ID_QUARANTINE_WINDOW_SECS = old_window
+        server.SHORT_ID_QUARANTINE_SECS = old_secs
+        server.short_id_quarantine = old_quarantine
+        server.short_id_bad_hits = old_hits
+
+
+async def test_block_stats_reply_parser() -> None:
+    path_entries = server.parse_block_stats_reply("path", "> aa/bb 123s 5; cc 2m 7")
+    assert path_entries == [
+        {"kind": "path", "value": "aa/bb", "seconds_left": 123, "drops": 5},
+        {"kind": "path", "value": "cc", "seconds_left": 120, "drops": 7},
+    ]
+    node_entries = server.parse_block_stats_reply("node", "> node.block a7:45s; b2:1m")
+    assert node_entries == [
+        {"kind": "node", "value": "a7", "seconds_left": 45, "drops": 0},
+        {"kind": "node", "value": "b2", "seconds_left": 60, "drops": 0},
+    ]
+    totals = server.block_stats_totals({"node": node_entries, "path": path_entries})
+    assert totals["node_active"] == 2
+    assert totals["path_active"] == 2
+    assert totals["path_drops"] == 12
+    assert totals["total_drops"] == 12
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_dedupe_ignores_bridge_export_path()
@@ -450,6 +532,9 @@ async def main() -> None:
     await test_status_hides_unnamed_offline_placeholders()
     await test_rf_duty_hour_counter_resets()
     await test_group_tracker_location_decode()
+    await test_short_id_quarantine_blocks_broadcast()
+    await test_short_id_bad_hits_start_quarantine()
+    await test_block_stats_reply_parser()
     print("tcp bridge guard smoke tests passed")
 
 

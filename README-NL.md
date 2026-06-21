@@ -261,6 +261,17 @@ Nieuwe bridge-builds adverteren daarnaast een stabiele bridge-ID aan de server. 
 
 De Python TCP bridge server heeft standaard een statuswebsite op poort `8080`. Die toont online en recent geziene bridge-nodes, per node het aantal RX/TX packets in de laatste 24 uur, heartbeat-status, firmwareversie, bridge v1/v2 support en RF dutycycle-budgetverbruik. Nodes die disconnecten blijven zichtbaar zolang ze nog packet-history binnen het 24-uurs venster hebben. De waarde `Duty this hour` is het percentage van het toegestane RF TX dutycycle-uurbudget dat is gebruikt: bij een instelling van 10% dutycycle betekent `100%` dat de volledige zes minuten per uur zijn gebruikt, en `50%` dat drie minuten zijn gebruikt.
 
+Bridge-nodes kunnen via de server-webpagina ook een 1-byte source-id lokaal blokkeren. Dit werkt als tijdelijke runtime quarantine op de bridge/repeater zelf: packets met dezelfde byte worden niet meer via RF heruitgezonden, niet meer van RF naar TCP geexporteerd en niet meer van TCP naar RF geinjecteerd. Dit blokkeert expres alle packets met dezelfde byte, ook als een andere node toevallig dezelfde byte gebruikt:
+
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+De server-webpagina `/manage` kan deze `node.block` commando's naar een geselecteerde bridge-node of alle verbonden bridge-nodes sturen, op dezelfde manier als path quarantine.
+
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
 **Bridge firmwaretypes**
