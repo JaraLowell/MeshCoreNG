@@ -409,6 +409,14 @@ void TCPBridge::sendHeartbeat() {
   payload[29] = (_rf_tx_total_ms >> 16) & 0xFF;
   payload[30] = (_rf_tx_total_ms >> 8) & 0xFF;
   payload[31] = _rf_tx_total_ms & 0xFF;
+  payload[32] = 'R';
+  payload[33] = 'S';
+  payload[34] = 1;
+  payload[35] = (_radio_noise_floor >> 8) & 0xFF;
+  payload[36] = _radio_noise_floor & 0xFF;
+  payload[37] = (_radio_last_rssi >> 8) & 0xFF;
+  payload[38] = _radio_last_rssi & 0xFF;
+  payload[39] = (uint8_t)_radio_last_snr_quarter_db;
 
   if (sendPayloadFrame(payload, sizeof(payload))) {
     BRIDGE_DEBUG_PRINTLN("TCP bridge: heartbeat\n");
@@ -885,13 +893,17 @@ void TCPBridge::resetGuardStats() {
   _injected_tcp_to_rf_count = 0;
 }
 
-void TCPBridge::setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms) {
+void TCPBridge::setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms,
+                               int16_t noise_floor, int16_t last_rssi, int16_t last_snr_quarter_db) {
   _rf_tx_used_ms = used_ms;
   _rf_tx_max_ms = max_ms;
   _rf_tx_window_ms = window_ms;
   _rf_duty_limit_centi_pct = limit_centi_pct;
   _rf_tx_used_centi_pct = used_centi_pct;
   _rf_tx_total_ms = total_tx_ms;
+  _radio_noise_floor = noise_floor;
+  _radio_last_rssi = last_rssi;
+  _radio_last_snr_quarter_db = last_snr_quarter_db;
 }
 
 void TCPBridge::getStatusStr(char *reply) const {

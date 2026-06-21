@@ -733,6 +733,16 @@ def parse_heartbeat(payload: bytes) -> dict | None:
             heartbeat["rf_duty"]["tx_total_ms"] = struct.unpack(">I", payload[28:32])[0]
         if window_ms > 0:
             heartbeat["rf_duty"]["actual_window_pct"] = (used_ms * 100.0) / window_ms
+    if len(payload) >= 40 and payload[32:34] == b"RS" and payload[34] >= 1:
+        noise_floor = struct.unpack(">h", payload[35:37])[0]
+        last_rssi = struct.unpack(">h", payload[37:39])[0]
+        last_snr_qdb = struct.unpack("b", payload[39:40])[0]
+        heartbeat["radio_stats"] = {
+            "noise_floor": noise_floor,
+            "last_rssi": last_rssi,
+            "last_snr": last_snr_qdb / 4.0,
+            "last_snr_qdb": last_snr_qdb,
+        }
     return heartbeat
 
 
@@ -1435,6 +1445,7 @@ def new_node_stats(key: str) -> dict:
         "last_heartbeat": 0.0,
         "last_heartbeat_uptime_ms": 0,
         "rf_duty": {},
+        "radio_stats": {},
         "rf_tx_total_baseline_ms": None,
         "rf_tx_total_baseline_at": 0.0,
         "rf_tx_hour_baseline_ms": None,
@@ -1469,7 +1480,7 @@ def merge_node_stats(target: dict, source: dict) -> None:
     for field in ("last_heartbeat_uptime_ms",):
         if source.get(field):
             target[field] = source[field]
-    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget"):
+    for field in ("rf_duty", "radio_stats", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget"):
         if source.get(field):
             target[field] = source[field]
     target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
@@ -1562,6 +1573,8 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
             rf["tx_hour_started_at"] = hour_started_at
             rf["tx_hour_resets_in_seconds"] = max(0, int(hour_started_at + 3600 - now))
         stats["rf_duty"] = rf
+    if "radio_stats" in heartbeat:
+        stats["radio_stats"] = dict(heartbeat["radio_stats"])
 
 
 def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
@@ -1596,6 +1609,7 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "heartbeat_age_seconds": heartbeat_age,
         "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
         "rf_duty": dict(stats.get("rf_duty") or {}),
+        "radio_stats": dict(stats.get("radio_stats") or {}),
         "packets_rx": stats.get("packets_rx", 0),
         "packets_tx": stats.get("packets_tx", 0),
         "packets_rx_24h": len(stats["rx_times"]),
@@ -1672,6 +1686,7 @@ class BridgeClient:
         self.last_heartbeat = 0.0
         self.last_heartbeat_uptime_ms = 0
         self.rf_duty: dict = {}
+        self.radio_stats: dict = {}
         self.node_name = ""
         self.node_id = ""
         self.firmware_version = ""
@@ -1853,6 +1868,7 @@ class BridgeClient:
             "heartbeat_age_seconds": int(now - self.last_heartbeat) if self.last_heartbeat else None,
             "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
             "rf_duty": dict(self.rf_duty),
+            "radio_stats": dict(self.radio_stats),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(stats["rx_times"]),
@@ -2245,6 +2261,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 record_node_heartbeat(client, heartbeat, now)
                 if "rf_duty" in heartbeat:
                     client.rf_duty = dict(get_node_stats(client).get("rf_duty") or {})
+                if "radio_stats" in heartbeat:
+                    client.radio_stats = dict(heartbeat["radio_stats"])
                 log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
@@ -2932,6 +2950,14 @@ def build_status_html(base_path: str = "") -> str:
       return minutes > 0 ? `${{minutes}}m ${{String(seconds).padStart(2, "0")}}s` : `${{seconds}}s`;
     }}
 
+    function dbm(value) {{
+      return Number.isFinite(value) ? `${{Math.round(value)}} dBm` : "--";
+    }}
+
+    function snr(value) {{
+      return Number.isFinite(value) ? `${{value.toFixed(1)}} dB` : "--";
+    }}
+
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
@@ -2963,6 +2989,10 @@ def build_status_html(base_path: str = "") -> str:
         const rfTitle = Number.isFinite(rf.tx_used_pct)
           ? `Current website hour: used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total). Resets in ${{rfReset}}. Firmware current-window used ${{duration(rfFirmwareUsedMs)}}. Since server saw node: ${{rfSinceServer}}.`
           : "firmware update needed";
+        const radio = client.radio_stats || {{}};
+        const radioTitle = Number.isFinite(radio.noise_floor)
+          ? `Radio stats from last bridge heartbeat: noise floor ${{dbm(radio.noise_floor)}}, last RSSI ${{dbm(radio.last_rssi)}}, last SNR ${{snr(radio.last_snr)}}.`
+          : "firmware update needed";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
@@ -2992,6 +3022,9 @@ def build_status_html(base_path: str = "") -> str:
               <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Group</span><b>${{escapeHtml(client.group || "default")}}</b></div>
               <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Quality</span><b>${{client.bridge_quality_score ?? 0}}</b></div>
               <div class="mini" title="RF inject budget remaining"><span class="label">RF budget</span><b>${{budgetLeft}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">Noise</span><b>${{dbm(radio.noise_floor)}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">RSSI</span><b>${{dbm(radio.last_rssi)}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">SNR</span><b>${{snr(radio.last_snr)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
             <div class="node-meta">${{footer}} · last tx ${{lastTx}} · dedup ${{client.skipped_dup_total || 0}} · ${{client.quarantine_active ? "quarantine " + (client.quarantine_seconds_left || 0) + "s" : "not quarantined"}}</div>
