@@ -31,7 +31,7 @@ De server start standaard ook een statuspagina:
 http://localhost:8080/
 ```
 
-Open die pagina op de server zelf, of vervang `localhost` door het IP-adres van de server vanaf een andere machine op hetzelfde netwerk. De pagina toont online en recent geziene bridge-nodes, firmwareversie, heartbeat-status, packet counters en RF dutycycle-budgetverbruik.
+Open die pagina op de server zelf, of vervang `localhost` door het IP-adres van de server vanaf een andere machine op hetzelfde netwerk. De pagina toont online en recent geziene bridge-nodes, firmwareversie, heartbeat-status, packet counters, RF-neighbour count per node wanneer nieuwe firmware die meestuurt, en RF dutycycle-budgetverbruik.
 
 De statuspagina houdt per bekende bridge-node een 24-uurs verkeersvenster in geheugen bij. `RX 24h` en `TX 24h` tonen het aantal ontvangen en verzonden packets per node in de laatste 24 uur. Nodes die disconnecten blijven als `offline` zichtbaar zolang ze nog packet-history binnen dat 24-uurs venster hebben. Deze tellers beginnen opnieuw als het Python bridge-serverproces opnieuw start.
 

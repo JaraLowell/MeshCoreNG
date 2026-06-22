@@ -7,16 +7,23 @@ Below are a few quick start guides.
 - [Frequently Asked Questions](./faq.md)
 - [CLI Commands](./cli_commands.md)
 - [Atlas Telemetry Foundation](./atlas.md)
+- [Atlas Ingest Notes](./atlas-ingest.md)
 - [Low Battery Guards](./battery_boot_guard.md)
 - [Companion Protocol](./companion_protocol.md)
 - [Dutch Region Database](./dutch_region_db.md)
+- [Firmware Setup](./firmware-setup.md)
+- [KISS Modem Protocol](./kiss_modem_protocol.md)
 - [Location Tracker](./location_tracker.md)
+- [nRF52 Power Management](./nrf52_power_management.md)
 - [Number Allocations](./number_allocations.md)
+- [Observer Protocol](./observer-protocol.md)
 - [Packet Format](./packet_format.md)
 - [Payloads](./payloads.md)
 - [QR Codes](./qr_codes.md)
 - [Stats Binary Frames](./stats_binary_frames.md)
+- [TCP Flood Protection](./tcp_flood_protection.md)
 - [Terminal Chat CLI](./terminal_chat_cli.md)
+- [Python Tools](./tools.md)
 
 If you find a mistake in any of our documentation, or find something is missing, please feel free to open a pull request for us to review.
 

@@ -23,7 +23,7 @@ Repeater firmware configuration (via CLI):
     set bridge.password <bridgeSecret>  # only when server --password is set
     set bridge.enabled on
 
-Requires Python 3.7+. Public channel decoding additionally needs:
+Requires Python 3.10+. Public channel decoding additionally needs:
     pip install cryptography
 """
 

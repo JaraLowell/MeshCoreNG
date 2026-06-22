@@ -31,7 +31,7 @@ The server also starts a small status page by default:
 http://localhost:8080/
 ```
 
-Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, and packet counters.
+Open that page from the server machine, or replace `localhost` with the server's IP address from another machine on the same network. It shows each connected bridge node by node name, firmware version, remote address, how long it has been connected, idle time, heartbeat age, packet counters, and the RF neighbor count reported by updated bridge firmware.
 
 The status page keeps a 24-hour in-memory traffic window for each known bridge node. It shows `RX 24h` and `TX 24h` per node, and disconnected nodes stay visible as `offline` while they still have packet history inside that 24-hour window. These counters reset when the Python bridge server process restarts.
 

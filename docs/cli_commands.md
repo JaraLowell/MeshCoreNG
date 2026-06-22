@@ -171,10 +171,15 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 ### Atlas Export
 **Usage:**
 - `atlas enable <on|off>`
+- `atlas.enable <on|off>`
 - `atlas position <on|off>`
+- `atlas.position <on|off>`
 - `atlas neighbors <on|off>`
+- `atlas.neighbors <on|off>`
 - `atlas pathsample <on|off|0-10>`
+- `atlas.pathsample <on|off|0-10>`
 - `atlas export <on|off>`
+- `atlas.export <on|off>`
 - `atlas export status`
 - `atlas export test`
 - `get atlas.stats`
@@ -1745,6 +1750,20 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
 
 ---
 
+#### View or change the TCP bridge group
+**Usage:**
+- `get bridge.group`
+- `set bridge.group <name>`
+
+**Parameters:**
+- `name`: Bridge group name, 1-15 characters, without `[]\:,?*`
+
+Bridge clients only interoperate with other bridge clients in the same bridge group when the server requires group matching. The value is also advertised to the TCP bridge server in caps metadata.
+
+**Default:** `default`
+
+---
+
 #### View or set the TCP bridge identity override
 **Usage:**
 - `get bridge.id`
@@ -1756,6 +1775,24 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
 By default the TCP bridge derives a stable bridge ID from the node identity when available, then from device identity fallbacks. Set `bridge.id` only when an operator needs a fixed bridge identity across hardware replacement or a known multi-interface deployment. The active ID is logged at bridge startup and advertised to the TCP bridge server in caps metadata.
 
 **Default:** `auto`
+
+---
+
+#### View or change RF injection budget controls
+**Usage:**
+- `get bridge.budget`
+- `set bridge.budget <state>`
+- `set bridge.budget.max_per_min <value>`
+- `set bridge.budget.max_airtime_ms_hour <milliseconds>`
+- `set bridge.budget.block_duty_above_pct <percent>`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `value`: Maximum bridge-originated RF injections per minute, from `0` to `10000`
+- `milliseconds`: Maximum bridge-originated RF airtime budget per hour
+- `percent`: Block bridge RF injection when the node's RF duty use is above this percentage, from `0` to `100`
+
+These settings limit packets injected from the TCP bridge onto local RF. They do not change normal RF-to-RF repeater forwarding.
 
 ---
 
@@ -1775,6 +1812,124 @@ By default the TCP bridge derives a stable bridge ID from the node identity when
 The `island` profile is intended for controlled RF islands, for example one bridge node on SF7 and another on SF8. It exports eligible RF RX packets to TCP even when the local repeater policy decides not to retransmit them on RF, and injects packets from TCP once on the receiving RF island.
 
 The `repeater` profile is intended for controlled deployments where the TCP bridge should behave as much like a repeater/backhaul as possible. It exports every packet selected by RF RX/TX and lets bridge-originated flood packets pass through the normal RF repeater forwarding path on the receiving side.
+
+---
+
+#### View or reset bridge runtime statistics
+**Usage:**
+- `get bridge.status`
+- `bridge stats reset`
+
+`get bridge.status` is implemented by bridge builds and returns the current bridge connection/runtime status. `bridge stats reset` clears bridge runtime counters where supported.
+
+---
+
+#### WiFi bridge helper settings
+**Usage:**
+- `get wifi.ssid`
+- `set wifi.ssid <name>`
+- `get wifi.pwd`
+- `set wifi.pwd <password>`
+- `set wifi.password <password>`
+- `get wifi.status`
+- `get wifi.powersave`
+- `set wifi.powersave <mode>`
+
+**Parameters:**
+- `mode`: `none`, `min`, or `max`
+
+`wifi.pwd` and `wifi.password` update the same saved WiFi password. WiFi SSID/password changes require a reboot before they are applied by bridge firmware.
+
+---
+
+#### Timezone settings for WiFi/MQTT builds
+**Usage:**
+- `get timezone`
+- `set timezone <name>`
+- `get timezone.offset`
+- `set timezone.offset <hours>`
+
+**Parameters:**
+- `name`: Timezone label such as `UTC`, `Europe/Amsterdam`, `CET`, or `UTC+1`
+- `hours`: Fixed UTC offset from `-12` to `+14`
+
+MQTT status formatting uses the timezone string when the MQTT bridge is compiled in.
+
+---
+
+#### MQTT bridge settings
+**Build flag:** `WITH_MQTT_BRIDGE`
+
+**Usage:**
+- `get mqtt.status`
+- `set mqtt.status <state>`
+- `get mqtt.packets`
+- `set mqtt.packets <state>`
+- `get mqtt.raw`
+- `set mqtt.raw <state>`
+- `get mqtt.tx`
+- `set mqtt.tx on|off|advert`
+- `get mqtt.rx`
+- `set mqtt.rx <state>`
+- `get mqtt.interval`
+- `set mqtt.interval <minutes>`
+- `get mqtt.origin`
+- `set mqtt.origin <name>`
+- `get mqtt.iata`
+- `set mqtt.iata <airport_code>`
+- `get mqtt.presets [start]`
+- `get mqtt.config.valid`
+- `get mqtt.analyzer.us`
+- `set mqtt.analyzer.us <state>`
+- `get mqtt.analyzer.eu`
+- `set mqtt.analyzer.eu <state>`
+- `get mqtt.owner`
+- `set mqtt.owner <public_key_hex>`
+- `get mqtt.email`
+- `set mqtt.email <email>`
+
+Slot-specific commands use `mqttN` where `N` is the slot number:
+
+- `get mqttN.preset`
+- `set mqttN.preset <preset>`
+- `get mqttN.server`
+- `set mqttN.server <host>`
+- `get mqttN.port`
+- `set mqttN.port <port>`
+- `get mqttN.username`
+- `set mqttN.username <user>`
+- `get mqttN.password`
+- `set mqttN.password <password>`
+- `get mqttN.token`
+- `set mqttN.token <token>`
+- `get mqttN.topic`
+- `set mqttN.topic <template>`
+- `get mqttN.audience`
+- `set mqttN.audience <audience>`
+- `get mqttN.diag`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `minutes`: MQTT status interval from `1` to `60`
+- `preset`: A preset from `get mqtt.presets`, or `custom`, or `none`
+
+The legacy shortcuts `mqtt.analyzer.us` and `mqtt.analyzer.eu` map slot 1 and slot 2 to the analyzer presets.
+
+---
+
+#### SNMP settings
+**Build flag:** `WITH_SNMP`
+
+**Usage:**
+- `get snmp`
+- `set snmp <state>`
+- `get snmp.community`
+- `set snmp.community <community>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+SNMP changes are saved and take effect after restart.
 
 ---
 

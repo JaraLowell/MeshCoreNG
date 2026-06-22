@@ -182,7 +182,7 @@ get bridge.status
 get node.info
 ```
 
-TCP bridge builds may also expose a small HTTP status page on the device once WiFi is connected. Use it as an operator view, not as a public service.
+TCP bridge builds may also expose a small HTTP status page on the device once WiFi is connected. The Python TCP bridge server has its own operator status page with connected nodes, packet counters, RF duty telemetry, and per-node RF neighbor counts from updated firmware. Use these pages as operator views, not as public services.
 
 ## Running the server
 
@@ -198,7 +198,7 @@ To require a bridge password from TCP clients:
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
-No external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+The basic bridge server requires Python 3.10+ and has no external dependencies. Optional public-channel decoding needs `cryptography`. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
 
 ## Security note
 
