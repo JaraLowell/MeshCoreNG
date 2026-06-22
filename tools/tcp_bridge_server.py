@@ -756,6 +756,8 @@ def parse_heartbeat(payload: bytes) -> dict | None:
             "last_snr": last_snr_qdb / 4.0,
             "last_snr_qdb": last_snr_qdb,
         }
+    if len(payload) >= 45 and payload[40:42] == b"NB" and payload[42] >= 1:
+        heartbeat["neighbor_count"] = struct.unpack(">H", payload[43:45])[0]
     return heartbeat
 
 
@@ -1646,6 +1648,7 @@ def new_node_stats(key: str) -> dict:
         "last_heartbeat_uptime_ms": 0,
         "rf_duty": {},
         "radio_stats": {},
+        "neighbor_count": None,
         "rf_tx_total_baseline_ms": None,
         "rf_tx_total_baseline_at": 0.0,
         "rf_tx_hour_baseline_ms": None,
@@ -1684,6 +1687,8 @@ def merge_node_stats(target: dict, source: dict) -> None:
     for field in ("rf_duty", "radio_stats", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget", "block_stats"):
         if source.get(field):
             target[field] = source[field]
+    if source.get("neighbor_count") is not None:
+        target["neighbor_count"] = source["neighbor_count"]
     target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
     target["bridge_proto_ver"] = max(target.get("bridge_proto_ver", 1), source.get("bridge_proto_ver", 1))
     target["connected"] = target.get("connected", False) or source.get("connected", False)
@@ -1777,6 +1782,8 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
         stats["rf_duty"] = rf
     if "radio_stats" in heartbeat:
         stats["radio_stats"] = dict(heartbeat["radio_stats"])
+    if "neighbor_count" in heartbeat:
+        stats["neighbor_count"] = int(heartbeat["neighbor_count"])
 
 
 def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
@@ -1812,6 +1819,7 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
         "rf_duty": dict(stats.get("rf_duty") or {}),
         "radio_stats": dict(stats.get("radio_stats") or {}),
+        "neighbor_count": stats.get("neighbor_count"),
         "packets_rx": stats.get("packets_rx", 0),
         "packets_tx": stats.get("packets_tx", 0),
         "packets_rx_24h": len(stats["rx_times"]),
@@ -1891,6 +1899,7 @@ class BridgeClient:
         self.last_heartbeat_uptime_ms = 0
         self.rf_duty: dict = {}
         self.radio_stats: dict = {}
+        self.neighbor_count: int | None = None
         self.node_name = ""
         self.node_id = ""
         self.firmware_version = ""
@@ -2074,6 +2083,7 @@ class BridgeClient:
             "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
             "rf_duty": dict(self.rf_duty),
             "radio_stats": dict(self.radio_stats),
+            "neighbor_count": self.neighbor_count if self.neighbor_count is not None else stats.get("neighbor_count"),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(stats["rx_times"]),
@@ -2540,6 +2550,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     client.rf_duty = dict(get_node_stats(client).get("rf_duty") or {})
                 if "radio_stats" in heartbeat:
                     client.radio_stats = dict(heartbeat["radio_stats"])
+                if "neighbor_count" in heartbeat:
+                    client.neighbor_count = int(heartbeat["neighbor_count"])
                 log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
@@ -3326,6 +3338,10 @@ def build_status_html(base_path: str = "") -> str:
         const radioTitle = Number.isFinite(radio.noise_floor)
           ? `Radio stats from last bridge heartbeat: noise floor ${{dbm(radio.noise_floor)}}, last RSSI ${{dbm(radio.last_rssi)}}, last SNR ${{snr(radio.last_snr)}}.`
           : "firmware update needed";
+        const neighborCount = Number.isFinite(client.neighbor_count) ? client.neighbor_count : NaN;
+        const neighborTitle = Number.isFinite(neighborCount)
+          ? `Neighbors heard by this bridge node: ${{neighborCount}}.`
+          : "firmware update needed";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
@@ -3350,6 +3366,7 @@ def build_status_html(base_path: str = "") -> str:
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(neighborTitle)}}"><span class="label">Neighbors</span><b>${{Number.isFinite(neighborCount) ? neighborCount : "--"}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Queue</span><b>${{client.tx_queue_depth || 0}}/${{client.tx_queue_max || 0}}</b></div>

@@ -2538,7 +2538,7 @@ void MyMesh::loop() {
     tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
                               getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime(),
                               (int16_t)_radio->getNoiseFloor(), (int16_t)radio_driver.getLastRSSI(),
-                              (int16_t)(radio_driver.getLastSNR() * 4));
+                              (int16_t)(radio_driver.getLastSNR() * 4), getDenseNeighborCount());
   }
   tcp_bridge.loop();
   ble_bridge.loop();
@@ -2551,7 +2551,7 @@ void MyMesh::loop() {
     bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
                           getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime(),
                           (int16_t)_radio->getNoiseFloor(), (int16_t)radio_driver.getLastRSSI(),
-                          (int16_t)(radio_driver.getLastSNR() * 4));
+                          (int16_t)(radio_driver.getLastSNR() * 4), getDenseNeighborCount());
   }
   bridge.loop();
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);
