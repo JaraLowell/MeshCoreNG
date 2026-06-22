@@ -42,6 +42,7 @@ import re
 import struct
 import time
 from pathlib import Path
+from typing import TypeAlias
 from urllib.parse import parse_qs, urlsplit
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -194,6 +195,8 @@ latest_firmware_info: dict = {
     "status": "pending",
     "error": "",
 }
+
+HttpResponse: TypeAlias = tuple[str, str, bytes, list[tuple[str, str]]]
 
 PAYLOAD_TYPE_NAMES = {
     0x00: "request",
@@ -4666,118 +4669,181 @@ async def send_admin_bridge_command(target: str, command: str, label: str) -> st
     return await send_one(client)
 
 
-async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+def make_http_response(
+    status: str,
+    content_type: str,
+    body: bytes,
+    extra_headers: list[tuple[str, str]] | None = None,
+) -> HttpResponse:
+    return status, content_type, body, extra_headers or []
+
+
+def html_response(page: str) -> HttpResponse:
+    return make_http_response("200 OK", "text/html; charset=utf-8", page.encode("utf-8"))
+
+
+def json_response(payload: dict) -> HttpResponse:
+    return make_http_response("200 OK", "application/json", json.dumps(payload, indent=2).encode("utf-8"))
+
+
+def text_response(status: str, text: str) -> HttpResponse:
+    return make_http_response(status, "text/plain", text.encode("utf-8"))
+
+
+def parse_content_length(headers: dict[str, str]) -> int:
     try:
-        request_line = await reader.readline()
-        parts = request_line.decode("ascii", errors="ignore").strip().split()
-        headers: dict[str, str] = {}
-        while True:
-            line = await reader.readline()
-            if not line or line in (b"\r\n", b"\n"):
-                break
-            name, sep, value = line.decode("iso-8859-1", errors="ignore").partition(":")
-            if sep:
-                headers[name.strip().lower()] = value.strip()
+        return max(0, int(headers.get("content-length", "0") or "0"))
+    except ValueError:
+        return 0
 
-        method = parts[0] if len(parts) >= 1 else ""
-        path = parts[1] if len(parts) >= 2 else ""
-        base_path = request_base_path(headers)
-        route = strip_base_path(path, base_path)
-        extra_headers: list[tuple[str, str]] = []
 
-        if len(parts) < 2:
-            status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif method == "POST" and route == "/command":
-            if not is_admin_authorized(headers):
-                status, content_type, body, extra_headers = admin_auth_response()
-            else:
-                content_length = int(headers.get("content-length", "0") or "0")
-                raw_body = await reader.readexactly(content_length) if content_length > 0 else b""
-                form = parse_qs(raw_body.decode("utf-8", errors="replace"), keep_blank_values=True)
-                target = (form.get("target") or [""])[0]
-                node_password = (form.get("node_password") or [""])[0]
-                command = (form.get("command") or [""])[0].strip()
-                mode = (form.get("mode") or [""])[0].strip()
-                client = find_client(target)
-                if mode in ("path_block", "node_block"):
-                    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
-                        result = "Error: bridge quarantine admin is disabled"
-                    else:
-                        try:
-                            command = build_path_block_command(form) if mode == "path_block" else build_node_block_command(form)
-                            label = "path quarantine" if mode == "path_block" else "node quarantine"
-                            result = await send_admin_bridge_command(target, command, label)
-                        except asyncio.TimeoutError:
-                            log.warning("%s: bridge quarantine command timed out", client.addr if client else target)
-                            result = "Error: command timed out waiting for bridge reply"
-                        except Exception as exc:
-                            result = f"Error: {exc}"
-                else:
-                    if client is None:
-                        result = "Error: selected bridge node is no longer connected"
-                    elif not command:
-                        result = "Error: empty command"
-                    elif not node_password:
-                        result = "Error: node admin password required"
-                    else:
-                        try:
-                            timeout = command_timeout_for(command)
-                            if is_ota_update_command(command):
-                                await client.send_command(command, node_password, wait_reply=False)
-                                result = (
-                                    f"{client.display_name}> {command}\n"
-                                    "OK - OTA update command sent. The node may disconnect, reconnect WiFi, "
-                                    "download firmware, reboot, and return online without sending a CLI reply."
-                                )
-                            else:
-                                reply = await client.send_command(command, node_password, timeout=timeout)
-                                result = f"{client.display_name}> {command}\n{reply}"
-                        except asyncio.TimeoutError:
-                            log.warning("%s: remote command timed out: %s", client.addr, command)
-                            result = f"Error: command timed out waiting for bridge reply after {command_timeout_for(command)}s"
-                        except Exception as exc:
-                            result = f"Error: {exc}"
-                status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(result, base_path).encode("utf-8")
-        elif method != "GET":
-            status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif route == "/status.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(status_snapshot(), indent=2).encode("utf-8")
-        elif route == "/locations.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(locations_snapshot(), indent=2).encode("utf-8")
-        elif route == "/sensors.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(sensors_snapshot(), indent=2).encode("utf-8")
-        elif route == "/packets.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(packets_snapshot(), indent=2).encode("utf-8")
-        elif route == "/map":
-            status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_location_map_html(base_path).encode("utf-8")
-        elif route == "/manage":
-            if not is_admin_authorized(headers):
-                status, content_type, body, extra_headers = admin_auth_response()
-            else:
-                status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(base_path=base_path).encode("utf-8")
-        elif route in ("/", "/status"):
-            status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_status_html(base_path).encode("utf-8")
+async def read_http_request(reader: asyncio.StreamReader) -> tuple[str, str, dict[str, str]]:
+    request_line = await reader.readline()
+    parts = request_line.decode("ascii", errors="ignore").strip().split()
+    method = parts[0] if len(parts) >= 1 else ""
+    path = parts[1] if len(parts) >= 2 else ""
+    headers: dict[str, str] = {}
+
+    while True:
+        line = await reader.readline()
+        if not line or line in (b"\r\n", b"\n"):
+            break
+        name, sep, value = line.decode("iso-8859-1", errors="ignore").partition(":")
+        if sep:
+            headers[name.strip().lower()] = value.strip()
+
+    return method, path, headers
+
+
+async def handle_command_post(
+    reader: asyncio.StreamReader,
+    headers: dict[str, str],
+    base_path: str,
+) -> HttpResponse:
+    if not is_admin_authorized(headers):
+        return admin_auth_response()
+
+    content_length = parse_content_length(headers)
+    raw_body = await reader.readexactly(content_length) if content_length > 0 else b""
+    form = parse_qs(raw_body.decode("utf-8", errors="replace"), keep_blank_values=True)
+    target = (form.get("target") or [""])[0]
+    node_password = (form.get("node_password") or [""])[0]
+    command = (form.get("command") or [""])[0].strip()
+    mode = (form.get("mode") or [""])[0].strip()
+
+    if mode in ("path_block", "node_block"):
+        result = await handle_quarantine_post(form, target, mode)
+    else:
+        result = await handle_remote_cli_post(target, node_password, command)
+
+    return html_response(build_manage_html(result, base_path))
+
+
+async def handle_quarantine_post(form: dict[str, list[str]], target: str, mode: str) -> str:
+    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
+        return "Error: bridge quarantine admin is disabled"
+
+    client = find_client(target)
+    try:
+        if mode == "path_block":
+            command = build_path_block_command(form)
+            label = "path quarantine"
         else:
-            status, content_type, body = "404 Not Found", "text/plain", b"Not found\n"
+            command = build_node_block_command(form)
+            label = "node quarantine"
+        return await send_admin_bridge_command(target, command, label)
+    except asyncio.TimeoutError:
+        log.warning("%s: bridge quarantine command timed out", client.addr if client else target)
+        return "Error: command timed out waiting for bridge reply"
+    except Exception as exc:
+        return f"Error: {exc}"
 
-        headers = (
-            f"HTTP/1.1 {status}\r\n"
-            f"Content-Type: {content_type}\r\n"
-            f"Content-Length: {len(body)}\r\n"
-            "Connection: close\r\n"
-            "Cache-Control: no-store\r\n"
-        ).encode("ascii")
-        for name, value in extra_headers:
-            headers += f"{name}: {value}\r\n".encode("ascii")
-        writer.write(headers + b"\r\n" + body)
+
+async def handle_remote_cli_post(target: str, node_password: str, command: str) -> str:
+    client = find_client(target)
+    if client is None:
+        return "Error: selected bridge node is no longer connected"
+    if not command:
+        return "Error: empty command"
+    if not node_password:
+        return "Error: node admin password required"
+
+    try:
+        timeout = command_timeout_for(command)
+        if is_ota_update_command(command):
+            await client.send_command(command, node_password, wait_reply=False)
+            return (
+                f"{client.display_name}> {command}\n"
+                "OK - OTA update command sent. The node may disconnect, reconnect WiFi, "
+                "download firmware, reboot, and return online without sending a CLI reply."
+            )
+        reply = await client.send_command(command, node_password, timeout=timeout)
+        return f"{client.display_name}> {command}\n{reply}"
+    except asyncio.TimeoutError:
+        log.warning("%s: remote command timed out: %s", client.addr, command)
+        return f"Error: command timed out waiting for bridge reply after {command_timeout_for(command)}s"
+    except Exception as exc:
+        return f"Error: {exc}"
+
+
+def route_get_request(
+    route: str,
+    headers: dict[str, str],
+    base_path: str,
+) -> HttpResponse:
+    if route == "/status.json":
+        return json_response(status_snapshot())
+    if route == "/locations.json":
+        return json_response(locations_snapshot())
+    if route == "/sensors.json":
+        return json_response(sensors_snapshot())
+    if route == "/packets.json":
+        return json_response(packets_snapshot())
+    if route == "/map":
+        return html_response(build_location_map_html(base_path))
+    if route == "/manage":
+        if not is_admin_authorized(headers):
+            return admin_auth_response()
+        return html_response(build_manage_html(base_path=base_path))
+    if route in ("/", "/status"):
+        return html_response(build_status_html(base_path))
+    return text_response("404 Not Found", "Not found\n")
+
+
+def build_http_headers(
+    status: str,
+    content_type: str,
+    body: bytes,
+    extra_headers: list[tuple[str, str]],
+) -> bytes:
+    header_lines = [
+        f"HTTP/1.1 {status}",
+        f"Content-Type: {content_type}",
+        f"Content-Length: {len(body)}",
+        "Connection: close",
+        "Cache-Control: no-store",
+    ]
+    header_lines.extend(f"{name}: {value}" for name, value in extra_headers)
+    return ("\r\n".join(header_lines) + "\r\n\r\n").encode("ascii")
+
+
+async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        method, path, request_headers = await read_http_request(reader)
+        base_path = request_base_path(request_headers)
+        route = strip_base_path(path, base_path)
+
+        if not method or not path:
+            response = text_response("405 Method Not Allowed", "Method not allowed\n")
+        elif method == "POST" and route == "/command":
+            response = await handle_command_post(reader, request_headers, base_path)
+        elif method != "GET":
+            response = text_response("405 Method Not Allowed", "Method not allowed\n")
+        else:
+            response = route_get_request(route, request_headers, base_path)
+
+        status, content_type, body, extra_headers = response
+        writer.write(build_http_headers(status, content_type, body, extra_headers) + body)
         await writer.drain()
     except Exception as exc:
         log.debug("HTTP status request failed: %s", exc)
@@ -4789,7 +4855,7 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
             pass
 
 
-async def main(host: str, port: int, status_host: str, status_port: int):
+async def main(host: str, port: int, status_host: str, status_port: int) -> None:
     server = await asyncio.start_server(handle_client, host, port)
     addrs = format_sockaddrs(server.sockets)
     log.info("MeshCore TCP bridge server listening on %s", addrs)
@@ -4800,12 +4866,20 @@ async def main(host: str, port: int, status_host: str, status_port: int):
             http_addrs = format_sockaddrs(http_server.sockets)
             log.info("Status page listening on http://%s", http_addrs)
         except OSError as exc:
-            log.warning("Status page disabled: could not bind %s:%d (%s)",
-                        status_host, status_port, exc)
+            log.warning(
+                "Status page disabled: could not bind %s:%d (%s)",
+                status_host,
+                status_port,
+                exc,
+            )
     log.info("Press Ctrl+C to stop")
     status = asyncio.create_task(status_task()) if STATUS_INTERVAL_SECS > 0 else None
     firmware_updates = asyncio.create_task(
-        firmware_update_task(FIRMWARE_UPDATE_REPO, FIRMWARE_UPDATE_CHECK_INTERVAL_SECS, FIRMWARE_UPDATE_TIMEOUT_SECS)
+        firmware_update_task(
+            FIRMWARE_UPDATE_REPO,
+            FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
+            FIRMWARE_UPDATE_TIMEOUT_SECS,
+        )
     )
 
     try:
@@ -4821,102 +4895,283 @@ async def main(host: str, port: int, status_host: str, status_port: int):
             await http_server.wait_closed()
         if status:
             status.cancel()
-        if firmware_updates:
-            firmware_updates.cancel()
+        firmware_updates.cancel()
 
 
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MeshCore TCP bridge server")
+
+    add_network_args(parser)
+    add_bridge_guard_args(parser)
+    add_status_page_args(parser)
+    add_firmware_update_args(parser)
+    add_packet_decode_args(parser)
+    add_rate_limit_args(parser)
+    add_admin_args(parser)
+    return parser
+
+
+def add_network_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=4200, help="TCP port (default: 4200)")
-    parser.add_argument("--log-packets", action="store_true",
-                        help="Log every received and forwarded mesh payload")
-    parser.add_argument("--log-hex-bytes", type=int, default=32,
-                        help="Number of payload bytes to show in packet logs (default: 32)")
-    parser.add_argument("--client-timeout", type=int, default=180,
-                        help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)")
-    parser.add_argument("--client-tx-queue-max", type=int, default=CLIENT_TX_QUEUE_MAX,
-                        help="Max queued outbound TCP packets per bridge client (default: 250)")
-    parser.add_argument("--bridge-dedupe", choices=("on", "off"), default="on",
-                        help="Enable TCP bridge packet fingerprint dedupe (default: on)")
-    parser.add_argument("--bridge-dedupe-ttl", type=int, default=BRIDGE_DEDUPE_TTL_SECS,
-                        help="Fingerprint dedupe TTL in seconds (default: 300)")
-    parser.add_argument("--bridge-dedupe-max-entries", type=int, default=BRIDGE_DEDUPE_MAX_ENTRIES,
-                        help="Max fingerprint dedupe entries (default: 4096)")
-    parser.add_argument("--bridge-loopguard", choices=("on", "off"), default="on",
-                        help="Enable bridge loop quarantine guard (default: on)")
-    parser.add_argument("--bridge-loopguard-window", type=int, default=BRIDGE_LOOPGUARD_WINDOW_SECS,
-                        help="Loopguard window in seconds (default: 60)")
-    parser.add_argument("--bridge-loopguard-threshold", type=int, default=BRIDGE_LOOPGUARD_THRESHOLD,
-                        help="Loopguard hits before quarantine (default: 5)")
-    parser.add_argument("--bridge-loopguard-quarantine", type=int, default=BRIDGE_LOOPGUARD_QUARANTINE_SECS,
-                        help="Loopguard quarantine seconds (default: 120)")
-    parser.add_argument("--bridge-rf-inject", choices=("on", "off"), default="off",
-                        help="Enable server-side RF inject budget before forwarding to bridges (default: off)")
-    parser.add_argument("--bridge-rf-inject-max-per-min", type=int, default=BRIDGE_RF_INJECT_MAX_PER_MIN,
-                        help="Max TCP-to-RF inject packets per bridge per minute, 0 disables count cap")
-    parser.add_argument("--bridge-rf-inject-max-airtime-ms-hour", type=int, default=BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
-                        help="Estimated max TCP-to-RF inject airtime per bridge per hour, 0 disables airtime cap")
-    parser.add_argument("--bridge-rf-inject-block-duty-above-pct", type=float, default=BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
-                        help="Block TCP-to-RF inject when reported duty used percent is at/above this, 0 disables")
-    parser.add_argument("--bridge-group", default=BRIDGE_GROUP,
-                        help="Bridge group name assigned to legacy/default clients (default: default)")
-    parser.add_argument("--bridge-require-group-match", action="store_true",
-                        help="Only forward packets between bridges with matching group")
-    parser.add_argument("--short-id-quarantine", choices=("on", "off"), default="off",
-                        help="Automatically quarantine spammy 1-byte source IDs (default: off)")
-    parser.add_argument("--short-id-quarantine-window", type=int, default=SHORT_ID_QUARANTINE_WINDOW_SECS,
-                        help="Seconds to count bad short-id hits before quarantine (default: 60)")
-    parser.add_argument("--short-id-quarantine-threshold", type=int, default=SHORT_ID_QUARANTINE_THRESHOLD,
-                        help="Bad short-id hits before quarantine (default: 5)")
-    parser.add_argument("--short-id-quarantine-secs", type=int, default=SHORT_ID_QUARANTINE_SECS,
-                        help="Seconds to block a quarantined 1-byte source ID (default: 900)")
-    parser.add_argument("--status-interval", type=int, default=60,
-                        help="Log connected clients every N seconds (default: 60, 0 disables)")
-    parser.add_argument("--status-host", default="0.0.0.0",
-                        help="Bind address for the HTTP status page (default: 0.0.0.0)")
-    parser.add_argument("--status-port", type=int, default=8080,
-                        help="HTTP status page port (default: 8080, 0 disables)")
-    parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
-                        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
-    parser.add_argument("--firmware-update-repo", default=FIRMWARE_UPDATE_REPO,
-                        help="GitHub owner/repo used for firmware update checks (default: MichTronics/MeshCoreNG, empty disables)")
-    parser.add_argument("--firmware-update-interval", type=int, default=FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
-                        help="Seconds between firmware update checks (default: 3600, 0 disables)")
-    parser.add_argument("--firmware-update-timeout", type=int, default=FIRMWARE_UPDATE_TIMEOUT_SECS,
-                        help="HTTP timeout in seconds for firmware update checks (default: 5)")
-    parser.add_argument("--public-channels-file", default="",
-                        help="JSON file with public channel names/secrets for optional group packet decoding")
-    parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
-                        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)")
-    parser.add_argument("--transport-rate-limit", choices=("on", "off"), default="on",
-                        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)")
-    parser.add_argument("--transport-rate-max", type=int, default=TRANSPORT_RATE_LIMIT_MAX,
-                        help="Max transport packets per bridge client per window (default: 20)")
-    parser.add_argument("--transport-rate-window", type=int, default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
-                        help="Per-client transport rate window in seconds (default: 120)")
-    parser.add_argument("--transport-global-rate-max", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
-                        help="Max transport packets globally per window, 0 disables global cap (default: 80)")
-    parser.add_argument("--transport-global-rate-window", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
-                        help="Global transport rate window in seconds (default: 120)")
-    parser.add_argument("--replace-same-ip", action="store_true",
-                        help="When a new client connects, disconnect older clients from the same IP")
-    parser.add_argument("--password", default="",
-                        help="Optional TCP bridge password required from clients")
-    parser.add_argument("--admin-password", default="",
-                        help="Optional Basic auth password protecting the HTTP remote management page")
-    parser.add_argument("--allow-path-block-admin", action="store_true",
-                        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Enable debug logging")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--client-timeout",
+        type=int,
+        default=180,
+        help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)",
+    )
+    parser.add_argument(
+        "--client-tx-queue-max",
+        type=int,
+        default=CLIENT_TX_QUEUE_MAX,
+        help="Max queued outbound TCP packets per bridge client (default: 250)",
+    )
+    parser.add_argument(
+        "--replace-same-ip",
+        action="store_true",
+        help="When a new client connects, disconnect older clients from the same IP",
+    )
+    parser.add_argument("--password", default="", help="Optional TCP bridge password required from clients")
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+
+def add_bridge_guard_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--bridge-dedupe",
+        choices=("on", "off"),
+        default="on",
+        help="Enable TCP bridge packet fingerprint dedupe (default: on)",
+    )
+    parser.add_argument(
+        "--bridge-dedupe-ttl",
+        type=int,
+        default=BRIDGE_DEDUPE_TTL_SECS,
+        help="Fingerprint dedupe TTL in seconds (default: 300)",
+    )
+    parser.add_argument(
+        "--bridge-dedupe-max-entries",
+        type=int,
+        default=BRIDGE_DEDUPE_MAX_ENTRIES,
+        help="Max fingerprint dedupe entries (default: 4096)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard",
+        choices=("on", "off"),
+        default="on",
+        help="Enable bridge loop quarantine guard (default: on)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-window",
+        type=int,
+        default=BRIDGE_LOOPGUARD_WINDOW_SECS,
+        help="Loopguard window in seconds (default: 60)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-threshold",
+        type=int,
+        default=BRIDGE_LOOPGUARD_THRESHOLD,
+        help="Loopguard hits before quarantine (default: 5)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-quarantine",
+        type=int,
+        default=BRIDGE_LOOPGUARD_QUARANTINE_SECS,
+        help="Loopguard quarantine seconds (default: 120)",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject",
+        choices=("on", "off"),
+        default="off",
+        help="Enable server-side RF inject budget before forwarding to bridges (default: off)",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-max-per-min",
+        type=int,
+        default=BRIDGE_RF_INJECT_MAX_PER_MIN,
+        help="Max TCP-to-RF inject packets per bridge per minute, 0 disables count cap",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-max-airtime-ms-hour",
+        type=int,
+        default=BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
+        help="Estimated max TCP-to-RF inject airtime per bridge per hour, 0 disables airtime cap",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-block-duty-above-pct",
+        type=float,
+        default=BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
+        help="Block TCP-to-RF inject when reported duty used percent is at/above this, 0 disables",
+    )
+    parser.add_argument(
+        "--bridge-group",
+        default=BRIDGE_GROUP,
+        help="Bridge group name assigned to legacy/default clients (default: default)",
+    )
+    parser.add_argument(
+        "--bridge-require-group-match",
+        action="store_true",
+        help="Only forward packets between bridges with matching group",
+    )
+    parser.add_argument(
+        "--short-id-quarantine",
+        choices=("on", "off"),
+        default="off",
+        help="Automatically quarantine spammy 1-byte source IDs (default: off)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-window",
+        type=int,
+        default=SHORT_ID_QUARANTINE_WINDOW_SECS,
+        help="Seconds to count bad short-id hits before quarantine (default: 60)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-threshold",
+        type=int,
+        default=SHORT_ID_QUARANTINE_THRESHOLD,
+        help="Bad short-id hits before quarantine (default: 5)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-secs",
+        type=int,
+        default=SHORT_ID_QUARANTINE_SECS,
+        help="Seconds to block a quarantined 1-byte source ID (default: 900)",
+    )
+
+
+def add_status_page_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--status-interval",
+        type=int,
+        default=60,
+        help="Log connected clients every N seconds (default: 60, 0 disables)",
+    )
+    parser.add_argument(
+        "--status-host",
+        default="0.0.0.0",
+        help="Bind address for the HTTP status page (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--status-port",
+        type=int,
+        default=8080,
+        help="HTTP status page port (default: 8080, 0 disables)",
+    )
+    parser.add_argument(
+        "--status-base-path",
+        default=STATUS_BASE_PATH,
+        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus",
+    )
+
+
+def add_firmware_update_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--firmware-update-repo",
+        default=FIRMWARE_UPDATE_REPO,
+        help="GitHub owner/repo used for firmware update checks (default: MichTronics/MeshCoreNG, empty disables)",
+    )
+    parser.add_argument(
+        "--firmware-update-interval",
+        type=int,
+        default=FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
+        help="Seconds between firmware update checks (default: 3600, 0 disables)",
+    )
+    parser.add_argument(
+        "--firmware-update-timeout",
+        type=int,
+        default=FIRMWARE_UPDATE_TIMEOUT_SECS,
+        help="HTTP timeout in seconds for firmware update checks (default: 5)",
+    )
+
+
+def add_packet_decode_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--log-packets", action="store_true", help="Log every received and forwarded mesh payload")
+    parser.add_argument(
+        "--log-hex-bytes",
+        type=int,
+        default=32,
+        help="Number of payload bytes to show in packet logs (default: 32)",
+    )
+    parser.add_argument(
+        "--public-channels-file",
+        default="",
+        help="JSON file with public channel names/secrets for optional group packet decoding",
+    )
+    parser.add_argument(
+        "--location-tracks-dir",
+        default=str(LOCATION_TRACKS_DIR),
+        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)",
+    )
+
+
+def add_rate_limit_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--transport-rate-limit",
+        choices=("on", "off"),
+        default="on",
+        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)",
+    )
+    parser.add_argument(
+        "--transport-rate-max",
+        type=int,
+        default=TRANSPORT_RATE_LIMIT_MAX,
+        help="Max transport packets per bridge client per window (default: 20)",
+    )
+    parser.add_argument(
+        "--transport-rate-window",
+        type=int,
+        default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+        help="Per-client transport rate window in seconds (default: 120)",
+    )
+    parser.add_argument(
+        "--transport-global-rate-max",
+        type=int,
+        default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+        help="Max transport packets globally per window, 0 disables global cap (default: 80)",
+    )
+    parser.add_argument(
+        "--transport-global-rate-window",
+        type=int,
+        default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+        help="Global transport rate window in seconds (default: 120)",
+    )
+
+
+def add_admin_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--admin-password",
+        default="",
+        help="Optional Basic auth password protecting the HTTP remote management page",
+    )
+    parser.add_argument(
+        "--allow-path-block-admin",
+        action="store_true",
+        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords",
+    )
+
+
+def apply_args(args: argparse.Namespace) -> None:
+    global LOG_PACKETS, LOG_HEX_BYTES, CLIENT_TIMEOUT_SECS, CLIENT_TX_QUEUE_MAX
+    global BRIDGE_DEDUPE_ENABLED, BRIDGE_DEDUPE_TTL_SECS, BRIDGE_DEDUPE_MAX_ENTRIES
+    global BRIDGE_LOOPGUARD_ENABLED, BRIDGE_LOOPGUARD_WINDOW_SECS, BRIDGE_LOOPGUARD_THRESHOLD
+    global BRIDGE_LOOPGUARD_QUARANTINE_SECS, BRIDGE_RF_INJECT_ENABLED, BRIDGE_RF_INJECT_MAX_PER_MIN
+    global BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR, BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT
+    global BRIDGE_GROUP, BRIDGE_REQUIRE_GROUP_MATCH, SHORT_ID_QUARANTINE_ENABLED
+    global SHORT_ID_QUARANTINE_WINDOW_SECS, SHORT_ID_QUARANTINE_THRESHOLD, SHORT_ID_QUARANTINE_SECS
+    global STATUS_INTERVAL_SECS, REPLACE_SAME_IP, BRIDGE_PASSWORD, ADMIN_PASSWORD
+    global ALLOW_PATH_BLOCK_ADMIN, STATUS_BASE_PATH, FIRMWARE_UPDATE_REPO
+    global FIRMWARE_UPDATE_CHECK_INTERVAL_SECS, FIRMWARE_UPDATE_TIMEOUT_SECS
+    global PUBLIC_CHANNELS_FILE, LOCATION_TRACKS_DIR, TRANSPORT_RATE_LIMIT_ENABLE
+    global TRANSPORT_RATE_LIMIT_MAX, TRANSPORT_RATE_LIMIT_WINDOW_SECS
+    global TRANSPORT_GLOBAL_RATE_LIMIT_MAX, TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS
 
     if args.verbose:
         log.setLevel(logging.DEBUG)
+
     LOG_PACKETS = args.log_packets
     LOG_HEX_BYTES = max(0, args.log_hex_bytes)
     CLIENT_TIMEOUT_SECS = max(0, args.client_timeout)
     CLIENT_TX_QUEUE_MAX = max(1, args.client_tx_queue_max)
+
     BRIDGE_DEDUPE_ENABLED = args.bridge_dedupe == "on"
     BRIDGE_DEDUPE_TTL_SECS = max(1, args.bridge_dedupe_ttl)
     BRIDGE_DEDUPE_MAX_ENTRIES = max(1, args.bridge_dedupe_max_entries)
@@ -4934,22 +5189,33 @@ if __name__ == "__main__":
     SHORT_ID_QUARANTINE_WINDOW_SECS = max(1, args.short_id_quarantine_window)
     SHORT_ID_QUARANTINE_THRESHOLD = max(1, args.short_id_quarantine_threshold)
     SHORT_ID_QUARANTINE_SECS = max(1, args.short_id_quarantine_secs)
+
     STATUS_INTERVAL_SECS = max(0, args.status_interval)
+    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
     ALLOW_PATH_BLOCK_ADMIN = args.allow_path_block_admin
-    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
+
     FIRMWARE_UPDATE_REPO = args.firmware_update_repo.strip()
     FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = max(0, args.firmware_update_interval)
     FIRMWARE_UPDATE_TIMEOUT_SECS = max(1, args.firmware_update_timeout)
+
     PUBLIC_CHANNELS_FILE = args.public_channels_file
     LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
+
     TRANSPORT_RATE_LIMIT_ENABLE = args.transport_rate_limit == "on"
     TRANSPORT_RATE_LIMIT_MAX = max(0, args.transport_rate_max)
     TRANSPORT_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_rate_window)
     TRANSPORT_GLOBAL_RATE_LIMIT_MAX = max(0, args.transport_global_rate_max)
     TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_global_rate_window)
+
+
+def run_cli() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    apply_args(args)
+
     load_public_channels(PUBLIC_CHANNELS_FILE)
     load_location_tracks()
 
@@ -4957,3 +5223,7 @@ if __name__ == "__main__":
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
     except KeyboardInterrupt:
         log.info("Server stopped")
+
+
+if __name__ == "__main__":
+    run_cli()
