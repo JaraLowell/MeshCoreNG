@@ -620,7 +620,19 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&bridge_id, sizeof(bridge_id)) == sizeof(bridge_id)) {
         memcpy(_prefs->bridge_id, bridge_id, sizeof(bridge_id));                                     // 696 + sizeof(AtlasConfig)
       }
-      // next: 705 + sizeof(AtlasConfig)
+      uint8_t nearby_client_suppress_enabled = _prefs->nearby_client_suppress_enabled;
+      if (file.read((uint8_t *)&nearby_client_suppress_enabled, sizeof(nearby_client_suppress_enabled)) == sizeof(nearby_client_suppress_enabled)) {
+        _prefs->nearby_client_suppress_enabled = nearby_client_suppress_enabled;                      // 705 + sizeof(AtlasConfig)
+      }
+      int16_t nearby_client_suppress_rssi_dbm = _prefs->nearby_client_suppress_rssi_dbm;
+      if (file.read((uint8_t *)&nearby_client_suppress_rssi_dbm, sizeof(nearby_client_suppress_rssi_dbm)) == sizeof(nearby_client_suppress_rssi_dbm)) {
+        _prefs->nearby_client_suppress_rssi_dbm = nearby_client_suppress_rssi_dbm;                    // 706 + sizeof(AtlasConfig)
+      }
+      uint8_t nearby_client_suppress_max_hops = _prefs->nearby_client_suppress_max_hops;
+      if (file.read((uint8_t *)&nearby_client_suppress_max_hops, sizeof(nearby_client_suppress_max_hops)) == sizeof(nearby_client_suppress_max_hops)) {
+        _prefs->nearby_client_suppress_max_hops = nearby_client_suppress_max_hops;                    // 708 + sizeof(AtlasConfig)
+      }
+      // next: 709 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -669,6 +681,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
     _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
+    _prefs->nearby_client_suppress_enabled = constrain(_prefs->nearby_client_suppress_enabled, 0, 1);
+    _prefs->nearby_client_suppress_rssi_dbm = constrain(_prefs->nearby_client_suppress_rssi_dbm, -140, -10);
+    _prefs->nearby_client_suppress_max_hops = constrain(_prefs->nearby_client_suppress_max_hops, 0, 3);
     _prefs->fem_rx_gain = constrain(_prefs->fem_rx_gain, 0, 1);
     _prefs->low_bat_boot_guard_enabled = constrain(_prefs->low_bat_boot_guard_enabled, 0, 1);
     _prefs->low_bat_boot_guard_mv = constrain(_prefs->low_bat_boot_guard_mv, 0, 6000);
@@ -859,7 +874,10 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_rf_inject_max_airtime_ms_hour, sizeof(_prefs->bridge_rf_inject_max_airtime_ms_hour)); // 690 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf_inject_block_duty_centi_pct, sizeof(_prefs->bridge_rf_inject_block_duty_centi_pct)); // 694 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_id, sizeof(_prefs->bridge_id));                         // 696 + sizeof(AtlasConfig)
-    // next: 705 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_enabled, sizeof(_prefs->nearby_client_suppress_enabled)); // 705 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_rssi_dbm, sizeof(_prefs->nearby_client_suppress_rssi_dbm)); // 706 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_max_hops, sizeof(_prefs->nearby_client_suppress_max_hops)); // 708 + sizeof(AtlasConfig)
+    // next: 709 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1566,6 +1584,31 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "nearby.client.suppress ", 23) == 0) {
+    if (parseOnOff(&config[23], &_prefs->nearby_client_suppress_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "nearby.client.rssi ", 19) == 0) {
+    int rssi = atoi(&config[19]);
+    if (rssi >= -140 && rssi <= -10) {
+      _prefs->nearby_client_suppress_rssi_dbm = (int16_t)rssi;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: RSSI must be between -140 and -10 dBm");
+    }
+  } else if (memcmp(config, "nearby.client.hops ", 19) == 0) {
+    int hops = atoi(&config[19]);
+    if (hops >= 0 && hops <= 3) {
+      _prefs->nearby_client_suppress_max_hops = (uint8_t)hops;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: hops must be between 0 and 3");
     }
   } else if (memcmp(config, "atlas.enable ", 13) == 0 || memcmp(config, "atlas ", 6) == 0) {
     const char* value = (config[6] == 'e') ? &config[13] : &config[6];
@@ -2276,6 +2319,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->flood_node_delay_enable ? "on" : "off");
   } else if (memcmp(config, "flood.dup.suppress", 18) == 0 || memcmp(config, "dup.suppress", 12) == 0) {
     sprintf(reply, "> %s", _prefs->flood_dup_suppress_enable ? "on" : "off");
+  } else if (memcmp(config, "nearby.client.suppress", 22) == 0) {
+    sprintf(reply, "> %s", _prefs->nearby_client_suppress_enabled ? "on" : "off");
+  } else if (memcmp(config, "nearby.client.rssi", 18) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->nearby_client_suppress_rssi_dbm);
+  } else if (memcmp(config, "nearby.client.hops", 18) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->nearby_client_suppress_max_hops);
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
   } else if (sender_timestamp == 0 && memcmp(config, "atlas.stats", 11) == 0) {

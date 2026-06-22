@@ -266,6 +266,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks
   bool sourceShortId(const mesh::Packet* packet, uint8_t* id) const;
   bool shouldBlockNode(const mesh::Packet* packet);
   bool shouldBlockBridgeOrRepeater(const mesh::Packet* packet);
+  bool isLikelyNearbyClientFlood(const mesh::Packet* packet) const;
+  bool shouldSuppressNearbyClientFlood(const mesh::Packet* packet) const;
   void formatNodeBlocksReply(char* reply);
   void handleNodeBlockCommand(char* command, char* reply);
   void formatPathBlocksReply(char* reply);

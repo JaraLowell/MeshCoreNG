@@ -131,6 +131,9 @@ struct NodePrefs { // persisted to file
   uint32_t bridge_rf_inject_max_airtime_ms_hour; // 0 = no airtime cap
   uint16_t bridge_rf_inject_block_duty_centi_pct; // 0 = no duty threshold
   char bridge_id[9];          // optional TCP bridge identity override, 8 hex chars
+  uint8_t nearby_client_suppress_enabled; // suppress very nearby first-hop client floods
+  int16_t nearby_client_suppress_rssi_dbm; // RSSI threshold for nearby client suppression
+  uint8_t nearby_client_suppress_max_hops; // normally 0: only original sender packets
 #ifdef WITH_MQTT_BRIDGE
   // MQTT bridge settings — mirrored in memory from the separate /mqtt_prefs file so the
   // bridge can read everything from NodePrefs. Appended at the end of NodePrefs so the main

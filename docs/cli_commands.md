@@ -856,7 +856,25 @@ MeshCoreNG also performs duplicate-hearing suppression for queued flood retransm
 
 **Note:** When enabled, a queued flood retransmit can be cancelled if this node hears enough duplicate forwards before its own transmit slot. This reduces redundant flood traffic in dense meshes without changing the packet protocol.
 
-**Note:** When multiple nearby repeaters all hear the same flood packet, each waits a random amount of time before retransmitting to avoid simultaneous collisions. This factor scales the size of that random window. Higher values reduce collision risk at the cost of added latency. `0` disables the window entirely.
+---
+
+#### View or change nearby client flood suppression
+**Usage:**
+- `get nearby.client.suppress`
+- `set nearby.client.suppress <state>`
+- `get nearby.client.rssi`
+- `set nearby.client.rssi <dbm>`
+- `get nearby.client.hops`
+- `set nearby.client.hops <value>`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `dbm`: RSSI threshold from `-140` to `-10`; packets at or above this RSSI are treated as very nearby
+- `value`: maximum flood path hop count to consider nearby client traffic, from `0` to `3`
+
+**Default:** `nearby.client.suppress on`, `nearby.client.rssi -45`, `nearby.client.hops 0`
+
+**Note:** When enabled, repeaters suppress very strong first-hop client/companion flood packets instead of immediately extending them over RF. This targets the pattern where a companion and repeater are placed a few meters apart as a personal range extender. Repeater, room server and sensor adverts are not suppressed by this rule, and packets that already have relay hops continue through the normal forwarding logic.
 
 ---
 

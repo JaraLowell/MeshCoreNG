@@ -51,6 +51,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  int16_t _rssi;
   uint8_t _dup_rx_count;
   bool _received_from_bridge;
 
@@ -102,6 +103,7 @@ public:
   void incrementDuplicateRxCount() { if (_dup_rx_count < 0xFF) _dup_rx_count++; }
 
   float getSNR() const { return ((float)_snr) / 4.0f; }
+  int16_t getRSSI() const { return _rssi; }
 
   /**
    * \returns  the encoded/wire format length of this packet

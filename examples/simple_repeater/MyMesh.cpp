@@ -738,6 +738,30 @@ bool MyMesh::shouldBlockBridgeOrRepeater(const mesh::Packet* packet) {
   return shouldBlockNode(packet) || shouldBlockPath(packet);
 }
 
+bool MyMesh::isLikelyNearbyClientFlood(const mesh::Packet* packet) const {
+  if (!packet || !packet->isRouteFlood()) return false;
+  if (packet->wasReceivedFromBridge()) return false;
+  if (packet->getPathHashCount() > _prefs.nearby_client_suppress_max_hops) return false;
+
+  uint8_t type = packet->getPayloadType();
+  if (type == PAYLOAD_TYPE_ADVERT) {
+    const size_t app_data_offset = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
+    if (packet->payload_len <= app_data_offset) return false;
+    uint8_t adv_type = packet->payload[app_data_offset] & 0x0F;
+    return adv_type == ADV_TYPE_CHAT;
+  }
+
+  return type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE || type == PAYLOAD_TYPE_TXT_MSG ||
+         type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA || type == PAYLOAD_TYPE_ANON_REQ ||
+         type == PAYLOAD_TYPE_LOCATION || type == PAYLOAD_TYPE_RAW_CUSTOM;
+}
+
+bool MyMesh::shouldSuppressNearbyClientFlood(const mesh::Packet* packet) const {
+  if (!_prefs.nearby_client_suppress_enabled) return false;
+  if (!isLikelyNearbyClientFlood(packet)) return false;
+  return packet->getRSSI() >= _prefs.nearby_client_suppress_rssi_dbm;
+}
+
 void MyMesh::formatNodeBlocksReply(char* reply) {
   clearExpiredNodeBlocks();
   uint32_t now = getRTCClock()->getCurrentTime();
@@ -977,6 +1001,16 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   }
 
   if (shouldBlockBridgeOrRepeater(packet)) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    recordDenseSuppressedTx();
+    return false;
+  }
+
+  if (shouldSuppressNearbyClientFlood(packet)) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: nearby client flood suppressed rssi=%d threshold=%d hops=%u",
+                       (int)packet->getRSSI(),
+                       (int)_prefs.nearby_client_suppress_rssi_dbm,
+                       (uint32_t)packet->getPathHashCount());
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     recordDenseSuppressedTx();
     return false;
@@ -1719,6 +1753,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_dynamic_enable = 0;
   _prefs.flood_node_delay_enable = 1;
   _prefs.flood_dup_suppress_enable = 1;
+  _prefs.nearby_client_suppress_enabled = 1;
+  _prefs.nearby_client_suppress_rssi_dbm = -45;
+  _prefs.nearby_client_suppress_max_hops = 0;
   _prefs.daily_reboot_enabled = 0;
   _prefs.daily_reboot_interval_hours = DAILY_REBOOT_DEFAULT_HOURS;
   _prefs.powersaving_enabled = 0;

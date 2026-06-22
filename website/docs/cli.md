@@ -24,6 +24,11 @@ set flood.relay.prob <v>   — set (0=never, 128=half, 255=always)
 
 get flood.dynamic.enable   — get dynamic mode state
 set flood.dynamic.enable on|off
+
+get nearby.client.suppress — get nearby client suppression state
+set nearby.client.suppress on|off
+get nearby.client.rssi     — get RSSI threshold, default -45 dBm
+set nearby.client.rssi <v> — set threshold (-140..-10 dBm)
 ```
 
 ### Internet bridge (TCP)
