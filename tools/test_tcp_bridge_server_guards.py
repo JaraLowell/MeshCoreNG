@@ -359,24 +359,6 @@ async def test_status_hides_unnamed_offline_placeholders() -> None:
         server.node_traffic_stats = old_stats
 
 
-async def test_status_splits_rf_and_bridge_neighbor_counts() -> None:
-    a, b, c = make_client("A"), make_client("B"), make_client("C")
-    a.bridge_group = "default"
-    b.bridge_group = "default"
-    c.bridge_group = "other"
-    a.neighbor_count = 7
-    b.neighbor_count = 3
-    c.neighbor_count = 2
-    async for _ in with_clients(a, b, c):
-        snapshot = server.status_snapshot(include_disconnected=False)
-        by_name = {client["display_name"]: client for client in snapshot["clients"]}
-        assert by_name["A"]["rf_neighbor_count"] == 7
-        assert by_name["A"]["neighbor_count"] == 7
-        assert by_name["A"]["bridge_neighbor_count"] == 1
-        assert by_name["B"]["bridge_neighbor_count"] == 1
-        assert by_name["C"]["bridge_neighbor_count"] == 0
-
-
 async def test_rf_duty_hour_counter_resets() -> None:
     old_stats = server.node_traffic_stats
     server.node_traffic_stats = {}
@@ -576,7 +558,6 @@ async def main() -> None:
     await test_caps_v3_bridge_id()
     await test_heartbeat_radio_stats_parse()
     await test_status_hides_unnamed_offline_placeholders()
-    await test_status_splits_rf_and_bridge_neighbor_counts()
     await test_rf_duty_hour_counter_resets()
     await test_group_tracker_location_decode()
     await test_short_id_quarantine_blocks_broadcast()

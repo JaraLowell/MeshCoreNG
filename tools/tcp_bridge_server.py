@@ -1610,18 +1610,6 @@ def block_stats_totals(block_stats: dict) -> dict:
     }
 
 
-def bridge_neighbor_count(client: "BridgeClient") -> int:
-    group = client.bridge_group or BRIDGE_GROUP
-    return sum(
-        1
-        for peer in connected_clients
-        if peer is not client
-        and peer.authenticated
-        and not peer.writer.is_closing()
-        and (peer.bridge_group or BRIDGE_GROUP) == group
-    )
-
-
 def format_sockaddrs(sockets) -> str:
     return ", ".join(
         f"{sock.getsockname()[0]}:{sock.getsockname()[1]}"
@@ -1831,9 +1819,7 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
         "rf_duty": dict(stats.get("rf_duty") or {}),
         "radio_stats": dict(stats.get("radio_stats") or {}),
-        "rf_neighbor_count": stats.get("neighbor_count"),
         "neighbor_count": stats.get("neighbor_count"),
-        "bridge_neighbor_count": 0,
         "packets_rx": stats.get("packets_rx", 0),
         "packets_tx": stats.get("packets_tx", 0),
         "packets_rx_24h": len(stats["rx_times"]),
@@ -2097,9 +2083,7 @@ class BridgeClient:
             "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
             "rf_duty": dict(self.rf_duty),
             "radio_stats": dict(self.radio_stats),
-            "rf_neighbor_count": self.neighbor_count if self.neighbor_count is not None else stats.get("neighbor_count"),
             "neighbor_count": self.neighbor_count if self.neighbor_count is not None else stats.get("neighbor_count"),
-            "bridge_neighbor_count": bridge_neighbor_count(self),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(stats["rx_times"]),
@@ -3354,16 +3338,10 @@ def build_status_html(base_path: str = "") -> str:
         const radioTitle = Number.isFinite(radio.noise_floor)
           ? `Radio stats from last bridge heartbeat: noise floor ${{dbm(radio.noise_floor)}}, last RSSI ${{dbm(radio.last_rssi)}}, last SNR ${{snr(radio.last_snr)}}.`
           : "firmware update needed";
-        const rfNeighborCount = Number.isFinite(client.rf_neighbor_count)
-          ? client.rf_neighbor_count
-          : Number.isFinite(client.neighbor_count) ? client.neighbor_count : NaN;
-        const bridgeNeighborCount = Number.isFinite(client.bridge_neighbor_count) ? client.bridge_neighbor_count : NaN;
-        const rfNeighborTitle = Number.isFinite(rfNeighborCount)
-          ? `RF neighbours heard locally by this bridge node: ${{rfNeighborCount}}.`
+        const neighborCount = Number.isFinite(client.neighbor_count) ? client.neighbor_count : NaN;
+        const neighborTitle = Number.isFinite(neighborCount)
+          ? `Neighbours heard locally by this bridge node: ${{neighborCount}}.`
           : "firmware update needed";
-        const bridgeNeighborTitle = Number.isFinite(bridgeNeighborCount)
-          ? `Online bridge neighbours in the same bridge group: ${{bridgeNeighborCount}}.`
-          : "bridge server has not calculated this yet";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
@@ -3388,8 +3366,7 @@ def build_status_html(base_path: str = "") -> str:
             <div class="node-stats">
               <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
               <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
-              <div class="mini" title="${{escapeHtml(rfNeighborTitle)}}"><span class="label">RF neigh</span><b>${{Number.isFinite(rfNeighborCount) ? rfNeighborCount : "--"}}</b></div>
-              <div class="mini" title="${{escapeHtml(bridgeNeighborTitle)}}"><span class="label">Bridge neigh</span><b>${{Number.isFinite(bridgeNeighborCount) ? bridgeNeighborCount : "--"}}</b></div>
+              <div class="mini" title="${{escapeHtml(neighborTitle)}}"><span class="label">Neighbours</span><b>${{Number.isFinite(neighborCount) ? neighborCount : "--"}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Queue</span><b>${{client.tx_queue_depth || 0}}/${{client.tx_queue_max || 0}}</b></div>

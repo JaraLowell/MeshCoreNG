@@ -182,7 +182,7 @@ get bridge.status
 get node.info
 ```
 
-TCP bridge builds may also expose a small HTTP status page on the device once WiFi is connected. The Python TCP bridge server has its own operator status page with connected nodes, packet counters, RF duty telemetry, per-node RF neighbor counts from updated firmware, and bridge-neighbor counts calculated by the server. Use these pages as operator views, not as public services.
+TCP bridge builds may also expose a small HTTP status page on the device once WiFi is connected. The Python TCP bridge server has its own operator status page with connected nodes, packet counters, RF duty telemetry, and per-node local neighbor counts from updated firmware. Use these pages as operator views, not as public services.
 
 ## Running the server
 

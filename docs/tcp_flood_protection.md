@@ -14,7 +14,7 @@ The Python TCP bridge server also has a server-side transport limiter. It drops 
 
 The TCP bridge is a controlled backhaul between selected RF islands, not a blind transparent internet mesh. MeshCore RF packets remain compatible, while TCP-only metadata and guards handle origin identity, TTL, duplicate suppression, export filtering, and RF injection budgets at the backhaul boundary.
 
-The same server exposes bridge status on the HTTP status page. It keeps per-node RX/TX packet timestamps for a 24-hour in-memory window, so nodes that disconnect remain visible as offline while they still have traffic inside that window. The page also shows RF duty telemetry, RF neighbor count from updated bridge firmware, and bridge-neighbor count calculated by the server. `Duty used` and `Duty left` are normalized to the configured hourly duty-cycle budget: with a 10% duty-cycle limit, 360 seconds of RF TX are available per hour.
+The same server exposes bridge status on the HTTP status page. It keeps per-node RX/TX packet timestamps for a 24-hour in-memory window, so nodes that disconnect remain visible as offline while they still have traffic inside that window. The page also shows RF duty telemetry and local neighbor count from updated bridge firmware. `Duty used` and `Duty left` are normalized to the configured hourly duty-cycle budget: with a 10% duty-cycle limit, 360 seconds of RF TX are available per hour.
 
 ## Packet Categories
 
