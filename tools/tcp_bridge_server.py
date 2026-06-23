@@ -61,6 +61,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("tcp_bridge")
 
+SERVER_NAME = "MeshCoreNG TCP Bridge Server"
+SERVER_VERSION = "1.1.3"
 BRIDGE_MAGIC = 0xC03E
 MAX_PAYLOAD = 512   # Allows legacy raw packets and TCP bridge v2 envelopes.
 CONTROL_PREFIX = b"MCNG"
@@ -2720,6 +2722,12 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
     path_block_active = sum(int((c.get("block_stats_totals") or {}).get("path_active") or 0) for c in clients)
     return {
         "generated_at": int(now),
+        "server": {
+            "name": SERVER_NAME,
+            "version": SERVER_VERSION,
+            "started_at": int(SERVER_STARTED_AT),
+            "uptime_seconds": int(now - SERVER_STARTED_AT),
+        },
         "connected_count": len(connected_clients),
         "online_count": len(connected_clients),
         "known_count": len(clients),
@@ -2925,6 +2933,13 @@ def build_status_html(base_path: str = "") -> str:
       text-shadow: 0 0 16px rgba(104, 255, 157, .45);
     }}
     .subtitle {{ margin: 8px 0 0; color: var(--muted); max-width: 820px; line-height: 1.45; }}
+    .server-version {{
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--green-soft);
+      font-size: .78rem;
+      letter-spacing: 0;
+    }}
     nav {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }}
     a {{
       color: var(--green-soft);
@@ -3125,6 +3140,7 @@ def build_status_html(base_path: str = "") -> str:
     <header class="topbar">
       <div>
         <h1>TCP Bridge Tactical Console</h1>
+        <div class="server-version">{html.escape(SERVER_NAME)} v{html.escape(SERVER_VERSION)}</div>
         <p class="subtitle">MeshCoreNG live bridge telemetry, packet flow and nearby sensor adverts. Polling the bridge server every 2 seconds.</p>
       </div>
       <nav>
@@ -3141,7 +3157,7 @@ def build_status_html(base_path: str = "") -> str:
       <div class="metric"><div class="label">Short-ID quarantine</div><div id="metricShortQ" class="value">--</div></div>
       <div class="metric"><div class="label">ID/path block drops</div><div id="metricBlockDrops" class="value">--</div></div>
       <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
-      <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
+      <div class="metric" title="TCP bridge packets seen by this webserver, not repeater RF RT/TX counters"><div class="label">Bridge RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
       <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
     </section>
 
@@ -3351,6 +3367,7 @@ def build_status_html(base_path: str = "") -> str:
         const lastTx = client.last_tx_age_seconds === null || client.last_tx_age_seconds === undefined ? "never" : `${{client.last_tx_age_seconds}}s ago`;
         const skipReasons = client.skipped_dup_by_reason || {{}};
         const skipReasonText = Object.entries(skipReasons).map(([key, value]) => `${{key}}=${{value}}`).join(", ") || "none";
+        const bridgeTrafficTitle = "TCP bridge packets seen by this webserver for this node, not repeater RF RT/TX counters.";
         const queueTitle = `queued total ${{client.tx_queued || 0}}, high water ${{client.tx_queue_high_water || 0}}, skipped duplicates ${{client.skipped_dup_total || 0}}, reasons: ${{skipReasonText}}, send errors ${{client.tx_send_errors || 0}}${{client.last_tx_error ? ", last error: " + client.last_tx_error : ""}}`;
         const guardTitle = `group ${{client.group || "default"}}, loop score ${{client.loop_score || 0}}, quarantine ${{client.quarantine_active ? (client.quarantine_seconds_left || 0) + "s" : "no"}}, last fingerprint ${{client.last_fingerprint || "none"}}`;
         const budgetLeft = client.rf_inject_budget_remaining_ms === null || client.rf_inject_budget_remaining_ms === undefined
@@ -3367,8 +3384,8 @@ def build_status_html(base_path: str = "") -> str:
             </div>
             <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}} ${{updateBadge}}</div>
             <div class="node-stats">
-              <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
-              <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(bridgeTrafficTitle)}}"><span class="label">Bridge RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(bridgeTrafficTitle)}}"><span class="label">Bridge TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
               <div class="mini" title="${{escapeHtml(neighborTitle)}}"><span class="label">Neighbours</span><b>${{Number.isFinite(neighborCount) ? neighborCount : "--"}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
@@ -4856,6 +4873,7 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 
 async def main(host: str, port: int, status_host: str, status_port: int) -> None:
+    log.info("%s v%s starting", SERVER_NAME, SERVER_VERSION)
     server = await asyncio.start_server(handle_client, host, port)
     addrs = format_sockaddrs(server.sockets)
     log.info("MeshCore TCP bridge server listening on %s", addrs)
@@ -4912,6 +4930,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def add_network_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--version", action="version", version=f"%(prog)s {SERVER_VERSION}")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=4200, help="TCP port (default: 4200)")
     parser.add_argument(

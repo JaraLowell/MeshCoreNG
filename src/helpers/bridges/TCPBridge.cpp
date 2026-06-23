@@ -1197,6 +1197,7 @@ bool TCPBridge::isMessagePacket(const mesh::Packet *packet) const {
     case PAYLOAD_TYPE_GRP_TXT:
     case PAYLOAD_TYPE_GRP_DATA:
     case PAYLOAD_TYPE_ANON_REQ:
+    case PAYLOAD_TYPE_MULTIPART:
       return true;
     default:
       return false;

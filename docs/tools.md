@@ -11,14 +11,18 @@ Most tools use only the Python standard library. Current scripts use modern type
 Common usage:
 
 ```bash
+python3 tools/tcp_bridge_server.py --version
 python3 tools/tcp_bridge_server.py --port 4200
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 python3 tools/tcp_bridge_server.py --port 4200 --admin-password webAdminSecret
 ```
 
+The server version is also shown on the HTTP status page and exposed in `/status.json`.
+
 Options:
 
 ```text
+--version
 --host <addr>
 --port <port>
 --password <secret>

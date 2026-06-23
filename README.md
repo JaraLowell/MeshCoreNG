@@ -434,6 +434,7 @@ python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
 The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.10+ and has no external dependencies for basic bridge operation; optional public-channel decoding needs `cryptography`. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+Use `python3 tools/tcp_bridge_server.py --version` to check the bridge server version; the same version is shown on the HTTP status page and in `/status.json`.
 
 #### Channel decryption on the bridge server
 
