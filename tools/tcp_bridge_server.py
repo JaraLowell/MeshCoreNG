@@ -3093,6 +3093,9 @@ def build_status_html(base_path: str = "") -> str:
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.update {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
+    .badge.current {{ color: var(--green-soft); border-color: rgba(104, 255, 157, .42); background: rgba(104, 255, 157, .08); }}
+    .badge.pending {{ color: var(--amber); border-color: rgba(255, 209, 102, .42); background: rgba(255, 209, 102, .08); }}
+    .badge.error {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
     .packet-age {{ width: 54px; }}
     .packet-dir {{ width: 40px; }}
     .packet-flow {{ width: 24%; }}
@@ -3400,10 +3403,16 @@ def build_status_html(base_path: str = "") -> str:
         const updateAvailable = update.state === "available";
         const updateTitle = updateAvailable
           ? `new firmware available: ${{update.latest_version || update.latest_tag}} (${{update.bin_count || 0}} bin files)`
-          : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}` : "";
+          : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}`
+          : update.state === "current" ? `firmware current${{update.latest_version ? ": " + update.latest_version : ""}}`
+          : update.check_status === "pending" ? "firmware update check pending"
+          : update.check_status === "disabled" ? "firmware update check disabled"
+          : "firmware update state unknown";
+        const updateBadgeClass = updateAvailable ? "update" : update.check_status === "error" ? "error" : update.state === "current" ? "current" : "pending";
+        const updateBadgeText = updateAvailable ? `update ${{update.latest_version || ""}}` : update.state === "current" ? "current" : update.check_status === "error" ? "check error" : "unknown";
         const updateBadge = updateAvailable
-          ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`
-          : "";
+          ? `<a class="badge ${{updateBadgeClass}}" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">${{escapeHtml(updateBadgeText)}}</a>`
+          : `<span class="badge ${{updateBadgeClass}}" title="${{escapeHtml(updateTitle)}}">${{escapeHtml(updateBadgeText)}}</span>`;
         const rf = client.rf_duty || {{}};
         const rfFirmwareUsedMs = Number.isFinite(rf.tx_used_ms) ? rf.tx_used_ms : NaN;
         const rfUsedMs = Number.isFinite(rf.tx_hour_used_ms) ? rf.tx_hour_used_ms : rfFirmwareUsedMs;
