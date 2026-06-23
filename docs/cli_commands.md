@@ -2074,24 +2074,6 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 
 ---
 
-#### Configure NTP time sync (TCP bridge only)
-**Usage:**
-- `get ntp.enabled`
-- `set ntp.enabled <state>`
-- `get ntp.server`
-- `set ntp.server <host>`
-- `get ntp.interval`
-- `set ntp.interval <seconds>`
-
-**Parameters:**
-- `state`: `on`|`off`; accepted for compatibility, but NTP remains enabled
-- `host`: NTP server hostname, default `nl.pool.ntp.org`
-- `seconds`: accepted from 300 to 86400 seconds for compatibility, but the refresh interval remains fixed at 3600 seconds
-
-The TCP bridge syncs the firmware RTC immediately after WiFi connects and refreshes it every hour. It uses the configured server with `pool.ntp.org` and `time.google.com` as fallbacks. `get ntp.enabled` always reports `on`; `get wifi.status` shows `NTP: synced` or `not synced`.
-
----
-
 #### View or enable TCP flood protection (TCP bridge only)
 **Usage:**
 - `get tcp.flood.limit`

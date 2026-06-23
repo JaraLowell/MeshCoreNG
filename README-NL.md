@@ -185,7 +185,7 @@ De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord wo
 
 Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra packets, zonder synchronisatie, en zonder protocolwijziging.
 
-### 8. Internetbrug — optioneel transport voor gescheiden RF-netwerken
+### 8. Gecontroleerde TCP bridge/backhaul — optioneel transport voor gescheiden RF-netwerken
 
 MeshCoreNG blijft RF-first. De bridge is optioneel transport/backhaul voor specifieke deployments, geen vervanging voor lokale RF-werking.
 
@@ -212,7 +212,7 @@ Geselecteerd verkeer kan optioneel tussen gescheiden MeshCore-deployments worden
 
 RF-locality blijft belangrijk. Bridge alleen wat nodig is, houd lokaal verkeer lokaal waar dat kan, gebruik regionale segmentatie en voorkom full-network flooding over bridge-links.
 
-Geplande of onderzochte bescherming voor multi-bridge omgevingen omvat path fingerprints, lichte path hashes, bridge loop detection, duplicate suppression, TTL/hop-controls en bridge scoping.
+Geimplementeerde bescherming voor multi-bridge omgevingen omvat TCP bridge v2 origin-ID's en TTL, duplicate suppression, exportfilters, RF-injectiecontroles, node/path quarantine en hop-controls. Nog onderzocht worden path fingerprints, extra lichte path hashes en rijkere bridge scoping.
 
 **Route 1: ESP32-repeater met WiFi**
 
@@ -696,7 +696,7 @@ set radio.fem.rxgain off
 
 `radio.fem.rxgain` is voor boards met een aanstuurbare externe FEM/LNA RX-route, zoals Heltec V4.3. Dit staat los van `radio.rxgain`, dat de interne boosted RX gain van de radiochip regelt.
 
-**Internetbrug (TCP):**
+**Gecontroleerde TCP bridge/backhaul:**
 
 ```text
 set wifi.ssid     <netwerknaam>
@@ -704,12 +704,10 @@ set wifi.password <wachtwoord>
 set bridge.server <hostnaam of IP>
 set bridge.port   4200
 set bridge.password <bridge wachtwoord>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type

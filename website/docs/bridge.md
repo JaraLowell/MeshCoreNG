@@ -1,4 +1,4 @@
-# Internet bridge
+# Controlled TCP bridge/backhaul
 
 ## Purpose of the bridge system
 
@@ -78,24 +78,29 @@ Operators should bridge only what is needed for the deployment. Keep local traff
 - Monitor airtime, duplicate counters, and congestion after enabling a bridge.
 - Treat every bridge as an operated network service with an owner and a purpose.
 
-## Planned loop and duplicate protections
+## Loop and duplicate protections
 
 Multi-bridge environments need additional safeguards because the same packet may be able to return through a different bridge path.
 
-Planned or under consideration protections include:
+Implemented protections include:
+
+- TCP bridge v2 envelope metadata with per-bridge origin ID and TTL.
+- Duplicate suppression before bridge export and bridge-to-RF injection.
+- Export filters and RF hop-count limits for traffic crossing the bridge.
+- RF injection controls, including local-only injection and optional budget limits.
+- Node and path quarantine commands for runtime blocking through the bridge server management flow.
+
+Still planned or under consideration:
 
 - Path fingerprints.
-- Lightweight path hashes.
-- Bridge loop detection.
-- Duplicate suppression.
-- TTL and hop controls.
-- Bridge scoping.
+- Additional lightweight path hashes.
+- Richer bridge scoping.
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
 
 ## Bridge firmware types
 
-MeshCoreNG currently has four bridge-oriented paths:
+MeshCoreNG currently has five bridge-oriented paths:
 
 | Build type | Transport | Typical use |
 |---|---|---|
@@ -207,7 +212,7 @@ The TCP bridge password is an access check, not transport encryption. Run the se
 ## FAQ
 
 **Does MeshCoreNG require internet?**  
-No. MeshCoreNG remains usable as an RF-only LoRa mesh.
+No. Normal MeshCoreNG remains usable as an RF-only LoRa mesh. Only bridge- or MQTT-capable builds use WiFi/IP transport when explicitly configured.
 
 **Is the bridge enabled by default?**  
 No. Bridge support requires a bridge-capable firmware build and `set bridge.enabled on`.
@@ -218,5 +223,5 @@ No. The bridge is for controlled transport between selected deployments, not wor
 **Can bridges be private?**  
 Yes. Private bridge servers and private bridge groups are recommended for many deployments.
 
-**Are anti-loop protections planned?**  
-Yes. Path fingerprints, lightweight path hashes, loop detection, duplicate suppression, TTL/hop controls, and bridge scoping are planned or being evaluated, especially for multi-bridge environments.
+**Are anti-loop protections implemented?**
+Partly. TCP bridge v2 already uses origin IDs, TTL, duplicate suppression, export filters, hop controls, and RF injection controls. Path fingerprints and richer bridge scoping are still being evaluated.

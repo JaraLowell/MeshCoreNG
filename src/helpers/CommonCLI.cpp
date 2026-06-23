@@ -546,18 +546,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
         _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 585 + sizeof(AtlasConfig)
       }
-      char ntp_server[64] = {};
-      if (file.read((uint8_t *)ntp_server, sizeof(ntp_server)) == sizeof(ntp_server)) {
-        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                // 587 + sizeof(AtlasConfig)
-      }
-      uint8_t ntp_enabled = _prefs->ntp_enabled;
-      if (file.read((uint8_t *)&ntp_enabled, sizeof(ntp_enabled)) == sizeof(ntp_enabled)) {
-        _prefs->ntp_enabled = ntp_enabled;                                                         // 651 + sizeof(AtlasConfig)
-      }
-      uint32_t ntp_interval_secs = _prefs->ntp_interval_secs;
-      if (file.read((uint8_t *)&ntp_interval_secs, sizeof(ntp_interval_secs)) == sizeof(ntp_interval_secs)) {
-        _prefs->ntp_interval_secs = ntp_interval_secs;                                             // 652 + sizeof(AtlasConfig)
-      }
+      file.read(pad, 8);                                                                           // 587 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 595 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 603 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 611 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 619 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 627 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 635 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 643 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 1);                                                                           // 651 + sizeof(AtlasConfig), legacy NTP enabled unused
+      file.read(pad, 4);                                                                           // 652 + sizeof(AtlasConfig), legacy NTP interval unused
       uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
       if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
         _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                     // 656 + sizeof(AtlasConfig)
@@ -754,12 +752,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->daily_reboot_enabled = constrain(_prefs->daily_reboot_enabled, 0, 1);
     if (_prefs->daily_reboot_interval_hours == 0) _prefs->daily_reboot_interval_hours = 24;
     _prefs->daily_reboot_interval_hours = constrain(_prefs->daily_reboot_interval_hours, 1, 168);
-    _prefs->ntp_enabled = 1;
-    if (_prefs->ntp_server[0] == '\0' || strcmp(_prefs->ntp_server, "pool.ntp.org") == 0) {
-      StrHelper::strncpy(_prefs->ntp_server, "nl.pool.ntp.org", sizeof(_prefs->ntp_server));
-    }
-    _prefs->ntp_interval_secs = 3600;
-
     file.close();
   }
 }
@@ -856,9 +848,16 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 581 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 583 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 585 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 587 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 651 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 652 + sizeof(AtlasConfig)
+    file.write(pad, 8);                                                                            // 587 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 595 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 603 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 611 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 619 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 627 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 635 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 643 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 1);                                                                            // 651 + sizeof(AtlasConfig), legacy NTP enabled unused
+    file.write(pad, 4);                                                                            // 652 + sizeof(AtlasConfig), legacy NTP interval unused
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 656 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 657 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 659 + sizeof(AtlasConfig)
@@ -1962,32 +1961,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
     }
-  } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
-    const char* value = &config[12];
-    uint8_t ignored = 0;
-    if (parseOnOff(value, &ignored)) {
-      _prefs->ntp_enabled = 1;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK - NTP always enabled");
-    } else {
-      strcpy(reply, "Error: expected on or off");
-    }
-  } else if (memcmp(config, "ntp.server ", 11) == 0) {
-    StrHelper::strncpy(_prefs->ntp_server, &config[11], sizeof(_prefs->ntp_server));
-    _callbacks->restartBridge();
-    savePrefs();
-    strcpy(reply, "OK");
-  } else if (memcmp(config, "ntp.interval ", 13) == 0) {
-    uint32_t interval = _atoi(&config[13]);
-    if (interval >= 300 && interval <= 86400) {
-      _prefs->ntp_interval_secs = 3600;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK - NTP sync interval fixed at 3600 seconds");
-    } else {
-      strcpy(reply, "Error: interval must be between 300-86400 seconds");
-    }
   } else if (memcmp(config, "tcp.flood.limit ", 16) == 0) {
     const char* value = &config[16];
     if (parseOnOff(value, &_prefs->tcp_flood_limit_enable)) {
@@ -2525,12 +2498,6 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
-  } else if (memcmp(config, "ntp.enabled", 11) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_enabled ? "on" : "off");
-  } else if (memcmp(config, "ntp.server", 10) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_server);
-  } else if (memcmp(config, "ntp.interval", 12) == 0) {
-    sprintf(reply, "> %lu seconds", (unsigned long)_prefs->ntp_interval_secs);
   } else if (memcmp(config, "tcp.flood.limit", 15) == 0) {
     strcpy(reply, _prefs->tcp_flood_limit_enable ? "> on" : "> off");
   } else if (memcmp(config, "tcp.flood.max", 13) == 0) {

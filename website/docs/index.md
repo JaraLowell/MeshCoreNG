@@ -23,7 +23,7 @@ Everything else stays the same. Existing MeshCore clients, apps and firmware kee
 
 - [Getting started](/docs/getting-started)
 - [Dense mesh](/docs/dense-mesh)
-- [Internet bridge](/docs/bridge)
+- [Controlled TCP bridge/backhaul](/docs/bridge)
 - [Web flasher](/docs/flasher)
 - [Regions](/docs/regions)
 - [Atlas telemetry](/docs/atlas)

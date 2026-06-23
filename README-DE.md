@@ -193,7 +193,7 @@ set flood.dup.suppress on
 set flood.dup.suppress off
 ```
 
-### 8. Internetbruecke — optionaler Transport fuer getrennte RF-Netze
+### 8. Kontrollierte TCP-Bridge/Backhaul — optionaler Transport fuer getrennte RF-Netze
 
 MeshCoreNG bleibt RF-first. Die Bruecke ist optionaler Transport/Backhaul fuer bestimmte Deployments, kein Ersatz fuer lokale RF-Struktur.
 
@@ -218,7 +218,7 @@ Ausgewaehlter Traffic kann optional zwischen getrennten MeshCore-Deployments tra
 
 RF-Lokalitaet bleibt wichtig. Bridge nur, was wirklich benoetigt wird, halte lokalen Traffic lokal, nutze regionale Segmentierung und vermeide Full-Network-Flooding ueber Bridge-Links.
 
-Geplante oder untersuchte Schutzmechanismen fuer Multi-Bridge-Umgebungen sind Path-Fingerprints, leichte Path-Hashes, Bridge-Loop-Erkennung, Duplicate Suppression, TTL/Hop-Controls und Bridge-Scoping.
+Implementierte Schutzmechanismen fuer Multi-Bridge-Umgebungen sind TCP-Bridge-v2-Origin-IDs und TTL, Duplicate Suppression, Exportfilter, RF-Injection-Controls, Node/Path-Quarantine und Hop-Controls. Weiter untersucht werden Path-Fingerprints, zusaetzliche leichte Path-Hashes und reichere Bridge-Scopes.
 
 **Route 1: ESP32-Repeater mit WiFi**
 
@@ -796,7 +796,7 @@ get power.stats
 clear power.stats
 ```
 
-Internetbruecke:
+Kontrollierte TCP-Bridge/Backhaul:
 
 ```text
 set wifi.ssid     <netzwerkname>
@@ -804,12 +804,10 @@ set wifi.password <passwort>
 set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.password <bridge passwort>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type
@@ -981,7 +979,7 @@ Die naechsten logischen Schritte sind:
 - Nur Low-Priority-Traffic bei Last reduzieren.
 - Automatische Tuning-Entscheidungen erst spaeter aktivieren.
 - Noch spaeter auf hybrides routed + flooded Mesh vorbereiten.
-- Optionale TLS-Verschluesselung fuer die TCP-Internetbruecke ergaenzen, damit Traffic ueber das Internet besser geschuetzt ist.
+- Optionale TLS-Verschluesselung fuer die TCP-Bridge ergaenzen, damit Traffic ueber IP-Netze besser geschuetzt ist.
 
 Das Endziel ist ein skalierbareres LoRa MANET: einfach, wo es einfach bleiben kann, smarter, wo es noetig ist, und mit der TCP-Bruecke auch dort erreichbar, wo kein LoRa vorhanden ist.
 

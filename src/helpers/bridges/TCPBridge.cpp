@@ -1334,8 +1334,7 @@ void TCPBridge::getStatusStr(char *reply) const {
 
   if (!wifiOk) {
     const char *stateStr = (_state == State::WIFI_WAIT) ? "connecting..." : "disconnected";
-    const char *ntpStr = _prefs->ntp_enabled ? "not synced" : "disabled";
-    sprintf(reply, "> WiFi: %s | Server: disconnected | NTP: %s", stateStr, ntpStr);
+    sprintf(reply, "> WiFi: %s | Server: disconnected | NTP: %s", stateStr, "not synced");
     return;
   }
 
@@ -1344,7 +1343,7 @@ void TCPBridge::getStatusStr(char *reply) const {
   const char *serverStr = serverOk ? "connected"
                         : (_state == State::SERVER_WAIT) ? "connecting..."
                         : "disconnected";
-  const char *ntpStr = _prefs->ntp_enabled ? (_ntp_synced ? "synced" : "not synced") : "disabled";
+  const char *ntpStr = _ntp_synced ? "synced" : "not synced";
   
   char dutyStr[80] = "";
   if (_rf_tx_max_ms > 0) {
@@ -1393,12 +1392,12 @@ void TCPBridge::getStatusStr(char *reply) const {
 }
 
 void TCPBridge::syncTimeWithNTP(bool force) {
-  if (!_prefs->ntp_enabled || WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED) return;
 
   uint32_t now_ms = millis();
   if (!force && _last_ntp_sync_ms != 0 && (now_ms - _last_ntp_sync_ms) < 5000) return;
 
-  const char *server = _prefs->ntp_server[0] ? _prefs->ntp_server : "nl.pool.ntp.org";
+  const char *server = "nl.pool.ntp.org";
   BRIDGE_DEBUG_PRINTLN("TCP bridge: syncing time with NTP server %s\n", server);
 
   configTime(0, 0, server, "pool.ntp.org", "time.google.com");
@@ -1432,7 +1431,7 @@ void TCPBridge::syncTimeWithNTP(bool force) {
 }
 
 void TCPBridge::refreshNTP(uint32_t now_ms) {
-  if (!_prefs->ntp_enabled || WiFi.status() != WL_CONNECTED) return;
+  if (WiFi.status() != WL_CONNECTED) return;
 
   if (_last_ntp_sync_ms == 0 || (now_ms - _last_ntp_sync_ms) >= kNtpSyncIntervalMs) {
     syncTimeWithNTP(true);

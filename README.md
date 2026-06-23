@@ -190,7 +190,7 @@ The default threshold is conservative: two duplicate forwards must be heard befo
 
 This reduces duplicate flooding, airtime waste and collision probability without extra packets, without synchronization, and without changing the protocol.
 
-### 8. Internet bridge — optional transport for isolated RF deployments
+### 8. Controlled TCP bridge/backhaul — optional transport for isolated RF deployments
 
 #### Purpose of the bridge system
 
@@ -277,12 +277,10 @@ Implemented protections:
 - Stable bridge identity advertised in TCP caps metadata. By default it is derived from node/device identity; `set bridge.id <8-hex>` can pin it for hardware replacement or multi-interface deployments.
 - Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
 
-Planned or under consideration:
+Still planned or under consideration:
 - path fingerprints
-- lightweight path hashes
-- bridge loop detection
-- duplicate suppression
-- bridge scoping
+- additional lightweight path hashes
+- richer bridge scoping
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
 
@@ -291,7 +289,7 @@ The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. 
 #### Bridge FAQ
 
 **Does MeshCoreNG require internet?**  
-No. MeshCoreNG remains usable as an RF-only LoRa mesh.
+No. Normal MeshCoreNG remains usable as an RF-only LoRa mesh. Only bridge- or MQTT-capable builds use WiFi/IP transport when explicitly configured.
 
 **Is the bridge enabled by default?**  
 No. Bridge support requires a bridge-capable firmware build and `set bridge.enabled on`.
@@ -302,8 +300,8 @@ No. The bridge is for controlled transport between selected deployments, not wor
 **Can bridges be private?**  
 Yes. Private bridge servers and private bridge groups are recommended for many deployments.
 
-**Are anti-loop protections planned?**  
-Yes. Path fingerprints, lightweight path hashes, loop detection, duplicate suppression, TTL/hop controls, and bridge scoping are planned or being evaluated, especially for multi-bridge environments.
+**Are anti-loop protections implemented?**
+Partly. TCP bridge v2 already uses origin IDs, TTL, duplicate suppression, export filters, hop controls, and RF injection controls. Path fingerprints and richer bridge scoping are still being evaluated.
 
 #### Path 1: ESP32 repeater with WiFi
 
@@ -784,7 +782,7 @@ set radio.fem.rxgain off
 
 `radio.fem.rxgain` is for boards with a controllable external FEM/LNA RX path, such as Heltec V4.3. It is separate from `radio.rxgain`, which controls the radio chip's internal boosted RX gain.
 
-**Internet bridge (TCP):**
+**Controlled TCP bridge/backhaul:**
 
 ```text
 set wifi.ssid     <ssid>
@@ -792,12 +790,10 @@ set wifi.password <password>
 set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.password <bridge password>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type

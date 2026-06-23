@@ -33,7 +33,7 @@ get nearby.client.hops     — get max hop count for nearby suppression, default
 set nearby.client.hops <v> — set max hop count (0..3)
 ```
 
-### Internet bridge (TCP)
+### Controlled TCP bridge/backhaul
 
 ```
 set wifi.ssid <name>
