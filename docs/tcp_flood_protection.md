@@ -76,18 +76,7 @@ tools/tcp_bridge_server_ctl.sh restart
 
 `0` disables only the corresponding max cap. For example, `--transport-global-rate-max 0` keeps per-client limiting but disables the global cap.
 
-### Basic Flood Protection (Legacy)
-
-Global settings that apply when selective protection is not configured:
-
-```bash
-get tcp.flood.limit       # Check if enabled
-set tcp.flood.limit on    # Enable flood protection
-set tcp.flood.max 100     # Max packets (1-10000)
-set tcp.flood.window 600  # Time window in seconds (1-3600)
-```
-
-### Selective Transport Flood Protection (Recommended)
+### Selective Transport Flood Protection
 
 Configure rate limits specifically for transport/message packets:
 
@@ -178,13 +167,13 @@ get tcp.flood.transport.max
 get tcp.flood.transport.window
 get tcp.flood.control.max
 get tcp.flood.control.window
-get wifi.status    # Shows drop counts per category
+get bridge.status  # Shows drop counts per category on TCP bridge builds
 ```
 
-The `wifi.status` command will show the number of dropped packets if flood protection is active:
+The `bridge.status` command will show the number of dropped packets if flood protection is active:
 
 ```
-> WiFi: connected | IP: 192.168.1.100 | RSSI: -45 dBm | Server: connected | Flood dropped: 23
+> WiFi: connected | IP: 192.168.1.100 | RSSI: -45 dBm | Server: connected | NTP: synced | Rate drop:23/0
 ```
 
 ## Use Cases

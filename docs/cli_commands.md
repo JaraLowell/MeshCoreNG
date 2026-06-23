@@ -1094,6 +1094,20 @@ Simple start advice:
 
 ---
 
+#### Limit the number of hops for peer flood messages
+**Usage:**
+- `get flood.max.messages`
+- `set flood.max.messages <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for `REQ`, `RESPONSE`, and `TXT_MSG` packets
+
+**Default:** `64`
+
+**Note:** This only limits peer request/response/text payloads when they are flood-routed. It does not change adverts, ACKs, path returns, trace/control packets, group packets, or direct routing.
+
+---
+
 ### ACL
 
 #### Add, update or remove permissions for a companion
@@ -2087,42 +2101,6 @@ Enable or disable TCP flood protection. When enabled, the bridge monitors incomi
 **Default:** `off`
 
 **Note:** See [TCP Flood Protection](tcp_flood_protection.md) for detailed information.
-
----
-
-#### View or set TCP flood maximum packets (TCP bridge only)
-**Usage:**
-- `get tcp.flood.max`
-- `set tcp.flood.max <value>`
-
-**Parameters:**
-- `value`: Maximum packets allowed in the time window (1–10000)
-
-Configure the maximum number of packets allowed from the TCP bridge within the configured time window. When this limit is exceeded, additional packets are dropped until the time window expires.
-
-**Default:** `100` packets
-
----
-
-#### View or set TCP flood time window (TCP bridge only)
-**Usage:**
-- `get tcp.flood.window`
-- `set tcp.flood.window <value>`
-
-**Parameters:**
-- `value`: Time window in seconds (1–3600)
-
-Configure the time window for TCP flood protection. The packet counter resets when this window expires.
-
-**Default:** `600` seconds (10 minutes)
-
-**Example configuration:**
-```
-set tcp.flood.limit on
-set tcp.flood.max 200
-set tcp.flood.window 300
-```
-This allows up to 200 packets per 5 minutes from the TCP bridge.
 
 ---
 

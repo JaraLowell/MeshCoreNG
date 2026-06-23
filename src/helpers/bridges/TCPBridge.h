@@ -53,42 +53,6 @@ public:
   void setRfDutyStats(uint32_t used_ms, uint32_t max_ms, uint32_t window_ms, uint16_t limit_centi_pct, uint16_t used_centi_pct, uint32_t total_tx_ms,
                       int16_t noise_floor = 0, int16_t last_rssi = 0, int16_t last_snr_quarter_db = 0, uint16_t neighbor_count = 0);
   void resetGuardStats();
-  
-  /**
-   * @brief Get the total number of packets dropped by TCP rate limiting (all categories)
-   * @return Total number of dropped packets
-   */
-  uint32_t getFloodDroppedCount() const { return _transport_dropped_count + _control_dropped_count; }
-  
-  /**
-   * @brief Get the number of transport packets dropped by TCP rate limiting
-   * @return Number of transport packets dropped
-   */
-  uint32_t getTransportDroppedCount() const { return _transport_dropped_count; }
-  
-  /**
-   * @brief Get the number of control packets dropped by TCP rate limiting
-   * @return Number of control packets dropped
-   */
-  uint32_t getControlDroppedCount() const { return _control_dropped_count; }
-  
-  /**
-   * @brief Get the current packet count in the transport flood limiter window
-   * @return Current transport packet count
-   */
-  uint16_t getFloodCurrentCount() const { return _transport_flood_limiter.getCount(); }
-  
-  /**
-   * @brief Get the current transport packet count in the flood limiter window
-   * @return Current transport packet count
-   */
-  uint16_t getTransportCurrentCount() const { return _transport_flood_limiter.getCount(); }
-  
-  /**
-   * @brief Get the current control packet count in the flood limiter window
-   * @return Current control packet count
-   */
-  uint16_t getControlCurrentCount() const { return _control_flood_limiter.getCount(); }
   void setCommandHandler(TCPBridgeCommandHandler *handler) { _command_handler = handler; }
 
   bool pollJustConnected() {

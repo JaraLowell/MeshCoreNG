@@ -165,6 +165,7 @@ SHORT_ID_QUARANTINE_THRESHOLD = 5
 SHORT_ID_QUARANTINE_SECS = 900
 BLOCK_STATS_POLL_INTERVAL_SECS = 15
 BLOCK_STATS_COMMAND_TIMEOUT_SECS = 4
+BLOCK_STATS_COUNTER_WINDOW_SECS = 24 * 60 * 60
 next_command_id = 1
 next_client_id = 1
 SERVER_STARTED_AT = time.time()
@@ -1601,17 +1602,73 @@ def parse_block_stats_reply(kind: str, reply: str) -> list[dict]:
     return entries
 
 
+def new_block_drop_counter_state(now: float | None = None) -> dict:
+    now = now or time.time()
+    return {
+        "window_started_at": now,
+        "last": {"node": {}, "path": {}},
+        "totals": {"node": 0, "path": 0},
+    }
+
+
+def update_block_drop_counters(state: dict, block_stats: dict, now: float | None = None) -> dict:
+    now = now or time.time()
+    if not state:
+        state = new_block_drop_counter_state(now)
+    if now - float(state.get("window_started_at") or now) >= BLOCK_STATS_COUNTER_WINDOW_SECS:
+        state = new_block_drop_counter_state(now)
+
+    last_by_kind = state.setdefault("last", {"node": {}, "path": {}})
+    totals = state.setdefault("totals", {"node": 0, "path": 0})
+    for kind in ("node", "path"):
+        previous = last_by_kind.setdefault(kind, {})
+        for entry in block_stats.get(kind) or []:
+            value = str(entry.get("value") or "").strip().lower()
+            if not value:
+                continue
+            drops = max(0, int(entry.get("drops") or 0))
+            old_drops = previous.get(value)
+            if old_drops is None:
+                increment = drops
+            elif drops >= old_drops:
+                increment = drops - old_drops
+            else:
+                # Firmware-side counters can reset on reconnect/restart; keep the website 24h counter monotonic.
+                increment = drops
+            if increment > 0:
+                totals[kind] = int(totals.get(kind) or 0) + increment
+            previous[value] = drops
+
+    block_stats["node_drops_24h"] = int(totals.get("node") or 0)
+    block_stats["path_drops_24h"] = int(totals.get("path") or 0)
+    block_stats["drop_window_started_at"] = state["window_started_at"]
+    block_stats["drop_window_resets_in_seconds"] = max(
+        0,
+        int(float(state["window_started_at"]) + BLOCK_STATS_COUNTER_WINDOW_SECS - now),
+    )
+    return state
+
+
 def block_stats_totals(block_stats: dict) -> dict:
     node_entries = block_stats.get("node") or []
     path_entries = block_stats.get("path") or []
-    node_drops = sum(int(entry.get("drops") or 0) for entry in node_entries)
-    path_drops = sum(int(entry.get("drops") or 0) for entry in path_entries)
+    node_drops = int(
+        block_stats["node_drops_24h"]
+        if "node_drops_24h" in block_stats
+        else sum(int(entry.get("drops") or 0) for entry in node_entries)
+    )
+    path_drops = int(
+        block_stats["path_drops_24h"]
+        if "path_drops_24h" in block_stats
+        else sum(int(entry.get("drops") or 0) for entry in path_entries)
+    )
     return {
         "node_active": len(node_entries),
         "path_active": len(path_entries),
         "node_drops": node_drops,
         "path_drops": path_drops,
         "total_drops": node_drops + path_drops,
+        "resets_in_seconds": int(block_stats.get("drop_window_resets_in_seconds") or 0),
     }
 
 
@@ -1931,6 +1988,7 @@ class BridgeClient:
         self.rf_inject_airtime_times: deque[tuple[float, int]] = deque()
         self.rf_budget_drops = 0
         self.block_stats: dict = {"path": [], "node": [], "updated_at": 0.0, "error": ""}
+        self.block_drop_counter_state: dict = new_block_drop_counter_state(self._connect_time)
         self._block_stats_polling = False
         self._last_block_stats_poll = 0.0
         self.last_fingerprint = 0
@@ -2447,6 +2505,11 @@ async def refresh_client_block_stats(client: "BridgeClient", force: bool = False
             "updated_at": time.time(),
             "error": "",
         }
+        client.block_drop_counter_state = update_block_drop_counters(
+            client.block_drop_counter_state,
+            client.block_stats,
+            now=time.time(),
+        )
         touch_node_stats(client)
     except asyncio.TimeoutError:
         client.block_stats = dict(client.block_stats)

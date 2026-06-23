@@ -61,6 +61,7 @@ struct NodePrefs { // persisted to file
   uint8_t flood_max;
   uint8_t flood_max_unscoped;
   uint8_t flood_max_advert;
+  uint8_t flood_max_messages;
   uint8_t interference_threshold;
   uint8_t agc_reset_interval; // secs / 4
   // Bridge settings
@@ -99,10 +100,8 @@ struct NodePrefs { // persisted to file
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
   uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
-  // TCP bridge rate-limit settings (CLI keeps tcp.flood.* names for compatibility)
+  // TCP bridge rate-limit settings
   uint8_t tcp_flood_limit_enable; // enable TCP bridge rate limiting
-  uint16_t tcp_flood_max_packets; // max packets allowed in time window (general/legacy)
-  uint16_t tcp_flood_window_secs; // time window in seconds (e.g., 600 = 10 min)
   // Selective rate limiting per packet category
   uint16_t tcp_flood_transport_max; // max transport/message packets (DMs, group msgs)
   uint16_t tcp_flood_transport_window; // transport time window in seconds
@@ -338,10 +337,6 @@ public:
   virtual void restartBridgeSlot(int slot_index) {
     // no op by default (used by MQTT bridge to reconnect a single slot)
   };
-
-  virtual void formatMqttStatusReply(char *reply) {
-    reply[0] = 0;
-  }
 
   virtual void setRxBoostedGain(bool enable) {
     // no op by default

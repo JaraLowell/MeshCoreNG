@@ -751,8 +751,7 @@ bool MyMesh::isLikelyNearbyClientFlood(const mesh::Packet* packet) const {
     return adv_type == ADV_TYPE_CHAT;
   }
 
-  return type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE || type == PAYLOAD_TYPE_TXT_MSG ||
-         type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA || type == PAYLOAD_TYPE_ANON_REQ ||
+  return type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA ||
          type == PAYLOAD_TYPE_LOCATION || type == PAYLOAD_TYPE_RAW_CUSTOM;
 }
 
@@ -992,6 +991,10 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
   const bool is_bridge_flood = packet->isRouteFlood() && packet->wasReceivedFromBridge();
+  const bool is_flood_message = packet->isRouteFlood()
+    && (packet->getPayloadType() == PAYLOAD_TYPE_REQ
+        || packet->getPayloadType() == PAYLOAD_TYPE_RESPONSE
+        || packet->getPayloadType() == PAYLOAD_TYPE_TXT_MSG);
 
   if (is_bridge_flood) {
     if (_prefs.bridge_rf == BRIDGE_RF_OFF) {
@@ -1031,6 +1034,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   }
   if (packet->isRouteFlood()) {
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
+    if (is_flood_message && packet->getPathHashCount() >= _prefs.flood_max_messages) return false;
     if (is_flood_advert && packet->getPathHashCount() >= _prefs.flood_max_advert) {
       dense_stats.n_drop_flood_adverts++;
       return false;
@@ -1764,6 +1768,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+  _prefs.flood_max_messages = 64;
 
   // bridge defaults
 #if defined(WITH_TCP_BRIDGE)

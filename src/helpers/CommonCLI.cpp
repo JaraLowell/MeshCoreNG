@@ -499,14 +499,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&tcp_flood_limit_enable, sizeof(tcp_flood_limit_enable)) == sizeof(tcp_flood_limit_enable)) {
         _prefs->tcp_flood_limit_enable = tcp_flood_limit_enable;                                   // 532 + sizeof(AtlasConfig)
       }
-      uint16_t tcp_flood_max_packets = _prefs->tcp_flood_max_packets;
-      if (file.read((uint8_t *)&tcp_flood_max_packets, sizeof(tcp_flood_max_packets)) == sizeof(tcp_flood_max_packets)) {
-        _prefs->tcp_flood_max_packets = tcp_flood_max_packets;                                     // 533 + sizeof(AtlasConfig)
-      }
-      uint16_t tcp_flood_window_secs = _prefs->tcp_flood_window_secs;
-      if (file.read((uint8_t *)&tcp_flood_window_secs, sizeof(tcp_flood_window_secs)) == sizeof(tcp_flood_window_secs)) {
-        _prefs->tcp_flood_window_secs = tcp_flood_window_secs;                                     // 535 + sizeof(AtlasConfig)
-      }
+      file.read(pad, 2);                                                                           // 533 + sizeof(AtlasConfig), legacy tcp.flood.max unused
+      file.read(pad, 2);                                                                           // 535 + sizeof(AtlasConfig), legacy tcp.flood.window unused
       uint16_t tcp_flood_transport_max = _prefs->tcp_flood_transport_max;
       if (file.read((uint8_t *)&tcp_flood_transport_max, sizeof(tcp_flood_transport_max)) == sizeof(tcp_flood_transport_max)) {
         _prefs->tcp_flood_transport_max = tcp_flood_transport_max;                                 // 537 + sizeof(AtlasConfig)
@@ -630,7 +624,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&nearby_client_suppress_max_hops, sizeof(nearby_client_suppress_max_hops)) == sizeof(nearby_client_suppress_max_hops)) {
         _prefs->nearby_client_suppress_max_hops = nearby_client_suppress_max_hops;                    // 708 + sizeof(AtlasConfig)
       }
-      // next: 709 + sizeof(AtlasConfig)
+      uint8_t flood_max_messages = _prefs->flood_max_messages;
+      if (file.read((uint8_t *)&flood_max_messages, sizeof(flood_max_messages)) == sizeof(flood_max_messages)) {
+        _prefs->flood_max_messages = flood_max_messages;                                             // 709 + sizeof(AtlasConfig)
+      }
+      // next: 710 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -695,10 +693,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitize TCP bridge rate-limit settings
     _prefs->tcp_flood_limit_enable = constrain(_prefs->tcp_flood_limit_enable, 0, 1);
-    if (_prefs->tcp_flood_max_packets == 0) _prefs->tcp_flood_max_packets = 100;  // default 100 packets
-    if (_prefs->tcp_flood_window_secs == 0) _prefs->tcp_flood_window_secs = 600;  // default 10 minutes
-    _prefs->tcp_flood_max_packets = constrain(_prefs->tcp_flood_max_packets, 1, 10000);
-    _prefs->tcp_flood_window_secs = constrain(_prefs->tcp_flood_window_secs, 1, 3600);
     
     // sanitize selective TCP rate-limit settings
     if (_prefs->tcp_flood_transport_max == 0) _prefs->tcp_flood_transport_max = 20;   // default 20 transport packets
@@ -741,6 +735,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       _prefs->flood_advert_base = default_flood_advert_base;
     }
     _prefs->flood_dynamic_enable = constrain(_prefs->flood_dynamic_enable, 0, 1);
+    _prefs->flood_max_messages = constrain(_prefs->flood_max_messages, 0, 64);
     _prefs->flood_node_delay_enable = constrain(_prefs->flood_node_delay_enable, 0, 1);
     _prefs->flood_dup_suppress_enable = constrain(_prefs->flood_dup_suppress_enable, 0, 1);
     _prefs->atlas.enabled = constrain(_prefs->atlas.enabled, 0, 1);
@@ -831,8 +826,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 467 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->fem_rx_gain, sizeof(_prefs->fem_rx_gain));                      // 531 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_limit_enable, sizeof(_prefs->tcp_flood_limit_enable)); // 532 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->tcp_flood_max_packets, sizeof(_prefs->tcp_flood_max_packets));   // 533 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->tcp_flood_window_secs, sizeof(_prefs->tcp_flood_window_secs));   // 535 + sizeof(AtlasConfig)
+    file.write(pad, 2);                                                                            // 533 + sizeof(AtlasConfig), legacy tcp.flood.max unused
+    file.write(pad, 2);                                                                            // 535 + sizeof(AtlasConfig), legacy tcp.flood.window unused
     file.write((uint8_t *)&_prefs->tcp_flood_transport_max, sizeof(_prefs->tcp_flood_transport_max)); // 537 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_transport_window, sizeof(_prefs->tcp_flood_transport_window)); // 539 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_max, sizeof(_prefs->tcp_flood_control_max));   // 541 + sizeof(AtlasConfig)
@@ -876,7 +871,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->nearby_client_suppress_enabled, sizeof(_prefs->nearby_client_suppress_enabled)); // 705 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->nearby_client_suppress_rssi_dbm, sizeof(_prefs->nearby_client_suppress_rssi_dbm)); // 706 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->nearby_client_suppress_max_hops, sizeof(_prefs->nearby_client_suppress_max_hops)); // 708 + sizeof(AtlasConfig)
-    // next: 709 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->flood_max_messages, sizeof(_prefs->flood_max_messages));          // 709 + sizeof(AtlasConfig)
+    // next: 710 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1532,6 +1528,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "flood.max.messages ", 19) == 0) {
+    uint8_t m = atoi(&config[19]);
+    if (m <= 64) {
+      _prefs->flood_max_messages = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
@@ -1970,26 +1975,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: expected on or off");
     }
-  } else if (memcmp(config, "tcp.flood.max ", 14) == 0) {
-    int max = _atoi(&config[14]);
-    if (max > 0 && max <= 10000) {
-      _prefs->tcp_flood_max_packets = (uint16_t)max;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: max must be between 1-10000");
-    }
-  } else if (memcmp(config, "tcp.flood.window ", 17) == 0) {
-    int window = _atoi(&config[17]);
-    if (window > 0 && window <= 3600) {
-      _prefs->tcp_flood_window_secs = (uint16_t)window;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: window must be between 1-3600 seconds");
-    }
   } else if (memcmp(config, "tcp.flood.transport.max ", 24) == 0) {
     int max = _atoi(&config[24]);
     if (max > 0 && max <= 10000) {
@@ -2376,6 +2361,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
   } else if (memcmp(config, "flood.max.advert", 16) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
+  } else if (memcmp(config, "flood.max.messages", 18) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_messages);
   } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_unscoped);
   } else if (memcmp(config, "flood.max", 9) == 0) {
@@ -2500,10 +2487,6 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
   } else if (memcmp(config, "tcp.flood.limit", 15) == 0) {
     strcpy(reply, _prefs->tcp_flood_limit_enable ? "> on" : "> off");
-  } else if (memcmp(config, "tcp.flood.max", 13) == 0) {
-    sprintf(reply, "> %d packets", (uint32_t)_prefs->tcp_flood_max_packets);
-  } else if (memcmp(config, "tcp.flood.window", 16) == 0) {
-    sprintf(reply, "> %d seconds", (uint32_t)_prefs->tcp_flood_window_secs);
   } else if (memcmp(config, "tcp.flood.transport.max", 23) == 0) {
     sprintf(reply, "> %d packets", (uint32_t)_prefs->tcp_flood_transport_max);
   } else if (memcmp(config, "tcp.flood.transport.window", 26) == 0) {

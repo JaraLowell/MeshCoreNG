@@ -541,6 +541,49 @@ async def test_block_stats_reply_parser() -> None:
     assert totals["total_drops"] == 12
 
 
+async def test_block_stats_24h_counter_is_monotonic_until_window_reset() -> None:
+    state = server.new_block_drop_counter_state(now=1000)
+    stats = {
+        "node": [{"kind": "node", "value": "a7", "seconds_left": 45, "drops": 5}],
+        "path": [{"kind": "path", "value": "aa/bb", "seconds_left": 123, "drops": 2}],
+    }
+    state = server.update_block_drop_counters(state, stats, now=1000)
+    totals = server.block_stats_totals(stats)
+    assert totals["node_drops"] == 5
+    assert totals["path_drops"] == 2
+
+    stats = {
+        "node": [{"kind": "node", "value": "a7", "seconds_left": 30, "drops": 8}],
+        "path": [{"kind": "path", "value": "aa/bb", "seconds_left": 90, "drops": 0}],
+    }
+    state = server.update_block_drop_counters(state, stats, now=1010)
+    totals = server.block_stats_totals(stats)
+    assert totals["node_drops"] == 8
+    assert totals["path_drops"] == 2
+
+    stats = {
+        "node": [{"kind": "node", "value": "a7", "seconds_left": 20, "drops": 1}],
+        "path": [{"kind": "path", "value": "aa/bb", "seconds_left": 80, "drops": 4}],
+    }
+    state = server.update_block_drop_counters(state, stats, now=1020)
+    totals = server.block_stats_totals(stats)
+    assert totals["node_drops"] == 9
+    assert totals["path_drops"] == 6
+
+    stats = {
+        "node": [{"kind": "node", "value": "a7", "seconds_left": 20, "drops": 3}],
+        "path": [{"kind": "path", "value": "aa/bb", "seconds_left": 80, "drops": 1}],
+    }
+    state = server.update_block_drop_counters(
+        state,
+        stats,
+        now=1000 + server.BLOCK_STATS_COUNTER_WINDOW_SECS + 1,
+    )
+    totals = server.block_stats_totals(stats)
+    assert totals["node_drops"] == 3
+    assert totals["path_drops"] == 1
+
+
 async def main() -> None:
     await test_basic_dedupe()
     await test_dedupe_ignores_bridge_export_path()
@@ -563,6 +606,7 @@ async def main() -> None:
     await test_short_id_quarantine_blocks_broadcast()
     await test_short_id_bad_hits_start_quarantine()
     await test_block_stats_reply_parser()
+    await test_block_stats_24h_counter_is_monotonic_until_window_reset()
     print("tcp bridge guard smoke tests passed")
 
 
