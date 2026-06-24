@@ -157,6 +157,10 @@ protected:
     return _prefs.multi_acks;
   }
 
+  uint8_t getFloodMaxPathCount() const override {
+    return _prefs.flood_max;
+  }
+
   bool filterRecvFloodPacket(mesh::Packet* pkt) override;
 
   bool allowPacketForward(const mesh::Packet* packet) override;

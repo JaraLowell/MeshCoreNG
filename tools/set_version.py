@@ -53,10 +53,16 @@ if not firmware_version:
 if not firmware_build_date:
     firmware_build_date = get_build_date()
 
+def cpp_string_define(value: str) -> str:
+    """Format a value for CPPDEFINES so the macro expands to a C string literal."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'\\"{escaped}\\"'
+
+
 # Add defines to build
 env.Append(CPPDEFINES=[
-    ("FIRMWARE_VERSION", f'\\"\\"{firmware_version}\\"\\""'),
-    ("FIRMWARE_BUILD_DATE", f'\\"\\"{firmware_build_date}\\"\\""')
+    ("FIRMWARE_VERSION", cpp_string_define(firmware_version)),
+    ("FIRMWARE_BUILD_DATE", cpp_string_define(firmware_build_date)),
 ])
 
 print(f"Building with version: {firmware_version} ({firmware_build_date})")

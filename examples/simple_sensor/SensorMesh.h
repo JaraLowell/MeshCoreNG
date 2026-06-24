@@ -115,6 +115,9 @@ protected:
 
   // Mesh overrides
   float getAirtimeBudgetFactor() const override;
+  uint8_t getFloodMaxPathCount() const override {
+    return _prefs.flood_max;
+  }
   bool allowPacketForward(const mesh::Packet* packet) override;
   bool isDuplicateSuppressionEnabled() const override {
     return _prefs.flood_dup_suppress_enable != 0;

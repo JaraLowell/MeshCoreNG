@@ -279,6 +279,10 @@ protected:
     return _prefs.airtime_factor;
   }
 
+  uint8_t getFloodMaxPathCount() const override {
+    return _prefs.flood_max;
+  }
+
   bool allowPacketForward(const mesh::Packet* packet) override;
   const char* getLogDateTime() override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;

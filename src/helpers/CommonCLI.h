@@ -58,7 +58,7 @@ struct NodePrefs { // persisted to file
   uint8_t allow_read_only;
   uint8_t multi_acks;
   float bw;
-  uint8_t flood_max;
+  uint8_t flood_max;              // max flood path hash count before relay stops (all types; default 64)
   uint8_t flood_max_unscoped;
   uint8_t flood_max_advert;
   uint8_t flood_max_messages;
@@ -119,7 +119,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_export_filter;   // BRIDGE_EXPORT_* packet filter before bridge export
   uint8_t bridge_export_max_hops; // 0 = unlimited, otherwise max RF path hash count to export
   uint8_t bridge_tcp_ttl;         // TCP bridge envelope TTL for multi-bridge loop control
-  uint8_t bridge_profile;         // 0=default, 1=island, 2=repeater
+  uint8_t bridge_profile;         // 0=default, 1=island, 2=repeater, 3=gateway (no RF->RF)
   char bridge_group[16];          // TCP bridge scope/group advertised to the server
   uint8_t bridge_rf_inject_budget_enabled;      // locally gate TCP->RF injection
   uint16_t bridge_rf_inject_max_per_min;        // 0 = no packet count cap

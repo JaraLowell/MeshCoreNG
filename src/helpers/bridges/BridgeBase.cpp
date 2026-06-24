@@ -38,6 +38,12 @@ bool BridgeBase::isRunning() const {
   return _initialized;
 }
 
+bool BridgeBase::exceedsFloodMaxPath(const NodePrefs *prefs, const mesh::Packet *packet) {
+  if (!prefs || !packet || !packet->isRouteFlood()) return false;
+  if (prefs->flood_max == 0) return false;
+  return packet->getPathHashCount() >= prefs->flood_max;
+}
+
 const char *BridgeBase::getLogDateTime() {
   static char tmp[32];
   uint32_t now = _rtc->getCurrentTime();

@@ -53,6 +53,18 @@ protected:
   virtual bool filterRecvFloodPacket(Packet* packet) { return false; }
 
   /**
+   * \brief  Maximum flood path hash count before this node refuses to relay.
+   *         Count is evaluated before appending this node's hash (0 = no configured cap).
+   */
+  virtual uint8_t getFloodMaxPathCount() const { return 0; }
+
+  /**
+   * \brief  True when a flood packet has already reached the configured relay hop cap.
+   *         Does not include this node's pending path entry.
+   */
+  bool isFloodPathAtRelayLimit(const Packet* packet) const;
+
+  /**
    * \brief  Check whether this packet should be forwarded (re-transmitted) or not.
    *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
