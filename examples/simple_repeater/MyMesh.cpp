@@ -688,6 +688,182 @@ bool MyMesh::shouldBlockPath(const mesh::Packet* packet) {
   return false;
 }
 
+void MyMesh::clearExpiredNodeBlocks() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  for (int i = 0; i < MAX_NODE_BLOCKS; i++) {
+    if (node_blocks[i].active && node_blocks[i].expires_at != 0 && node_blocks[i].expires_at <= now) {
+      memset(&node_blocks[i], 0, sizeof(node_blocks[i]));
+    }
+  }
+}
+
+bool MyMesh::sourceShortId(const mesh::Packet* packet, uint8_t* id) const {
+  if (!packet || !id || packet->payload_len == 0) return false;
+  uint8_t type = packet->getPayloadType();
+  if (type == PAYLOAD_TYPE_ADVERT && packet->payload_len >= 1) {
+    *id = packet->payload[0];
+    return true;
+  }
+  if (type == PAYLOAD_TYPE_LOCATION && packet->payload_len >= 10 &&
+      packet->payload[0] == 'M' && packet->payload[1] == 'C' &&
+      packet->payload[2] == 'L' && packet->payload[3] == '1') {
+    *id = packet->payload[6];
+    return true;
+  }
+  if ((type == PAYLOAD_TYPE_PATH || type == PAYLOAD_TYPE_REQ ||
+       type == PAYLOAD_TYPE_RESPONSE || type == PAYLOAD_TYPE_TXT_MSG) &&
+      packet->payload_len >= 2) {
+    *id = packet->payload[1];
+    return true;
+  }
+  *id = packet->payload[0];
+  return true;
+}
+
+bool MyMesh::shouldBlockNode(const mesh::Packet* packet) {
+  clearExpiredNodeBlocks();
+  uint8_t id = 0;
+  if (!sourceShortId(packet, &id)) return false;
+  for (int i = 0; i < MAX_NODE_BLOCKS; i++) {
+    if (node_blocks[i].active && node_blocks[i].id == id) {
+      node_blocks[i].drops++;
+      MESH_DEBUG_PRINTLN("allowPacketForward: node.block matched id=%02x entry=%d", id, i);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MyMesh::shouldBlockBridgeOrRepeater(const mesh::Packet* packet) {
+  return shouldBlockNode(packet) || shouldBlockPath(packet);
+}
+
+bool MyMesh::isLikelyNearbyClientFlood(const mesh::Packet* packet) const {
+  if (!packet || !packet->isRouteFlood()) return false;
+  if (packet->wasReceivedFromBridge()) return false;
+  if (packet->getPathHashCount() > _prefs.nearby_client_suppress_max_hops) return false;
+
+  uint8_t type = packet->getPayloadType();
+  if (type == PAYLOAD_TYPE_ADVERT) {
+    const size_t app_data_offset = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
+    if (packet->payload_len <= app_data_offset) return false;
+    uint8_t adv_type = packet->payload[app_data_offset] & 0x0F;
+    return adv_type == ADV_TYPE_CHAT;
+  }
+
+  return type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA ||
+         type == PAYLOAD_TYPE_LOCATION || type == PAYLOAD_TYPE_RAW_CUSTOM;
+}
+
+bool MyMesh::shouldSuppressNearbyClientFlood(const mesh::Packet* packet) const {
+  if (!_prefs.nearby_client_suppress_enabled) return false;
+  if (!isLikelyNearbyClientFlood(packet)) return false;
+  return packet->getRSSI() >= _prefs.nearby_client_suppress_rssi_dbm;
+}
+
+void MyMesh::formatNodeBlocksReply(char* reply) {
+  clearExpiredNodeBlocks();
+  uint32_t now = getRTCClock()->getCurrentTime();
+  strcpy(reply, "> ");
+  size_t used = 2;
+  bool any = false;
+  for (int i = 0; i < MAX_NODE_BLOCKS && used < 150; i++) {
+    const NodeBlockEntry& entry = node_blocks[i];
+    if (!entry.active) continue;
+    if (any && used < 158) reply[used++] = ';';
+    if (any && used < 158) reply[used++] = ' ';
+    any = true;
+    uint32_t ttl = entry.expires_at > now ? entry.expires_at - now : 0;
+    used += snprintf(&reply[used], 160 - used, "%02x %lus %lu",
+                     entry.id, (unsigned long)ttl, (unsigned long)entry.drops);
+  }
+  if (!any) {
+    strcpy(reply, "> empty");
+  } else {
+    if (used > 159) used = 159;
+    reply[used] = 0;
+  }
+}
+
+void MyMesh::handleNodeBlockCommand(char* command, char* reply) {
+  clearExpiredNodeBlocks();
+
+  if (strcmp(command, "get node.block") == 0) {
+    formatNodeBlocksReply(reply);
+    return;
+  }
+  if (strcmp(command, "clear node.block") == 0 || strcmp(command, "set node.block clear") == 0) {
+    memset(node_blocks, 0, sizeof(node_blocks));
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set node.block add ", 19) == 0) {
+    char* spec = &command[19];
+    char* ttl_text = strchr(spec, ' ');
+    if (ttl_text) {
+      *ttl_text++ = 0;
+      while (*ttl_text == ' ') ttl_text++;
+    }
+    if (strlen(spec) != 2 || !mesh::Utils::isHexChar(spec[0]) || !mesh::Utils::isHexChar(spec[1])) {
+      strcpy(reply, "Error");
+      return;
+    }
+    uint8_t id = 0;
+    if (!mesh::Utils::fromHex(&id, 1, spec)) {
+      strcpy(reply, "Error");
+      return;
+    }
+    uint32_t ttl_secs;
+    if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
+      strcpy(reply, "Error");
+      return;
+    }
+    int slot = -1;
+    for (int i = 0; i < MAX_NODE_BLOCKS; i++) {
+      if (!node_blocks[i].active && slot < 0) slot = i;
+      if (node_blocks[i].active && node_blocks[i].id == id) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot < 0) {
+      strcpy(reply, "Error");
+      return;
+    }
+    node_blocks[slot].id = id;
+    node_blocks[slot].active = 1;
+    node_blocks[slot].expires_at = getRTCClock()->getCurrentTime() + ttl_secs;
+    node_blocks[slot].drops = 0;
+    strcpy(reply, "OK");
+    return;
+  }
+
+  if (memcmp(command, "set node.block del ", 19) == 0) {
+    char* spec = &command[19];
+    if (strlen(spec) != 2 || !mesh::Utils::isHexChar(spec[0]) || !mesh::Utils::isHexChar(spec[1])) {
+      strcpy(reply, "Error");
+      return;
+    }
+    uint8_t id = 0;
+    if (!mesh::Utils::fromHex(&id, 1, spec)) {
+      strcpy(reply, "Error");
+      return;
+    }
+    for (int i = 0; i < MAX_NODE_BLOCKS; i++) {
+      if (node_blocks[i].active && node_blocks[i].id == id) {
+        memset(&node_blocks[i], 0, sizeof(node_blocks[i]));
+        strcpy(reply, "OK");
+        return;
+      }
+    }
+    strcpy(reply, "Error");
+    return;
+  }
+
+  strcpy(reply, "Error");
+}
+
 void MyMesh::formatPathBlocksReply(char* reply) {
   clearExpiredPathBlocks();
   uint32_t now = getRTCClock()->getCurrentTime();
@@ -750,7 +926,7 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
       return;
     }
     if (!parseDurationSeconds(ttl_text, &ttl_secs)) {
-      strcpy(reply, "Error: duration must be seconds, Nm, Nh, or Nd");
+      strcpy(reply, "Error");
       return;
     }
 
@@ -766,7 +942,7 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
     }
 
     if (slot < 0) {
-      strcpy(reply, "Error: path.block list full");
+      strcpy(reply, "Error");
       return;
     }
 
@@ -792,11 +968,11 @@ void MyMesh::handlePathBlockCommand(char* command, char* reply) {
         return;
       }
     }
-    strcpy(reply, "Error: not found");
+    strcpy(reply, "Error");
     return;
   }
 
-  strcpy(reply, "Error: use get path.block, clear path.block, set path.block add/del");
+  strcpy(reply, "Error");
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
@@ -815,6 +991,10 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_flood_advert = packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT;
   const bool is_bridge_flood = packet->isRouteFlood() && packet->wasReceivedFromBridge();
+  const bool is_flood_message = packet->isRouteFlood()
+    && (packet->getPayloadType() == PAYLOAD_TYPE_REQ
+        || packet->getPayloadType() == PAYLOAD_TYPE_RESPONSE
+        || packet->getPayloadType() == PAYLOAD_TYPE_TXT_MSG);
 
   if (is_bridge_flood) {
     if (_prefs.bridge_rf == BRIDGE_RF_OFF) {
@@ -823,7 +1003,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     }
   }
 
-  if (shouldBlockPath(packet)) {
+  if (shouldBlockBridgeOrRepeater(packet)) {
+    if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
+    recordDenseSuppressedTx();
+    return false;
+  }
+
+  if (shouldSuppressNearbyClientFlood(packet)) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: nearby client flood suppressed rssi=%d threshold=%d hops=%u",
+                       (int)packet->getRSSI(),
+                       (int)_prefs.nearby_client_suppress_rssi_dbm,
+                       (uint32_t)packet->getPathHashCount());
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     recordDenseSuppressedTx();
     return false;
@@ -844,6 +1034,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   }
   if (packet->isRouteFlood()) {
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
+    if (is_flood_message && packet->getPathHashCount() >= _prefs.flood_max_messages) return false;
     if (is_flood_advert && packet->getPathHashCount() >= _prefs.flood_max_advert) {
       dense_stats.n_drop_flood_adverts++;
       return false;
@@ -916,12 +1107,13 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
+  bool bridge_blocked = shouldBlockBridgeOrRepeater(pkt);
 #ifdef WITH_MQTT_BRIDGE
   // MQTT bridge: always feed RX packets — the bridge decides based on mqtt.rx.
-  if (mqtt_bridge) mqtt_bridge->sendPacket(pkt);
+  if (!bridge_blocked && mqtt_bridge) mqtt_bridge->sendPacket(pkt);
 #endif
 #if defined(WITH_TCP_BRIDGE) || defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_BLE_BRIDGE)
-  if (_prefs.bridge_pkt_src == 1 || _prefs.bridge_pkt_src == 2) {
+  if (!bridge_blocked && (_prefs.bridge_pkt_src == 1 || _prefs.bridge_pkt_src == 2)) {
 #if defined(WITH_TCP_BRIDGE) && defined(WITH_BLE_BRIDGE)
     tcp_bridge.sendPacket(pkt);
     ble_bridge.sendPacket(pkt);
@@ -1111,6 +1303,10 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   }
 
   const bool bridge_rf_flood = pkt->isRouteFlood() && pkt->wasReceivedFromBridge() && _prefs.bridge_rf == BRIDGE_RF_FLOOD;
+  if (shouldBlockBridgeOrRepeater(pkt)) {
+    recordDenseSuppressedTx();
+    return true;
+  }
   if (!bridge_rf_flood && shouldDropMalformedGroupText(pkt)) {
     recordDenseSuppressedTx();
     return true;
@@ -1529,6 +1725,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   memset(path_blocks, 0, sizeof(path_blocks));
+  memset(node_blocks, 0, sizeof(node_blocks));
   clearDenseStatsLocked();
   clearSpamStatsLocked();
   clearPowerStats();
@@ -1560,6 +1757,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_dynamic_enable = 0;
   _prefs.flood_node_delay_enable = 1;
   _prefs.flood_dup_suppress_enable = 1;
+  _prefs.nearby_client_suppress_enabled = 1;
+  _prefs.nearby_client_suppress_rssi_dbm = -45;
+  _prefs.nearby_client_suppress_max_hops = 0;
   _prefs.daily_reboot_enabled = 0;
   _prefs.daily_reboot_interval_hours = DAILY_REBOOT_DEFAULT_HOURS;
   _prefs.powersaving_enabled = 0;
@@ -1568,6 +1768,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+  _prefs.flood_max_messages = 64;
 
   // bridge defaults
 #if defined(WITH_TCP_BRIDGE)
@@ -1586,6 +1787,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bridge_rf_inject_max_per_min = 0;
   _prefs.bridge_rf_inject_max_airtime_ms_hour = 0;
   _prefs.bridge_rf_inject_block_duty_centi_pct = 0;
+  _prefs.bridge_id[0] = 0;
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 
@@ -1607,9 +1809,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.low_bat_runtime_warn_mv = LOW_BAT_RUNTIME_WARN_MV;
   _prefs.low_bat_runtime_valid_min_mv = LOW_BAT_RUNTIME_VALID_MIN_MV;
   _prefs.low_bat_runtime_retry_secs = LOW_BAT_RUNTIME_RETRY_SECS;
-  StrHelper::strncpy(_prefs.ntp_server, "nl.pool.ntp.org", sizeof(_prefs.ntp_server));
-  _prefs.ntp_enabled = 1;
-  _prefs.ntp_interval_secs = 3600;
 
 #ifdef WITH_MQTT_BRIDGE
   // MQTT observer tuning. Slot/IATA/timezone defaults come from /mqtt_prefs (setMQTTPrefsDefaults);
@@ -2172,6 +2371,14 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     handlePathBlockCommand(command, reply);
     return;
   }
+  if (strcmp(command, "get node.block") == 0
+      || strcmp(command, "clear node.block") == 0
+      || strcmp(command, "set node.block clear") == 0
+      || memcmp(command, "set node.block add ", 19) == 0
+      || memcmp(command, "set node.block del ", 19) == 0) {
+    handleNodeBlockCommand(command, reply);
+    return;
+  }
 
   // handle ACL related commands
   if (memcmp(command, "setperm ", 8) == 0) {   // format:  setperm {pubkey-hex} {permissions-int8}
@@ -2256,7 +2463,12 @@ static bool isPasswordlessTcpPathBlockCommand(const char *command) {
       || strcmp(command, "clear path.block") == 0
       || strcmp(command, "set path.block clear") == 0
       || memcmp(command, "set path.block add ", 19) == 0
-      || memcmp(command, "set path.block del ", 19) == 0;
+      || memcmp(command, "set path.block del ", 19) == 0
+      || strcmp(command, "get node.block") == 0
+      || strcmp(command, "clear node.block") == 0
+      || strcmp(command, "set node.block clear") == 0
+      || memcmp(command, "set node.block add ", 19) == 0
+      || memcmp(command, "set node.block del ", 19) == 0;
 }
 
 void MyMesh::handleTcpBridgeCommand(const char *password, const char *command, char *reply, size_t reply_size) {
@@ -2326,7 +2538,9 @@ void MyMesh::loop() {
     uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
     uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
     tcp_bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
+                              getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime(),
+                              (int16_t)_radio->getNoiseFloor(), (int16_t)radio_driver.getLastRSSI(),
+                              (int16_t)(radio_driver.getLastSNR() * 4), getDenseNeighborCount());
   }
   tcp_bridge.loop();
   ble_bridge.loop();
@@ -2337,7 +2551,9 @@ void MyMesh::loop() {
     uint32_t remaining_tx_budget = getEffectiveRemainingTxBudget();
     uint32_t used_tx_budget = remaining_tx_budget >= max_tx_budget ? 0 : (max_tx_budget - remaining_tx_budget);
     bridge.setRfDutyStats(used_tx_budget, max_tx_budget, getDutyCycleWindowMs(),
-                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime());
+                          getDutyCycleLimitCentiPct(), getTxBudgetUsedCentiPct(), getTotalAirTime(),
+                          (int16_t)_radio->getNoiseFloor(), (int16_t)radio_driver.getLastRSSI(),
+                          (int16_t)(radio_driver.getLastSNR() * 4), getDenseNeighborCount());
   }
   bridge.loop();
   if (bridge.pollJustConnected()) sendSelfAdvertisement(500, true);

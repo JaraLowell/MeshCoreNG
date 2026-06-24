@@ -2,9 +2,10 @@
 """
 MeshCore TCP Bridge Server
 
-Forwards mesh packets between connected repeaters so geographically separated
-LoRa networks can act as one mesh. Each packet received from one repeater is
-broadcast to all other connected repeaters.
+Forwards selected mesh packets between connected repeaters as a controlled
+backhaul for geographically separated RF islands. This is deliberately not a
+blind transparent internet mesh: TCP-only metadata, dedupe, origin IDs, TTL,
+groups, rate limits, and RF-inject budgets constrain how packets move.
 
 Usage:
     python3 tcp_bridge_server.py [--host 0.0.0.0] [--port 4200] [--password bridgeSecret]
@@ -22,7 +23,7 @@ Repeater firmware configuration (via CLI):
     set bridge.password <bridgeSecret>  # only when server --password is set
     set bridge.enabled on
 
-Requires Python 3.7+. Public channel decoding additionally needs:
+Requires Python 3.10+. Public channel decoding additionally needs:
     pip install cryptography
 """
 
@@ -41,6 +42,7 @@ import re
 import struct
 import time
 from pathlib import Path
+from typing import TypeAlias
 from urllib.parse import parse_qs, urlsplit
 from urllib.error import URLError
 from urllib.request import Request, urlopen
@@ -59,6 +61,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("tcp_bridge")
 
+SERVER_NAME = "MeshCoreNG TCP Bridge Server"
+SERVER_VERSION = "1.1.3"
 BRIDGE_MAGIC = 0xC03E
 MAX_PAYLOAD = 512   # Allows legacy raw packets and TCP bridge v2 envelopes.
 CONTROL_PREFIX = b"MCNG"
@@ -70,7 +74,9 @@ CONTROL_TYPE_COMMAND = 0x10
 CONTROL_TYPE_COMMAND_REPLY = 0x11
 CONTROL_TYPE_BRIDGE_PACKET = 0x20
 BRIDGE_PACKET_VERSION = 1
+BRIDGE_PACKET_FLAG_RF_RX = 0x01
 BRIDGE_V2_OVERHEAD = 14
+SUPPORTED_BRIDGE_PACKET_VERSIONS = {BRIDGE_PACKET_VERSION}
 IP_ADDRESS_RE = re.compile(
     r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?![\w.])"
     r"|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){2,}[0-9a-fA-F]{0,4}(?::\d{1,5})?(?![\w:])"
@@ -85,7 +91,9 @@ PAYLOAD_TYPE_ANON_REQ = 0x07
 PAYLOAD_TYPE_MULTIPART = 0x0A
 PAYLOAD_TYPE_GRP_TXT = 0x05
 PAYLOAD_TYPE_GRP_DATA = 0x06
+PAYLOAD_TYPE_TRACE = 0x09
 PAYLOAD_TYPE_LOCATION = 0x0D
+DATA_TYPE_MESHCORENG_TRACKER = 0x0200
 PH_ROUTE_MASK = 0x03
 PH_TYPE_SHIFT = 2
 ROUTE_TYPE_TRANSPORT_FLOOD = 0x00
@@ -104,6 +112,14 @@ MAX_ADVERT_DATA_SIZE = 32
 PATH_HASH_SIZE = 1
 CIPHER_MAC_SIZE = 2
 CIPHER_BLOCK_SIZE = 16
+DEFAULT_PUBLIC_CHANNEL_SECRET = bytes([
+    0x8B, 0x33, 0x87, 0xE9, 0xC5, 0xCD, 0xEA, 0x6A,
+    0xC9, 0xE5, 0xED, 0xBA, 0xA1, 0x15, 0xCD, 0x72,
+]) + (b"\x00" * 16)
+DEFAULT_TRACKER_CHANNEL_SECRET = bytes([
+    0x5F, 0x30, 0x3A, 0xC5, 0x07, 0x5F, 0x80, 0x0F,
+    0x0F, 0x47, 0x11, 0x31, 0x99, 0xD5, 0x10, 0x53,
+]) + (b"\x00" * 16)
 LOG_PACKETS = False
 LOG_HEX_BYTES = 32
 PUBLIC_CHANNELS_FILE = ""
@@ -143,6 +159,13 @@ BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR = 0
 BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT = 0.0
 BRIDGE_GROUP = "default"
 BRIDGE_REQUIRE_GROUP_MATCH = False
+SHORT_ID_QUARANTINE_ENABLED = False
+SHORT_ID_QUARANTINE_WINDOW_SECS = 60
+SHORT_ID_QUARANTINE_THRESHOLD = 5
+SHORT_ID_QUARANTINE_SECS = 900
+BLOCK_STATS_POLL_INTERVAL_SECS = 15
+BLOCK_STATS_COMMAND_TIMEOUT_SECS = 4
+BLOCK_STATS_COUNTER_WINDOW_SECS = 24 * 60 * 60
 next_command_id = 1
 next_client_id = 1
 SERVER_STARTED_AT = time.time()
@@ -158,6 +181,10 @@ transport_rate_dropped = 0
 recent_packets: deque[dict] = deque(maxlen=200)
 pending_commands: dict[int, asyncio.Future] = {}
 packet_fingerprint_cache: OrderedDict[int, dict] = OrderedDict()
+bridge_guard_counters: dict[str, int] = {}
+short_id_quarantine: dict[int, dict] = {}
+short_id_bad_hits: dict[int, deque[float]] = {}
+packet_log_total = 0
 public_channels: list[dict] = []
 latest_firmware_info: dict = {
     "enabled": True,
@@ -171,6 +198,8 @@ latest_firmware_info: dict = {
     "status": "pending",
     "error": "",
 }
+
+HttpResponse: TypeAlias = tuple[str, str, bytes, list[tuple[str, str]]]
 
 PAYLOAD_TYPE_NAMES = {
     0x00: "request",
@@ -206,6 +235,10 @@ CONTROL_TYPE_NAMES = {
     CONTROL_TYPE_COMMAND_REPLY: "command-reply",
     CONTROL_TYPE_BRIDGE_PACKET: "bridge-v2-packet",
 }
+
+
+def inc_bridge_guard_counter(name: str, amount: int = 1) -> None:
+    bridge_guard_counters[name] = bridge_guard_counters.get(name, 0) + amount
 
 
 def fletcher16(data: bytes) -> int:
@@ -263,8 +296,20 @@ def channel_hash(secret: bytes) -> bytes:
     return hashlib.sha256(secret[:key_len]).digest()[:PATH_HASH_SIZE]
 
 
+def add_public_channel(name: str, secret: bytes) -> None:
+    if any(ch["name"] == name and ch["secret"] == secret for ch in public_channels):
+        return
+    public_channels.append({
+        "name": name,
+        "secret": secret,
+        "hash": channel_hash(secret),
+    })
+
+
 def load_public_channels(path: str) -> None:
     public_channels.clear()
+    add_public_channel("Public", DEFAULT_PUBLIC_CHANNEL_SECRET)
+    add_public_channel("Trackers", DEFAULT_TRACKER_CHANNEL_SECRET)
     if not path:
         return
     if Cipher is None:
@@ -291,11 +336,7 @@ def load_public_channels(path: str) -> None:
         if not name or secret is None:
             log.warning("Skipping invalid public channel entry: %s", item)
             continue
-        public_channels.append({
-            "name": name,
-            "secret": secret,
-            "hash": channel_hash(secret),
-        })
+        add_public_channel(name, secret)
 
     log.info("Loaded %d public channel key(s) from %s", len(public_channels), path)
 
@@ -449,6 +490,30 @@ def trim_c_string(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").strip()
 
 
+def decrypt_public_channel_plain(parsed: dict) -> tuple[str, bytes] | None:
+    app_payload = parsed.get("app_payload") or b""
+    if not public_channels or len(app_payload) <= PATH_HASH_SIZE + CIPHER_MAC_SIZE:
+        return None
+    packet_hash = app_payload[:PATH_HASH_SIZE]
+    encrypted = app_payload[PATH_HASH_SIZE:]
+    for channel in (ch for ch in public_channels if ch["hash"] == packet_hash):
+        plain = mac_then_decrypt(channel["secret"], encrypted)
+        if plain:
+            return channel["name"], plain
+    return None
+
+
+def decode_group_data_plain(plain: bytes) -> tuple[int, bytes] | None:
+    if len(plain) < 3:
+        return None
+    data_type = plain[0] | (plain[1] << 8)
+    data_len = plain[2]
+    data = plain[3:3 + data_len]
+    if len(data) < data_len:
+        return None
+    return data_type, data
+
+
 def decode_public_channel_payload(parsed: dict) -> dict:
     result = {
         "decoded_channel": "",
@@ -468,44 +533,39 @@ def decode_public_channel_payload(parsed: dict) -> dict:
         result["decoded_status"] = "short-group-payload"
         return result
 
-    packet_hash = app_payload[:PATH_HASH_SIZE]
-    encrypted = app_payload[PATH_HASH_SIZE:]
-    candidates = [ch for ch in public_channels if ch["hash"] == packet_hash]
-    if not candidates:
+    if not any(ch["hash"] == app_payload[:PATH_HASH_SIZE] for ch in public_channels):
         result["decoded_status"] = "unknown-channel"
         return result
 
-    for channel in candidates:
-        plain = mac_then_decrypt(channel["secret"], encrypted)
-        if not plain:
-            continue
-        result["decoded_channel"] = channel["name"]
-        if payload_type == PAYLOAD_TYPE_GRP_TXT:
-            if len(plain) < 5:
-                result["decoded_status"] = "short-group-text"
-                return result
-            txt_type = plain[4]
-            if (txt_type >> 2) != 0:
-                result["decoded_status"] = f"unsupported-text-type-{txt_type}"
-                return result
-            result["decoded_status"] = "decoded"
-            result["decoded_text"] = trim_c_string(plain[5:])
+    decoded = decrypt_public_channel_plain(parsed)
+    if decoded is None:
+        result["decoded_status"] = "mac-failed"
+        return result
+    channel_name, plain = decoded
+    result["decoded_channel"] = channel_name
+    if payload_type == PAYLOAD_TYPE_GRP_TXT:
+        if len(plain) < 5:
+            result["decoded_status"] = "short-group-text"
             return result
-
-        if len(plain) < 3:
-            result["decoded_status"] = "short-group-data"
+        txt_type = plain[4]
+        if (txt_type >> 2) != 0:
+            result["decoded_status"] = f"unsupported-text-type-{txt_type}"
             return result
-        data_type = plain[0] | (plain[1] << 8)
-        data_len = plain[2]
-        data = plain[3:3 + data_len]
         result["decoded_status"] = "decoded"
-        result["decoded_data_type"] = data_type
-        result["decoded_data_len"] = min(data_len, len(data))
-        result["decoded_text"] = f"data_type=0x{data_type:04x} len={min(data_len, len(data))} preview={payload_preview(data)}"
+        result["decoded_text"] = trim_c_string(plain[5:])
         return result
 
-    result["decoded_status"] = "mac-failed"
+    group_data = decode_group_data_plain(plain)
+    if group_data is None:
+        result["decoded_status"] = "short-group-data"
+        return result
+    data_type, data = group_data
+    result["decoded_status"] = "decoded"
+    result["decoded_data_type"] = data_type
+    result["decoded_data_len"] = len(data)
+    result["decoded_text"] = f"data_type=0x{data_type:04x} len={len(data)} preview={payload_preview(data)}"
     return result
+
 
 
 def describe_peer_encrypted_payload(parsed: dict) -> dict:
@@ -627,6 +687,8 @@ def format_packet_description(description: dict) -> str:
         parts.append(f"app={description['app_len']}B")
     if description.get("bridge_v2"):
         parts.append(f"bridge-v2 ttl={description['ttl']} origin={description['origin_id']}")
+    if description.get("source_short_id"):
+        parts.append(f"sid={description['source_short_id']}")
     return " ".join(parts)
 
 
@@ -637,8 +699,11 @@ def record_packet_log(
     source: str = "",
     target: str = "",
 ) -> dict:
+    global packet_log_total
+
     description = describe_packet(payload)
     mesh_payload = mesh_payload_for_parsing(payload)
+    short_id = source_short_id(payload)
     source = source or ("server" if direction == "TX" else client.display_name)
     target = target or (client.display_name if direction == "TX" else "server")
     entry = {
@@ -652,8 +717,10 @@ def record_packet_log(
         "flow": f"{source} -> {target}",
         "size": len(payload),
         "preview": payload_preview(mesh_payload if description.get("bridge_v2") else payload),
+        "source_short_id": short_id_label(short_id) if short_id is not None else "",
         **description,
     }
+    packet_log_total += 1
     recent_packets.appendleft(entry)
     return entry
 
@@ -685,6 +752,18 @@ def parse_heartbeat(payload: bytes) -> dict | None:
             heartbeat["rf_duty"]["tx_total_ms"] = struct.unpack(">I", payload[28:32])[0]
         if window_ms > 0:
             heartbeat["rf_duty"]["actual_window_pct"] = (used_ms * 100.0) / window_ms
+    if len(payload) >= 40 and payload[32:34] == b"RS" and payload[34] >= 1:
+        noise_floor = struct.unpack(">h", payload[35:37])[0]
+        last_rssi = struct.unpack(">h", payload[37:39])[0]
+        last_snr_qdb = struct.unpack("b", payload[39:40])[0]
+        heartbeat["radio_stats"] = {
+            "noise_floor": noise_floor,
+            "last_rssi": last_rssi,
+            "last_snr": last_snr_qdb / 4.0,
+            "last_snr_qdb": last_snr_qdb,
+        }
+    if len(payload) >= 45 and payload[40:42] == b"NB" and payload[42] >= 1:
+        heartbeat["neighbor_count"] = struct.unpack(">H", payload[43:45])[0]
     return heartbeat
 
 
@@ -755,6 +834,7 @@ def parse_caps(payload: bytes) -> dict | None:
         "rf_inject_max_per_min": 0,
         "rf_inject_max_airtime_ms_per_hour": 0,
         "rf_inject_block_duty_above_pct": 0.0,
+        "bridge_id": 0,
     }
     if len(payload) >= 9:
         caps["bridge_proto_ver"] = payload[7] or 1
@@ -770,6 +850,9 @@ def parse_caps(payload: bytes) -> dict | None:
                 caps["rf_inject_max_airtime_ms_per_hour"] = struct.unpack(">I", payload[pos + 3:pos + 7])[0]
                 duty_centi = struct.unpack(">H", payload[pos + 7:pos + 9])[0]
                 caps["rf_inject_block_duty_above_pct"] = duty_centi / 100.0
+                pos += 9
+            if len(payload) >= pos + 4:
+                caps["bridge_id"] = struct.unpack(">I", payload[pos:pos + 4])[0]
     return caps
 
 
@@ -810,7 +893,7 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         return None
     if payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
         return None
-    if payload[5] != BRIDGE_PACKET_VERSION:
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
         return None
 
     packet_len = struct.unpack(">H", payload[12:14])[0]
@@ -825,6 +908,21 @@ def parse_bridge_packet_envelope(payload: bytes) -> dict | None:
         "packet_len": packet_len,
         "mesh_payload": payload[BRIDGE_V2_OVERHEAD:BRIDGE_V2_OVERHEAD + packet_len],
     }
+
+
+def parse_bridge_packet_error(payload: bytes) -> str:
+    if not payload.startswith(CONTROL_PREFIX) or len(payload) < 5 or payload[4] != CONTROL_TYPE_BRIDGE_PACKET:
+        return ""
+    if len(payload) < BRIDGE_V2_OVERHEAD:
+        return "short bridge packet envelope"
+    if payload[5] not in SUPPORTED_BRIDGE_PACKET_VERSIONS:
+        return f"unsupported bridge packet version {payload[5]}"
+    packet_len = struct.unpack(">H", payload[12:14])[0]
+    if packet_len == 0:
+        return "zero mesh payload length"
+    if len(payload) < BRIDGE_V2_OVERHEAD + packet_len:
+        return f"truncated mesh payload {len(payload) - BRIDGE_V2_OVERHEAD}/{packet_len}"
+    return ""
 
 
 def mesh_payload_for_parsing(payload: bytes) -> bytes:
@@ -842,9 +940,20 @@ def fnv1a64(data: bytes) -> int:
     return value
 
 
-def packet_fingerprint(payload: bytes) -> int:
+def packet_identity_for_dedupe(payload: bytes) -> bytes:
     mesh = mesh_payload_for_parsing(payload)
-    return fnv1a64(mesh)
+    parsed = parse_mesh_payload(mesh)
+    if not parsed:
+        return mesh
+
+    identity = bytes([parsed["payload_type"]])
+    if parsed["payload_type"] == PAYLOAD_TYPE_TRACE:
+        identity += bytes([parsed["path_len"]])
+    return identity + parsed["app_payload"]
+
+
+def packet_fingerprint(payload: bytes) -> int:
+    return fnv1a64(packet_identity_for_dedupe(payload))
 
 
 def fingerprint_hex(fingerprint: int) -> str:
@@ -882,6 +991,103 @@ def packet_fingerprint_record(fingerprint: int, now: float | None = None) -> dic
         record["last_seen"] = now
         packet_fingerprint_cache.move_to_end(fingerprint)
     return record
+
+
+def source_short_id(payload: bytes) -> int | None:
+    mesh = mesh_payload_for_parsing(payload)
+    location = parse_mesh_location_payload(mesh)
+    if location and location.get("node_id"):
+        try:
+            return int(str(location["node_id"])[:2], 16)
+        except ValueError:
+            return None
+
+    advert = parse_node_advert_payload(mesh)
+    if advert and advert.get("node_id"):
+        try:
+            return int(str(advert["node_id"])[:2], 16)
+        except ValueError:
+            return None
+
+    parsed = parse_mesh_payload(mesh)
+    if parsed and parsed.get("app_payload"):
+        return parsed["app_payload"][0]
+    return None
+
+
+def short_id_label(short_id: int | None) -> str:
+    return f"0x{short_id:02x}" if short_id is not None else "unknown"
+
+
+def prune_short_id_quarantine(now: float | None = None) -> None:
+    now = now or time.time()
+    for short_id, record in list(short_id_quarantine.items()):
+        if record.get("until", 0.0) > now:
+            continue
+        short_id_quarantine.pop(short_id, None)
+        inc_bridge_guard_counter("short_id_quarantine_end")
+        log.warning("short_id_quarantine_end id=%s", short_id_label(short_id))
+
+
+def short_id_quarantine_active(short_id: int | None, now: float | None = None) -> bool:
+    if not SHORT_ID_QUARANTINE_ENABLED or short_id is None:
+        return False
+    prune_short_id_quarantine(now)
+    record = short_id_quarantine.get(short_id)
+    return bool(record and record.get("until", 0.0) > (now or time.time()))
+
+
+def record_short_id_bad_hit(short_id: int | None, reason: str, client: "BridgeClient", now: float | None = None) -> None:
+    if not SHORT_ID_QUARANTINE_ENABLED or short_id is None:
+        return
+    now = now or time.time()
+    window = max(1, SHORT_ID_QUARANTINE_WINDOW_SECS)
+    hits = short_id_bad_hits.setdefault(short_id, deque())
+    while hits and hits[0] < now - window:
+        hits.popleft()
+    hits.append(now)
+    inc_bridge_guard_counter("short_id_bad_hit")
+    if len(hits) < max(1, SHORT_ID_QUARANTINE_THRESHOLD):
+        return
+
+    until = now + max(1, SHORT_ID_QUARANTINE_SECS)
+    current = short_id_quarantine.get(short_id, {})
+    if current.get("until", 0.0) < until:
+        short_id_quarantine[short_id] = {
+            "id": short_id,
+            "until": until,
+            "reason": reason,
+            "source": client.display_name,
+            "addr": client.addr,
+            "hits": len(hits),
+            "started_at": now,
+        }
+        inc_bridge_guard_counter("short_id_quarantine_start")
+        log.warning(
+            "%s: short_id_quarantine_start id=%s reason=%s hits=%d ttl=%ds",
+            client.addr,
+            short_id_label(short_id),
+            reason,
+            len(hits),
+            max(1, SHORT_ID_QUARANTINE_SECS),
+        )
+    hits.clear()
+
+
+def short_id_quarantine_snapshot(now: float | None = None) -> list[dict]:
+    now = now or time.time()
+    prune_short_id_quarantine(now)
+    items = []
+    for short_id, record in sorted(short_id_quarantine.items()):
+        items.append({
+            "id": short_id_label(short_id),
+            "raw": short_id,
+            "reason": record.get("reason", ""),
+            "source": record.get("source", ""),
+            "seconds_left": max(0, int(record.get("until", 0.0) - now)),
+            "hits": int(record.get("hits") or 0),
+        })
+    return items
 
 
 def decrement_bridge_ttl(payload: bytes) -> bytes | None:
@@ -922,7 +1128,9 @@ def parse_location_report(payload: bytes) -> dict | None:
         "lat": lat_microdeg / 1000000.0,
         "lon": lon_microdeg / 1000000.0,
         "altitude_m": altitude_m,
+        "speed_cms": speed_cms,
         "speed_kmh": round(speed_cms * 0.036, 2),
+        "heading_cdeg": heading_cdeg,
         "heading_deg": round(heading_cdeg / 100.0, 2),
         "satellites": payload[24],
         "battery_mv": battery_mv,
@@ -958,6 +1166,7 @@ def parse_mesh_payload(frame_payload: bytes) -> dict | None:
     return {
         "payload_type": payload_type,
         "route_type": route_type,
+        "path_len": path_len,
         "path_hash_count": path_hash_count,
         "app_payload": frame_payload[pos:],
     }
@@ -1010,13 +1219,25 @@ def allow_transport_packet(client: "BridgeClient", parsed: dict | None, now: flo
 
 def parse_mesh_location_payload(frame_payload: bytes) -> dict | None:
     parsed = parse_mesh_payload(frame_payload)
-    if not parsed or parsed["payload_type"] != PAYLOAD_TYPE_LOCATION:
+    if not parsed:
         return None
 
-    report = parse_location_report(parsed["app_payload"])
+    report = None
+    if parsed["payload_type"] == PAYLOAD_TYPE_LOCATION:
+        report = parse_location_report(parsed["app_payload"])
+    elif parsed["payload_type"] == PAYLOAD_TYPE_GRP_DATA:
+        decoded = decrypt_public_channel_plain(parsed)
+        if decoded is not None:
+            _channel_name, plain = decoded
+            group_data = decode_group_data_plain(plain)
+            if group_data is not None:
+                data_type, data = group_data
+                if data_type == DATA_TYPE_MESHCORENG_TRACKER:
+                    report = parse_location_report(data)
     if report is None:
         return None
     report["hops"] = parsed["path_hash_count"]
+    report["payload_type"] = parsed["payload_type"]
     return report
 
 
@@ -1317,6 +1538,140 @@ def format_duration(seconds: float) -> str:
     return f"{seconds}s"
 
 
+def parse_block_duration_seconds(value: str) -> int:
+    value = (value or "").strip().lower()
+    match = re.fullmatch(r"(\d+)([smhd]?)", value)
+    if not match:
+        return 0
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit == "d":
+        return amount * 86400
+    if unit == "h":
+        return amount * 3600
+    if unit == "m":
+        return amount * 60
+    return amount
+
+
+def parse_block_stats_reply(kind: str, reply: str) -> list[dict]:
+    """Parse firmware block list replies from MyMesh or the TCPBridge mirror."""
+    text = (reply or "").strip()
+    if not text or text.lower().startswith("error"):
+        return []
+    if text.startswith(">"):
+        text = text[1:].strip()
+    for prefix in (f"{kind}.block", kind):
+        if text.lower().startswith(prefix):
+            text = text[len(prefix):].strip()
+            break
+    if not text or text.lower() in ("empty", "none", "ok"):
+        return []
+
+    entries: list[dict] = []
+    for raw_entry in text.split(";"):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+        value = ""
+        seconds_left = 0
+        drops = 0
+        parts = entry.split()
+        if len(parts) >= 3:
+            value = parts[0].strip().lower()
+            seconds_left = parse_block_duration_seconds(parts[1])
+            try:
+                drops = max(0, int(parts[2]))
+            except ValueError:
+                drops = 0
+        elif len(parts) == 1 and ":" in parts[0]:
+            value, ttl = parts[0].split(":", 1)
+            value = value.strip().lower()
+            seconds_left = parse_block_duration_seconds(ttl)
+        elif len(parts) >= 2:
+            value = parts[0].strip().lower()
+            seconds_left = parse_block_duration_seconds(parts[1])
+        if not value:
+            continue
+        entries.append({
+            "kind": kind,
+            "value": value,
+            "seconds_left": seconds_left,
+            "drops": drops,
+        })
+    return entries
+
+
+def new_block_drop_counter_state(now: float | None = None) -> dict:
+    now = now or time.time()
+    return {
+        "window_started_at": now,
+        "last": {"node": {}, "path": {}},
+        "totals": {"node": 0, "path": 0},
+    }
+
+
+def update_block_drop_counters(state: dict, block_stats: dict, now: float | None = None) -> dict:
+    now = now or time.time()
+    if not state:
+        state = new_block_drop_counter_state(now)
+    if now - float(state.get("window_started_at") or now) >= BLOCK_STATS_COUNTER_WINDOW_SECS:
+        state = new_block_drop_counter_state(now)
+
+    last_by_kind = state.setdefault("last", {"node": {}, "path": {}})
+    totals = state.setdefault("totals", {"node": 0, "path": 0})
+    for kind in ("node", "path"):
+        previous = last_by_kind.setdefault(kind, {})
+        for entry in block_stats.get(kind) or []:
+            value = str(entry.get("value") or "").strip().lower()
+            if not value:
+                continue
+            drops = max(0, int(entry.get("drops") or 0))
+            old_drops = previous.get(value)
+            if old_drops is None:
+                increment = drops
+            elif drops >= old_drops:
+                increment = drops - old_drops
+            else:
+                # Firmware-side counters can reset on reconnect/restart; keep the website 24h counter monotonic.
+                increment = drops
+            if increment > 0:
+                totals[kind] = int(totals.get(kind) or 0) + increment
+            previous[value] = drops
+
+    block_stats["node_drops_24h"] = int(totals.get("node") or 0)
+    block_stats["path_drops_24h"] = int(totals.get("path") or 0)
+    block_stats["drop_window_started_at"] = state["window_started_at"]
+    block_stats["drop_window_resets_in_seconds"] = max(
+        0,
+        int(float(state["window_started_at"]) + BLOCK_STATS_COUNTER_WINDOW_SECS - now),
+    )
+    return state
+
+
+def block_stats_totals(block_stats: dict) -> dict:
+    node_entries = block_stats.get("node") or []
+    path_entries = block_stats.get("path") or []
+    node_drops = int(
+        block_stats["node_drops_24h"]
+        if "node_drops_24h" in block_stats
+        else sum(int(entry.get("drops") or 0) for entry in node_entries)
+    )
+    path_drops = int(
+        block_stats["path_drops_24h"]
+        if "path_drops_24h" in block_stats
+        else sum(int(entry.get("drops") or 0) for entry in path_entries)
+    )
+    return {
+        "node_active": len(node_entries),
+        "path_active": len(path_entries),
+        "node_drops": node_drops,
+        "path_drops": path_drops,
+        "total_drops": node_drops + path_drops,
+        "resets_in_seconds": int(block_stats.get("drop_window_resets_in_seconds") or 0),
+    }
+
+
 def format_sockaddrs(sockets) -> str:
     return ", ".join(
         f"{sock.getsockname()[0]}:{sock.getsockname()[1]}"
@@ -1354,6 +1709,8 @@ def new_node_stats(key: str) -> dict:
         "last_heartbeat": 0.0,
         "last_heartbeat_uptime_ms": 0,
         "rf_duty": {},
+        "radio_stats": {},
+        "neighbor_count": None,
         "rf_tx_total_baseline_ms": None,
         "rf_tx_total_baseline_at": 0.0,
         "rf_tx_hour_baseline_ms": None,
@@ -1365,6 +1722,7 @@ def new_node_stats(key: str) -> dict:
         "bridge_proto_ver": 1,
         "bridge_group": BRIDGE_GROUP,
         "node_rf_inject_budget": {},
+        "block_stats": {"path": [], "node": [], "updated_at": 0.0, "error": ""},
         "connected": False,
         "client_id": "",
         "addr": "",
@@ -1388,9 +1746,11 @@ def merge_node_stats(target: dict, source: dict) -> None:
     for field in ("last_heartbeat_uptime_ms",):
         if source.get(field):
             target[field] = source[field]
-    for field in ("rf_duty", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget"):
+    for field in ("rf_duty", "radio_stats", "node_name", "node_id", "firmware_version", "client_id", "addr", "bridge_group", "node_rf_inject_budget", "block_stats"):
         if source.get(field):
             target[field] = source[field]
+    if source.get("neighbor_count") is not None:
+        target["neighbor_count"] = source["neighbor_count"]
     target["supports_bridge_v2"] = target.get("supports_bridge_v2", False) or source.get("supports_bridge_v2", False)
     target["bridge_proto_ver"] = max(target.get("bridge_proto_ver", 1), source.get("bridge_proto_ver", 1))
     target["connected"] = target.get("connected", False) or source.get("connected", False)
@@ -1415,6 +1775,7 @@ def get_node_stats(client: "BridgeClient") -> dict:
         "bridge_proto_ver": client.bridge_proto_ver,
         "bridge_group": client.bridge_group,
         "node_rf_inject_budget": dict(client.node_rf_inject_budget),
+        "block_stats": dict(client.block_stats),
         "connected": client in connected_clients,
         "client_id": client.client_id,
         "addr": client.addr,
@@ -1481,6 +1842,10 @@ def record_node_heartbeat(client: "BridgeClient", heartbeat: dict, now: float | 
             rf["tx_hour_started_at"] = hour_started_at
             rf["tx_hour_resets_in_seconds"] = max(0, int(hour_started_at + 3600 - now))
         stats["rf_duty"] = rf
+    if "radio_stats" in heartbeat:
+        stats["radio_stats"] = dict(heartbeat["radio_stats"])
+    if "neighbor_count" in heartbeat:
+        stats["neighbor_count"] = int(heartbeat["neighbor_count"])
 
 
 def mark_node_disconnected(client: "BridgeClient", now: float | None = None) -> None:
@@ -1515,6 +1880,8 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "heartbeat_age_seconds": heartbeat_age,
         "heartbeat_uptime_ms": stats.get("last_heartbeat_uptime_ms", 0),
         "rf_duty": dict(stats.get("rf_duty") or {}),
+        "radio_stats": dict(stats.get("radio_stats") or {}),
+        "neighbor_count": stats.get("neighbor_count"),
         "packets_rx": stats.get("packets_rx", 0),
         "packets_tx": stats.get("packets_tx", 0),
         "packets_rx_24h": len(stats["rx_times"]),
@@ -1536,6 +1903,8 @@ def node_stats_status_dict(stats: dict, now: float) -> dict:
         "group": stats.get("bridge_group") or BRIDGE_GROUP,
         "bridge_proto_ver": stats.get("bridge_proto_ver", 1),
         "node_rf_inject_budget": dict(stats.get("node_rf_inject_budget") or {}),
+        "block_stats": dict(stats.get("block_stats") or {"path": [], "node": [], "updated_at": 0.0, "error": ""}),
+        "block_stats_totals": block_stats_totals(stats.get("block_stats") or {}),
         "last_fingerprint": "",
         "last_fingerprint_age_seconds": None,
         "rf_inject_budget_remaining_ms": None,
@@ -1591,11 +1960,14 @@ class BridgeClient:
         self.last_heartbeat = 0.0
         self.last_heartbeat_uptime_ms = 0
         self.rf_duty: dict = {}
+        self.radio_stats: dict = {}
+        self.neighbor_count: int | None = None
         self.node_name = ""
         self.node_id = ""
         self.firmware_version = ""
         self.supports_bridge_v2 = False
         self.bridge_proto_ver = 1
+        self.bridge_id = 0
         self.authenticated = not BRIDGE_PASSWORD
         self.bridge_group = BRIDGE_GROUP
         self.node_rf_inject_budget: dict = {}
@@ -1615,6 +1987,10 @@ class BridgeClient:
         self.rf_inject_minute_times: deque[float] = deque()
         self.rf_inject_airtime_times: deque[tuple[float, int]] = deque()
         self.rf_budget_drops = 0
+        self.block_stats: dict = {"path": [], "node": [], "updated_at": 0.0, "error": ""}
+        self.block_drop_counter_state: dict = new_block_drop_counter_state(self._connect_time)
+        self._block_stats_polling = False
+        self._last_block_stats_poll = 0.0
         self.last_fingerprint = 0
         self.last_fingerprint_at = 0.0
         self.last_tx_queue_drop = 0.0
@@ -1693,13 +2069,13 @@ class BridgeClient:
         if BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT > 0:
             used_pct = float((self.rf_duty or {}).get("tx_used_pct") or 0.0)
             if used_pct >= BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT:
-                return False, "skipped_rf_budget"
+                return False, "skipped_rf_inject_budget"
         if BRIDGE_RF_INJECT_MAX_PER_MIN > 0 and len(self.rf_inject_minute_times) >= BRIDGE_RF_INJECT_MAX_PER_MIN:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         estimate = self.estimated_airtime_ms(payload)
         remaining = self.rf_inject_budget_remaining_ms(now)
         if remaining is not None and estimate > remaining:
-            return False, "skipped_rf_budget"
+            return False, "skipped_rf_inject_budget"
         return True, ""
 
     def record_rf_inject(self, payload: bytes, now: float | None = None) -> None:
@@ -1713,15 +2089,13 @@ class BridgeClient:
     def has_seen_payload(self, payload: bytes) -> bool:
         """Return True if this client has already received this mesh payload recently."""
         self.prune_seen_payloads()
-        mesh = mesh_payload_for_parsing(payload)
-        h = hashlib.sha256(mesh).digest()[:8]
+        h = hashlib.sha256(packet_identity_for_dedupe(payload)).digest()[:8]
         return h in self._seen_hash_seen_at
 
     def mark_seen_payload(self, payload: bytes) -> None:
         now = time.time()
         self.prune_seen_payloads(now)
-        mesh = mesh_payload_for_parsing(payload)
-        h = hashlib.sha256(mesh).digest()[:8]
+        h = hashlib.sha256(packet_identity_for_dedupe(payload)).digest()[:8]
         if h in self._seen_hash_seen_at:
             self._seen_hash_seen_at[h] = now
             return
@@ -1771,6 +2145,8 @@ class BridgeClient:
             "heartbeat_age_seconds": int(now - self.last_heartbeat) if self.last_heartbeat else None,
             "heartbeat_uptime_ms": self.last_heartbeat_uptime_ms,
             "rf_duty": dict(self.rf_duty),
+            "radio_stats": dict(self.radio_stats),
+            "neighbor_count": self.neighbor_count if self.neighbor_count is not None else stats.get("neighbor_count"),
             "packets_rx": self.packets_rx,
             "packets_tx": self.packets_tx,
             "packets_rx_24h": len(stats["rx_times"]),
@@ -1791,7 +2167,10 @@ class BridgeClient:
             "quarantine_seconds_left": max(0, int(self.quarantined_until - now)) if self.quarantined_until else 0,
             "group": self.bridge_group,
             "bridge_proto_ver": self.bridge_proto_ver,
+            "bridge_id": f"0x{self.bridge_id:08x}" if self.bridge_id else "",
             "node_rf_inject_budget": dict(self.node_rf_inject_budget),
+            "block_stats": dict(self.block_stats),
+            "block_stats_totals": block_stats_totals(self.block_stats),
             "last_fingerprint": fingerprint_hex(self.last_fingerprint) if self.last_fingerprint else "",
             "last_fingerprint_age_seconds": int(now - self.last_fingerprint_at) if self.last_fingerprint_at else None,
             "rf_inject_budget_remaining_ms": self.rf_inject_budget_remaining_ms(now),
@@ -1907,6 +2286,21 @@ class BridgeClient:
     async def send_payload(self, payload: bytes, source: str = "") -> bool:
         return self.enqueue_payload(payload, source=source)
 
+    async def send_control_payload(self, payload: bytes) -> bool:
+        if self.writer.is_closing():
+            self.tx_send_errors += 1
+            self.last_tx_error = "writer closing"
+            return False
+        try:
+            self.writer.write(self.build_frame(payload))
+            await self.writer.drain()
+            self.last_tx_error = ""
+            return True
+        except Exception as exc:
+            self.tx_send_errors += 1
+            self.last_tx_error = str(exc)
+            return False
+
     async def _send_payload_now(self, payload: bytes, source: str = "", seen_payload: bytes | None = None) -> bool:
         try:
             self.writer.write(self.build_frame(payload))
@@ -1942,7 +2336,14 @@ class BridgeClient:
             self.last_tx_error = str(exc)
             return False
 
-    async def send_command(self, command: str, password: str, timeout: int | None = None, wait_reply: bool = True) -> str:
+    async def send_command(
+        self,
+        command: str,
+        password: str,
+        timeout: int | None = None,
+        wait_reply: bool = True,
+        count_stats: bool = True,
+    ) -> str:
         global next_command_id
 
         command = command.strip()
@@ -1967,7 +2368,8 @@ class BridgeClient:
         )
 
         if not wait_reply:
-            if not await self.send_payload(payload):
+            ok = await self.send_payload(payload) if count_stats else await self.send_control_payload(payload)
+            if not ok:
                 raise RuntimeError("send failed")
             return "OK - command sent"
 
@@ -1975,7 +2377,8 @@ class BridgeClient:
         future = loop.create_future()
         pending_commands[request_id] = future
         try:
-            if not await self.send_payload(payload):
+            ok = await self.send_payload(payload) if count_stats else await self.send_control_payload(payload)
+            if not ok:
                 raise RuntimeError("send failed")
             return await asyncio.wait_for(future, timeout=timeout or COMMAND_TIMEOUT_SECS)
         finally:
@@ -1993,10 +2396,19 @@ class BridgeClient:
 async def broadcast(payload: bytes, sender: "BridgeClient"):
     """Forward payload to every connected client except the sender."""
     now = time.time()
+    short_id = source_short_id(payload)
+    if short_id_quarantine_active(short_id, now):
+        sender.record_skip("skipped_short_id_quarantine")
+        inc_bridge_guard_counter("skipped_short_id_quarantine")
+        log.warning("%s: skipped_short_id_quarantine source_id=%s", sender.addr, short_id_label(short_id))
+        return
+
     forwarded_payload = decrement_bridge_ttl(payload)
     if forwarded_payload is None:
-        sender.record_skip("skipped_dup_ttl_zero")
-        log.debug("%s: skipped_dup_ttl_zero", sender.addr)
+        sender.record_skip("skipped_ttl_expired")
+        inc_bridge_guard_counter("skipped_ttl_expired")
+        record_short_id_bad_hit(short_id, "ttl_expired", sender, now)
+        log.debug("%s: skipped_ttl_expired", sender.addr)
         return
 
     # Mark the sender as having seen this payload so it is skipped if it reconnects
@@ -2012,6 +2424,13 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
     for client in connected_clients:
         if client is sender:
             client.record_skip("skipped_dup_loopback")
+            inc_bridge_guard_counter("skipped_duplicate")
+            continue
+        if envelope is not None and envelope["origin_id"] and client.bridge_id == envelope["origin_id"]:
+            client.record_skip("skipped_own_origin")
+            inc_bridge_guard_counter("skipped_own_origin")
+            log.debug("%s: skipped_own_origin target=%s origin=0x%08x",
+                      sender.addr, client.addr, envelope["origin_id"])
             continue
         if BRIDGE_REQUIRE_GROUP_MATCH and client.bridge_group != sender.bridge_group:
             client.record_skip("skipped_group_mismatch")
@@ -2019,18 +2438,23 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
             continue
         if client.quarantine_active(now):
             client.record_skip("skipped_quarantine")
+            inc_bridge_guard_counter("skipped_bridge_loop")
+            record_short_id_bad_hit(short_id, "target_quarantine", sender, now)
             log.warning("%s: skipped_quarantine target=%s", sender.addr, client.addr)
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["sent_to"]:
             client.record_skip("skipped_dup_seen_by_target")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_seen_by_target target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if client.has_seen_payload(forwarded_payload):
             client.record_skip("skipped_dup_fingerprint")
+            inc_bridge_guard_counter("skipped_duplicate")
             log.debug("%s: skipped_dup_fingerprint target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         client_payload = forwarded_payload
@@ -2039,8 +2463,9 @@ async def broadcast(payload: bytes, sender: "BridgeClient"):
         ok_budget, reason = client.can_accept_rf_inject(forwarded_payload, now)
         if not ok_budget:
             client.rf_budget_drops += 1
-            client.record_skip(reason or "skipped_rf_budget")
-            log.warning("%s: skipped_rf_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
+            client.record_skip(reason or "skipped_rf_inject_budget")
+            inc_bridge_guard_counter("skipped_rf_inject_budget")
+            log.warning("%s: skipped_rf_inject_budget target=%s fp=%s", sender.addr, client.addr, fingerprint_hex(fingerprint))
             continue
         if not client.enqueue_payload(client_payload, source=sender.display_name, seen_payload=forwarded_payload):
             log.warning("%s: queueing TX to %s failed", sender.addr, client.addr)
@@ -2058,6 +2483,46 @@ async def disconnect(client: "BridgeClient", reason: str = "EOF"):
         )
 
 
+async def refresh_client_block_stats(client: "BridgeClient", force: bool = False) -> None:
+    now = time.time()
+    if client not in connected_clients or not client.authenticated or client.writer.is_closing():
+        return
+    if client._block_stats_polling:
+        return
+    if not force and now - client._last_block_stats_poll < max(1, BLOCK_STATS_POLL_INTERVAL_SECS):
+        return
+
+    client._block_stats_polling = True
+    client._last_block_stats_poll = now
+    try:
+        path_reply, node_reply = await asyncio.gather(
+            client.send_command("get path.block", "", timeout=BLOCK_STATS_COMMAND_TIMEOUT_SECS, count_stats=False),
+            client.send_command("get node.block", "", timeout=BLOCK_STATS_COMMAND_TIMEOUT_SECS, count_stats=False),
+        )
+        client.block_stats = {
+            "path": parse_block_stats_reply("path", path_reply),
+            "node": parse_block_stats_reply("node", node_reply),
+            "updated_at": time.time(),
+            "error": "",
+        }
+        client.block_drop_counter_state = update_block_drop_counters(
+            client.block_drop_counter_state,
+            client.block_stats,
+            now=time.time(),
+        )
+        touch_node_stats(client)
+    except asyncio.TimeoutError:
+        client.block_stats = dict(client.block_stats)
+        client.block_stats["error"] = "timeout"
+        client.block_stats["updated_at"] = time.time()
+    except Exception as exc:
+        client.block_stats = dict(client.block_stats)
+        client.block_stats["error"] = str(exc)
+        client.block_stats["updated_at"] = time.time()
+    finally:
+        client._block_stats_polling = False
+
+
 async def status_task():
     while True:
         if STATUS_INTERVAL_SECS <= 0:
@@ -2068,6 +2533,8 @@ async def status_task():
             idle = int(now - client.last_seen)
             if CLIENT_TIMEOUT_SECS > 0 and idle > CLIENT_TIMEOUT_SECS:
                 await disconnect(client, reason=f"idle timeout {idle}s")
+                continue
+            asyncio.create_task(refresh_client_block_stats(client))
 
         if connected_clients:
             summaries = []
@@ -2124,6 +2591,7 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             if caps is not None:
                 client.supports_bridge_v2 = caps["bridge_v2"]
                 client.bridge_proto_ver = int(caps.get("bridge_proto_ver") or 1)
+                client.bridge_id = int(caps.get("bridge_id") or 0)
                 group = (caps.get("group") or "").strip()
                 if group:
                     client.bridge_group = group
@@ -2134,9 +2602,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     "block_duty_above_pct": float(caps.get("rf_inject_block_duty_above_pct") or 0.0),
                 }
                 touch_node_stats(client)
-                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s",
+                log.info("%s: bridge capabilities v%d proto=%d flags=0x%02x bridge_v2=%s group=%s bridge_id=%s",
                          client.addr, caps["version"], client.bridge_proto_ver, caps["flags"],
-                         client.supports_bridge_v2, client.bridge_group)
+                         client.supports_bridge_v2, client.bridge_group,
+                         f"0x{client.bridge_id:08x}" if client.bridge_id else "unknown")
                 continue
             heartbeat = parse_heartbeat(payload)
             if heartbeat is not None:
@@ -2147,6 +2616,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 record_node_heartbeat(client, heartbeat, now)
                 if "rf_duty" in heartbeat:
                     client.rf_duty = dict(get_node_stats(client).get("rf_duty") or {})
+                if "radio_stats" in heartbeat:
+                    client.radio_stats = dict(heartbeat["radio_stats"])
+                if "neighbor_count" in heartbeat:
+                    client.neighbor_count = int(heartbeat["neighbor_count"])
                 log.debug("%s: heartbeat uptime=%dms", client.addr, client.last_heartbeat_uptime_ms)
                 continue
             command_reply = parse_command_reply(payload)
@@ -2170,7 +2643,25 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 else:
                     log.info("%s: node name is %s node_id=%s", client.addr, client.node_name, client.node_id or "unknown")
                 continue
+            bridge_packet_error = parse_bridge_packet_error(payload)
+            if bridge_packet_error:
+                client.record_skip("skipped_bridge_parse_error")
+                inc_bridge_guard_counter("skipped_bridge_parse_error")
+                log.warning("%s: skipped_bridge_parse_error %s", client.addr, bridge_packet_error)
+                continue
+            short_id = source_short_id(payload)
+            if short_id_quarantine_active(short_id, now=time.time()):
+                client.record_skip("skipped_short_id_quarantine")
+                inc_bridge_guard_counter("skipped_short_id_quarantine")
+                log.warning(
+                    "%s: skipped_short_id_quarantine source=%s id=%s",
+                    client.addr,
+                    client.display_name,
+                    short_id_label(short_id),
+                )
+                continue
             client.packets_rx += 1
+            inc_bridge_guard_counter("accepted_tcp_packet")
             now = time.time()
             client.packet_rx_times.append(now)
             prune_packet_times(client.packet_rx_times, now)
@@ -2183,6 +2674,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             sent_at = record["sent_to"].get(client.bridge_key)
             if BRIDGE_LOOPGUARD_ENABLED and sent_at and now - sent_at <= max(1, BRIDGE_LOOPGUARD_WINDOW_SECS):
                 client.record_loopguard_hit(now)
+                inc_bridge_guard_counter("skipped_bridge_loop")
+                record_short_id_bad_hit(short_id, "loopguard", client, now)
                 if client.quarantine_active(now):
                     client.record_skip("skipped_quarantine")
                     log.warning("%s: skipped_quarantine source=%s fp=%s",
@@ -2190,11 +2683,15 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     continue
             if BRIDGE_DEDUPE_ENABLED and client.bridge_key in record["seen_from"]:
                 client.record_skip("skipped_dup_fingerprint")
+                inc_bridge_guard_counter("skipped_duplicate")
+                record_short_id_bad_hit(short_id, "duplicate", client, now)
                 log.debug("%s: skipped_dup_fingerprint source=%s fp=%s",
                           client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
             if client.quarantine_active(now):
                 client.record_skip("skipped_quarantine")
+                inc_bridge_guard_counter("skipped_bridge_loop")
+                record_short_id_bad_hit(short_id, "source_quarantine", client, now)
                 log.warning("%s: skipped_quarantine source=%s fp=%s",
                             client.addr, client.display_name, fingerprint_hex(fingerprint))
                 continue
@@ -2202,6 +2699,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             client.mark_seen_payload(payload)
             parsed_payload = parse_mesh_payload(mesh_payload)
             if not allow_transport_packet(client, parsed_payload, now):
+                inc_bridge_guard_counter("skipped_rate_limited")
+                record_short_id_bad_hit(short_id, "rate_limited", client, now)
                 packet_log = record_packet_log("DROP", client, payload, target="rate-limit")
                 log.warning(
                     "%s: dropping transport flood packet from %s (%d/%ds client, %d/%ds global): %s",
@@ -2254,6 +2753,13 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 def status_snapshot(include_disconnected: bool = True) -> dict:
     now = time.time()
     prune_disconnected_node_stats(now)
+    try:
+        asyncio.get_running_loop()
+        for client in list(connected_clients):
+            if now - client._last_block_stats_poll >= max(1, BLOCK_STATS_POLL_INTERVAL_SECS):
+                asyncio.create_task(refresh_client_block_stats(client))
+    except RuntimeError:
+        pass
     clients = [
         client.status_dict(now)
         for client in sorted(connected_clients, key=lambda c: (c.display_name.lower(), c.addr))
@@ -2273,8 +2779,18 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             offline_clients,
             key=lambda c: (c["display_name"].lower(), -(c.get("last_seen_seconds") or 0)),
         ))
+    node_block_drops = sum(int((c.get("block_stats_totals") or {}).get("node_drops") or 0) for c in clients)
+    path_block_drops = sum(int((c.get("block_stats_totals") or {}).get("path_drops") or 0) for c in clients)
+    node_block_active = sum(int((c.get("block_stats_totals") or {}).get("node_active") or 0) for c in clients)
+    path_block_active = sum(int((c.get("block_stats_totals") or {}).get("path_active") or 0) for c in clients)
     return {
         "generated_at": int(now),
+        "server": {
+            "name": SERVER_NAME,
+            "version": SERVER_VERSION,
+            "started_at": int(SERVER_STARTED_AT),
+            "uptime_seconds": int(now - SERVER_STARTED_AT),
+        },
         "connected_count": len(connected_clients),
         "online_count": len(connected_clients),
         "known_count": len(clients),
@@ -2292,6 +2808,7 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "dedupe_ttl_sec": BRIDGE_DEDUPE_TTL_SECS,
             "dedupe_max_entries": BRIDGE_DEDUPE_MAX_ENTRIES,
             "dedupe_entries": len(packet_fingerprint_cache),
+            "counters": dict(bridge_guard_counters),
             "loopguard_enabled": BRIDGE_LOOPGUARD_ENABLED,
             "loopguard_window_sec": BRIDGE_LOOPGUARD_WINDOW_SECS,
             "loopguard_threshold": BRIDGE_LOOPGUARD_THRESHOLD,
@@ -2302,6 +2819,17 @@ def status_snapshot(include_disconnected: bool = True) -> dict:
             "rf_inject_block_duty_above_pct": BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
             "group": BRIDGE_GROUP,
             "require_group_match": BRIDGE_REQUIRE_GROUP_MATCH,
+            "short_id_quarantine_enabled": SHORT_ID_QUARANTINE_ENABLED,
+            "short_id_quarantine_window_sec": SHORT_ID_QUARANTINE_WINDOW_SECS,
+            "short_id_quarantine_threshold": SHORT_ID_QUARANTINE_THRESHOLD,
+            "short_id_quarantine_sec": SHORT_ID_QUARANTINE_SECS,
+            "short_id_quarantine": short_id_quarantine_snapshot(now),
+            "block_stats_poll_interval_sec": BLOCK_STATS_POLL_INTERVAL_SECS,
+            "node_block_active": node_block_active,
+            "path_block_active": path_block_active,
+            "node_block_drops": node_block_drops,
+            "path_block_drops": path_block_drops,
+            "block_drops": node_block_drops + path_block_drops,
         },
         "firmware_release": dict(latest_firmware_info),
         "clients": redact_public_value(clients),
@@ -2330,6 +2858,7 @@ def sensors_snapshot() -> dict:
     for report in latest_sensors.values():
         item = dict(report)
         item["age_seconds"] = max(0, now - item["received_at"])
+        item["node_id_short"] = item.get("node_id", "")[:2]
         sensors.append(item)
     sensors.sort(key=lambda item: (item.get("name") or item["node_id"]).lower())
     return {
@@ -2349,6 +2878,8 @@ def packets_snapshot() -> dict:
     return {
         "generated_at": now,
         "packet_count": len(packets),
+        "packet_capacity": recent_packets.maxlen or len(packets),
+        "packet_total": packet_log_total,
         "packets": packets,
     }
 
@@ -2465,6 +2996,13 @@ def build_status_html(base_path: str = "") -> str:
       text-shadow: 0 0 16px rgba(104, 255, 157, .45);
     }}
     .subtitle {{ margin: 8px 0 0; color: var(--muted); max-width: 820px; line-height: 1.45; }}
+    .server-version {{
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--green-soft);
+      font-size: .78rem;
+      letter-spacing: 0;
+    }}
     nav {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }}
     a {{
       color: var(--green-soft);
@@ -2555,6 +3093,9 @@ def build_status_html(base_path: str = "") -> str:
     .badge.tx {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.offline {{ color: var(--amber); border-color: rgba(255, 209, 102, .45); }}
     .badge.update {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
+    .badge.current {{ color: var(--green-soft); border-color: rgba(104, 255, 157, .42); background: rgba(104, 255, 157, .08); }}
+    .badge.pending {{ color: var(--amber); border-color: rgba(255, 209, 102, .42); background: rgba(255, 209, 102, .08); }}
+    .badge.error {{ color: #ff8f8f; border-color: rgba(255, 143, 143, .55); background: rgba(255, 91, 91, .12); }}
     .packet-age {{ width: 54px; }}
     .packet-dir {{ width: 40px; }}
     .packet-flow {{ width: 24%; }}
@@ -2665,6 +3206,7 @@ def build_status_html(base_path: str = "") -> str:
     <header class="topbar">
       <div>
         <h1>TCP Bridge Tactical Console</h1>
+        <div class="server-version">{html.escape(SERVER_NAME)} v{html.escape(SERVER_VERSION)}</div>
         <p class="subtitle">MeshCoreNG live bridge telemetry, packet flow and nearby sensor adverts. Polling the bridge server every 2 seconds.</p>
       </div>
       <nav>
@@ -2675,9 +3217,13 @@ def build_status_html(base_path: str = "") -> str:
 
     <section class="status-strip" aria-label="Live counters">
       <div class="metric"><div class="label">Bridge nodes online</div><div id="metricConnected" class="value">--</div></div>
-      <div class="metric"><div class="label">Packets in buffer</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packet history</div><div id="metricPackets" class="value">--</div></div>
+      <div class="metric"><div class="label">Packets total</div><div id="metricPacketsTotal" class="value">--</div></div>
+      <div class="metric"><div class="label">Total dedups</div><div id="metricDedups" class="value">--</div></div>
+      <div class="metric"><div class="label">Short-ID quarantine</div><div id="metricShortQ" class="value">--</div></div>
+      <div class="metric"><div class="label">ID/path block drops</div><div id="metricBlockDrops" class="value">--</div></div>
       <div class="metric"><div class="label">Nearby sensors</div><div id="metricSensors" class="value">--</div></div>
-      <div class="metric"><div class="label">RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
+      <div class="metric" title="TCP bridge packets seen by this webserver, not repeater RF RT/TX counters"><div class="label">Bridge RX / TX 24h</div><div id="metricTraffic" class="value small">-- / --</div></div>
       <div class="metric"><div class="label">Last sync</div><div id="metricSync" class="value small">booting</div></div>
     </section>
 
@@ -2789,8 +3335,25 @@ def build_status_html(base_path: str = "") -> str:
     function renderMetrics(status, packets, sensors) {{
       const rx24 = status.clients.reduce((sum, client) => sum + (client.packets_rx_24h || 0), 0);
       const tx24 = status.clients.reduce((sum, client) => sum + (client.packets_tx_24h || 0), 0);
+      const guardCounters = (status.bridge_guards && status.bridge_guards.counters) || {{}};
+      const clientDedups = status.clients.reduce((sum, client) => sum + (client.skipped_dup_total || 0), 0);
+      const totalDedups = guardCounters.skipped_duplicate || clientDedups;
+      const shortQuarantine = (status.bridge_guards && status.bridge_guards.short_id_quarantine) || [];
+      const blockDrops = (status.bridge_guards && status.bridge_guards.block_drops) || 0;
+      const nodeBlockDrops = (status.bridge_guards && status.bridge_guards.node_block_drops) || 0;
+      const pathBlockDrops = (status.bridge_guards && status.bridge_guards.path_block_drops) || 0;
+      const nodeBlockActive = (status.bridge_guards && status.bridge_guards.node_block_active) || 0;
+      const pathBlockActive = (status.bridge_guards && status.bridge_guards.path_block_active) || 0;
       document.getElementById("metricConnected").textContent = status.connected_count;
-      document.getElementById("metricPackets").textContent = packets.packet_count;
+      document.getElementById("metricPackets").textContent = `${{packets.packet_count}}/${{packets.packet_capacity || 200}}`;
+      document.getElementById("metricPacketsTotal").textContent = packets.packet_total || packets.packet_count || 0;
+      document.getElementById("metricDedups").textContent = totalDedups;
+      document.getElementById("metricShortQ").textContent = shortQuarantine.length;
+      document.getElementById("metricShortQ").title = shortQuarantine.length
+        ? shortQuarantine.map((item) => `${{item.id}} ${{item.seconds_left}}s ${{item.reason || ""}}`).join(", ")
+        : ((status.bridge_guards && status.bridge_guards.short_id_quarantine_enabled) ? "enabled, no blocked short IDs" : "disabled");
+      document.getElementById("metricBlockDrops").textContent = blockDrops;
+      document.getElementById("metricBlockDrops").title = `ID blocks: ${{nodeBlockActive}} active, ${{nodeBlockDrops}} drops. Path blocks: ${{pathBlockActive}} active, ${{pathBlockDrops}} drops.`;
       document.getElementById("metricSensors").textContent = sensors.sensor_count;
       document.getElementById("metricTraffic").textContent = `${{rx24}} / ${{tx24}}`;
       document.getElementById("metricSync").textContent = new Date().toLocaleTimeString();
@@ -2812,6 +3375,19 @@ def build_status_html(base_path: str = "") -> str:
       return minutes > 0 ? `${{minutes}}m ${{String(seconds).padStart(2, "0")}}s` : `${{seconds}}s`;
     }}
 
+    function formatBlockEntries(entries) {{
+      if (!entries || !entries.length) return "none";
+      return entries.map((entry) => `${{entry.value}} ${{entry.seconds_left || 0}}s drops=${{entry.drops || 0}}`).join(", ");
+    }}
+
+    function dbm(value) {{
+      return Number.isFinite(value) ? `${{Math.round(value)}} dBm` : "--";
+    }}
+
+    function snr(value) {{
+      return Number.isFinite(value) ? `${{value.toFixed(1)}} dB` : "--";
+    }}
+
     function renderNodes(status) {{
       const target = document.getElementById("nodeCards");
       if (!status.clients.length) {{
@@ -2827,10 +3403,16 @@ def build_status_html(base_path: str = "") -> str:
         const updateAvailable = update.state === "available";
         const updateTitle = updateAvailable
           ? `new firmware available: ${{update.latest_version || update.latest_tag}} (${{update.bin_count || 0}} bin files)`
-          : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}` : "";
+          : update.check_status === "error" ? `firmware update check failed: ${{update.error || "unknown error"}}`
+          : update.state === "current" ? `firmware current${{update.latest_version ? ": " + update.latest_version : ""}}`
+          : update.check_status === "pending" ? "firmware update check pending"
+          : update.check_status === "disabled" ? "firmware update check disabled"
+          : "firmware update state unknown";
+        const updateBadgeClass = updateAvailable ? "update" : update.check_status === "error" ? "error" : update.state === "current" ? "current" : "pending";
+        const updateBadgeText = updateAvailable ? `update ${{update.latest_version || ""}}` : update.state === "current" ? "current" : update.check_status === "error" ? "check error" : "unknown";
         const updateBadge = updateAvailable
-          ? `<a class="badge update" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">update ${{escapeHtml(update.latest_version || "")}}</a>`
-          : "";
+          ? `<a class="badge ${{updateBadgeClass}}" title="${{escapeHtml(updateTitle)}}" href="${{escapeHtml(update.latest_url || "#")}}" target="_blank" rel="noopener">${{escapeHtml(updateBadgeText)}}</a>`
+          : `<span class="badge ${{updateBadgeClass}}" title="${{escapeHtml(updateTitle)}}">${{escapeHtml(updateBadgeText)}}</span>`;
         const rf = client.rf_duty || {{}};
         const rfFirmwareUsedMs = Number.isFinite(rf.tx_used_ms) ? rf.tx_used_ms : NaN;
         const rfUsedMs = Number.isFinite(rf.tx_hour_used_ms) ? rf.tx_hour_used_ms : rfFirmwareUsedMs;
@@ -2843,17 +3425,30 @@ def build_status_html(base_path: str = "") -> str:
         const rfTitle = Number.isFinite(rf.tx_used_pct)
           ? `Current website hour: used ${{duration(rfUsedMs)}} and left ${{duration(rfLeftMs)}} from the ${{pct(rf.duty_limit_pct)}} hourly dutycycle budget (${{duration(rfMaxMs)}} total). Resets in ${{rfReset}}. Firmware current-window used ${{duration(rfFirmwareUsedMs)}}. Since server saw node: ${{rfSinceServer}}.`
           : "firmware update needed";
+        const radio = client.radio_stats || {{}};
+        const radioTitle = Number.isFinite(radio.noise_floor)
+          ? `Radio stats from last bridge heartbeat: noise floor ${{dbm(radio.noise_floor)}}, last RSSI ${{dbm(radio.last_rssi)}}, last SNR ${{snr(radio.last_snr)}}.`
+          : "firmware update needed";
+        const neighborCount = Number.isFinite(client.neighbor_count) ? client.neighbor_count : NaN;
+        const neighborTitle = Number.isFinite(neighborCount)
+          ? `Neighbours heard locally by this bridge node: ${{neighborCount}}.`
+          : "firmware update needed";
         const footer = isOnline
           ? `connected ${{escapeHtml(client.connected_for)}} · idle ${{client.idle_seconds}}s · heartbeat ${{heartbeat}}`
           : `offline · last seen ${{age(client.last_seen_seconds)}} ago · heartbeat ${{heartbeat}}`;
         const lastTx = client.last_tx_age_seconds === null || client.last_tx_age_seconds === undefined ? "never" : `${{client.last_tx_age_seconds}}s ago`;
         const skipReasons = client.skipped_dup_by_reason || {{}};
         const skipReasonText = Object.entries(skipReasons).map(([key, value]) => `${{key}}=${{value}}`).join(", ") || "none";
+        const bridgeTrafficTitle = "TCP bridge packets seen by this webserver for this node, not repeater RF RT/TX counters.";
         const queueTitle = `queued total ${{client.tx_queued || 0}}, high water ${{client.tx_queue_high_water || 0}}, skipped duplicates ${{client.skipped_dup_total || 0}}, reasons: ${{skipReasonText}}, send errors ${{client.tx_send_errors || 0}}${{client.last_tx_error ? ", last error: " + client.last_tx_error : ""}}`;
         const guardTitle = `group ${{client.group || "default"}}, loop score ${{client.loop_score || 0}}, quarantine ${{client.quarantine_active ? (client.quarantine_seconds_left || 0) + "s" : "no"}}, last fingerprint ${{client.last_fingerprint || "none"}}`;
         const budgetLeft = client.rf_inject_budget_remaining_ms === null || client.rf_inject_budget_remaining_ms === undefined
           ? "off"
           : duration(client.rf_inject_budget_remaining_ms);
+        const blockStats = client.block_stats || {{}};
+        const blockTotals = client.block_stats_totals || {{}};
+        const nodeBlockTitle = `${{formatBlockEntries(blockStats.node)}}${{blockStats.error ? " | poll error: " + blockStats.error : ""}}`;
+        const pathBlockTitle = `${{formatBlockEntries(blockStats.path)}}${{blockStats.error ? " | poll error: " + blockStats.error : ""}}`;
         return `
           <article class="node-card${{isOnline ? "" : " offline"}}">
             <div class="node-title">
@@ -2861,8 +3456,9 @@ def build_status_html(base_path: str = "") -> str:
             </div>
             <div class="node-meta">node id ${{escapeHtml(client.node_id || "unknown")}}<br>${{escapeHtml(client.firmware_version || "firmware unknown")}} ${{updateBadge}}</div>
             <div class="node-stats">
-              <div class="mini"><span class="label">RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
-              <div class="mini"><span class="label">TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(bridgeTrafficTitle)}}"><span class="label">Bridge RX 24h</span><b>${{client.packets_rx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(bridgeTrafficTitle)}}"><span class="label">Bridge TX 24h</span><b>${{client.packets_tx_24h}}</b></div>
+              <div class="mini" title="${{escapeHtml(neighborTitle)}}"><span class="label">Neighbours</span><b>${{Number.isFinite(neighborCount) ? neighborCount : "--"}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty used</span><b>${{duration(rfUsedMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(rfTitle)}}"><span class="label">Duty left</span><b>${{duration(rfLeftMs)}}</b></div>
               <div class="mini" title="${{escapeHtml(queueTitle)}}"><span class="label">Queue</span><b>${{client.tx_queue_depth || 0}}/${{client.tx_queue_max || 0}}</b></div>
@@ -2872,6 +3468,11 @@ def build_status_html(base_path: str = "") -> str:
               <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Group</span><b>${{escapeHtml(client.group || "default")}}</b></div>
               <div class="mini" title="${{escapeHtml(guardTitle)}}"><span class="label">Quality</span><b>${{client.bridge_quality_score ?? 0}}</b></div>
               <div class="mini" title="RF inject budget remaining"><span class="label">RF budget</span><b>${{budgetLeft}}</b></div>
+              <div class="mini" title="${{escapeHtml(nodeBlockTitle)}}"><span class="label">ID block</span><b>${{blockTotals.node_drops || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(pathBlockTitle)}}"><span class="label">Path block</span><b>${{blockTotals.path_drops || 0}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">Noise</span><b>${{dbm(radio.noise_floor)}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">RSSI</span><b>${{dbm(radio.last_rssi)}}</b></div>
+              <div class="mini" title="${{escapeHtml(radioTitle)}}"><span class="label">SNR</span><b>${{snr(radio.last_snr)}}</b></div>
               <div class="mini"><span class="label">HB</span><b>${{client.heartbeats_rx}}</b></div>
             </div>
             <div class="node-meta">${{footer}} · last tx ${{lastTx}} · dedup ${{client.skipped_dup_total || 0}} · ${{client.quarantine_active ? "quarantine " + (client.quarantine_seconds_left || 0) + "s" : "not quarantined"}}</div>
@@ -2913,6 +3514,7 @@ def build_status_html(base_path: str = "") -> str:
         const routeBits = [
           packet.route || "",
           packet.hops === null || packet.hops === undefined ? "" : `${{packet.hops}} hop`,
+          packet.source_short_id ? `sid ${{packet.source_short_id}}` : "",
           `${{packet.size}}B`,
           packet.bridge_v2 ? `ttl ${{text(packet.ttl, "-")}}` : "",
         ].filter(Boolean).join(" | ");
@@ -2982,10 +3584,12 @@ def build_status_html(base_path: str = "") -> str:
       setStatus("sensorStatus", `${{sensorData.sensors.length}} detected`, "ok");
       rows.innerHTML = sensorData.sensors.map((sensor) => {{
         const location = sensor.lat !== null && sensor.lon !== null ? `${{Number(sensor.lat).toFixed(6)}}, ${{Number(sensor.lon).toFixed(6)}}` : "not shared";
+        const nodeId = sensor.node_id || "";
+        const shortNodeId = sensor.node_id_short || nodeId.slice(0, 2) || "--";
         return `
           <tr>
             <td>${{escapeHtml(sensor.name || "unknown")}}</td>
-            <td>${{escapeHtml(sensor.node_id)}}</td>
+            <td title="${{escapeHtml(nodeId)}}">${{escapeHtml(shortNodeId)}}</td>
             <td>${{age(sensor.age_seconds)}} ago</td>
             <td>${{sensor.seen_count}}</td>
             <td>${{text(sensor.hops, "")}}</td>
@@ -3058,6 +3662,11 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
         "Path quarantine is enabled for bridge admins and does not require the node password"
         if path_block_enabled else
         "Path quarantine is disabled; start the server with --admin-password and --allow-path-block-admin"
+    )
+    node_note = (
+        "Node quarantine blocks a 1-byte source id on the selected bridge node; matching packets are dropped locally"
+        if path_block_enabled else
+        "Node quarantine is disabled; start the server with --admin-password and --allow-path-block-admin"
     )
     result_html = (
         f'<pre class="command-result">{html.escape(redact_public_text(command_result))}</pre>'
@@ -3234,7 +3843,7 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
     <section class="status-strip">
       <div class="metric"><span class="label">Online nodes</span><b>{connected_count}</b></div>
       <div class="metric"><span class="label">Command auth</span><b>{html.escape(auth_state)}</b></div>
-      <div class="metric"><span class="label">Path quarantine</span><b>{html.escape(quarantine_state)}</b></div>
+      <div class="metric"><span class="label">Bridge quarantine</span><b>{html.escape(quarantine_state)}</b></div>
     </section>
     <section class="grid">
       <div class="stack">
@@ -3297,6 +3906,44 @@ def build_manage_html(command_result: str = "", base_path: str = "") -> str:
                 <div class="form-wide">
                   <label for="path_block">Path</label>
                   <input id="path_block" name="path_block" placeholder="aa/bb/cc" maxlength="20"{path_disabled}>
+                </div>
+              </div>
+              <div class="actions"><button type="submit"{path_disabled}>Apply quarantine</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Node-ID Quarantine</h2>
+            <span class="pill">{html.escape(quarantine_state)}</span>
+          </div>
+          <div class="panel-body">
+            <p>{html.escape(node_note)}</p>
+            <form method="post" action="{command_url}">
+              <input type="hidden" name="mode" value="node_block">
+              <div class="form-grid">
+                <div class="form-wide">
+                  <label for="node_target">Bridge node</label>
+                  <select id="node_target" name="target"{path_disabled}>
+                    {path_options_html}
+                  </select>
+                </div>
+                <div>
+                  <label for="node_action">Action</label>
+                  <select id="node_action" name="node_action"{path_disabled}>
+                    <option value="add">Add block</option>
+                    <option value="del">Remove block</option>
+                    <option value="get">Show blocks</option>
+                    <option value="clear">Clear all</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="node_duration">Duration</label>
+                  <input id="node_duration" name="node_duration" placeholder="15m" maxlength="8"{path_disabled}>
+                </div>
+                <div class="form-wide">
+                  <label for="node_block">1-byte source node id</label>
+                  <input id="node_block" name="node_block" placeholder="a7" maxlength="2"{path_disabled}>
                 </div>
               </div>
               <div class="actions"><button type="submit"{path_disabled}>Apply quarantine</button></div>
@@ -4044,6 +4691,7 @@ def find_client(client_id: str) -> BridgeClient | None:
 
 PATH_BLOCK_RE = re.compile(r"^[0-9a-fA-F]{2}(?:/[0-9a-fA-F]{2}){0,2}$|^[0-9a-fA-F]{4}(?:/[0-9a-fA-F]{4}){0,2}$|^[0-9a-fA-F]{6}(?:/[0-9a-fA-F]{6}){0,2}$")
 PATH_BLOCK_DURATION_RE = re.compile(r"^[1-9][0-9]*(?:[mhd])?$")
+NODE_BLOCK_RE = re.compile(r"^[0-9a-fA-F]{2}$")
 
 
 def build_path_block_command(form: dict[str, list[str]]) -> str:
@@ -4066,139 +4714,225 @@ def build_path_block_command(form: dict[str, list[str]]) -> str:
     return f"set path.block add {path}" + (f" {duration}" if duration else "")
 
 
-async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+def build_node_block_command(form: dict[str, list[str]]) -> str:
+    action = (form.get("node_action") or [""])[0].strip().lower()
+    node_id = (form.get("node_block") or [""])[0].strip().lower()
+    duration = (form.get("node_duration") or [""])[0].strip().lower()
+
+    if action == "get":
+        return "get node.block"
+    if action == "clear":
+        return "clear node.block"
+    if action not in ("add", "del"):
+        raise ValueError("invalid node.block action")
+    if not NODE_BLOCK_RE.fullmatch(node_id):
+        raise ValueError("node id must be one hex byte, e.g. a7")
+    if action == "del":
+        return f"set node.block del {node_id}"
+    if duration and not PATH_BLOCK_DURATION_RE.fullmatch(duration):
+        raise ValueError("duration must be seconds, Nm, Nh, or Nd")
+    return f"set node.block add {node_id}" + (f" {duration}" if duration else "")
+
+
+async def send_admin_bridge_command(target: str, command: str, label: str) -> str:
+    async def send_one(client: BridgeClient) -> str:
+        try:
+            reply = await client.send_command(command, "")
+            asyncio.create_task(refresh_client_block_stats(client, force=True))
+            log.info("%s: bridge-admin %s command: %s", client.addr, label, command)
+            return f"{client.display_name}> {command}\n{reply}"
+        except asyncio.TimeoutError:
+            log.warning("%s: %s command timed out", client.addr, label)
+            return f"{client.display_name}> {command}\nError: command timed out waiting for bridge reply"
+        except Exception as exc:
+            return f"{client.display_name}> {command}\nError: {exc}"
+
+    if target == "__all__":
+        targets = sorted(list(connected_clients), key=lambda c: (c.display_name.lower(), c.client_id))
+        if not targets:
+            return "Error: no bridge nodes connected"
+        return "\n\n".join(await asyncio.gather(*(send_one(c) for c in targets)))
+    client = find_client(target)
+    if client is None:
+        return "Error: selected bridge node is no longer connected"
+    return await send_one(client)
+
+
+def make_http_response(
+    status: str,
+    content_type: str,
+    body: bytes,
+    extra_headers: list[tuple[str, str]] | None = None,
+) -> HttpResponse:
+    return status, content_type, body, extra_headers or []
+
+
+def html_response(page: str) -> HttpResponse:
+    return make_http_response("200 OK", "text/html; charset=utf-8", page.encode("utf-8"))
+
+
+def json_response(payload: dict) -> HttpResponse:
+    return make_http_response("200 OK", "application/json", json.dumps(payload, indent=2).encode("utf-8"))
+
+
+def text_response(status: str, text: str) -> HttpResponse:
+    return make_http_response(status, "text/plain", text.encode("utf-8"))
+
+
+def parse_content_length(headers: dict[str, str]) -> int:
     try:
-        request_line = await reader.readline()
-        parts = request_line.decode("ascii", errors="ignore").strip().split()
-        headers: dict[str, str] = {}
-        while True:
-            line = await reader.readline()
-            if not line or line in (b"\r\n", b"\n"):
-                break
-            name, sep, value = line.decode("iso-8859-1", errors="ignore").partition(":")
-            if sep:
-                headers[name.strip().lower()] = value.strip()
+        return max(0, int(headers.get("content-length", "0") or "0"))
+    except ValueError:
+        return 0
 
-        method = parts[0] if len(parts) >= 1 else ""
-        path = parts[1] if len(parts) >= 2 else ""
-        base_path = request_base_path(headers)
-        route = strip_base_path(path, base_path)
-        extra_headers: list[tuple[str, str]] = []
 
-        if len(parts) < 2:
-            status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif method == "POST" and route == "/command":
-            if not is_admin_authorized(headers):
-                status, content_type, body, extra_headers = admin_auth_response()
-            else:
-                content_length = int(headers.get("content-length", "0") or "0")
-                raw_body = await reader.readexactly(content_length) if content_length > 0 else b""
-                form = parse_qs(raw_body.decode("utf-8", errors="replace"), keep_blank_values=True)
-                target = (form.get("target") or [""])[0]
-                node_password = (form.get("node_password") or [""])[0]
-                command = (form.get("command") or [""])[0].strip()
-                mode = (form.get("mode") or [""])[0].strip()
-                client = find_client(target)
-                if mode == "path_block":
-                    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
-                        result = "Error: path quarantine admin is disabled"
-                    else:
-                        try:
-                            command = build_path_block_command(form)
-                            if target == "__all__":
-                                targets = sorted(list(connected_clients), key=lambda c: (c.display_name.lower(), c.client_id))
-                                if not targets:
-                                    result = "Error: no bridge nodes connected"
-                                else:
-                                    async def send_path_block(client: BridgeClient) -> str:
-                                        try:
-                                            reply = await client.send_command(command, "")
-                                            log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
-                                            return f"{client.display_name}> {command}\n{reply}"
-                                        except asyncio.TimeoutError:
-                                            log.warning("%s: path quarantine command timed out", client.addr)
-                                            return f"{client.display_name}> {command}\nError: command timed out waiting for bridge reply"
-                                        except Exception as exc:
-                                            return f"{client.display_name}> {command}\nError: {exc}"
+async def read_http_request(reader: asyncio.StreamReader) -> tuple[str, str, dict[str, str]]:
+    request_line = await reader.readline()
+    parts = request_line.decode("ascii", errors="ignore").strip().split()
+    method = parts[0] if len(parts) >= 1 else ""
+    path = parts[1] if len(parts) >= 2 else ""
+    headers: dict[str, str] = {}
 
-                                    result = "\n\n".join(await asyncio.gather(*(send_path_block(c) for c in targets)))
-                            elif client is None:
-                                result = "Error: selected bridge node is no longer connected"
-                            else:
-                                reply = await client.send_command(command, "")
-                                result = f"{client.display_name}> {command}\n{reply}"
-                                log.info("%s: bridge-admin path quarantine command: %s", client.addr, command)
-                        except asyncio.TimeoutError:
-                            log.warning("%s: path quarantine command timed out", client.addr)
-                            result = "Error: command timed out waiting for bridge reply"
-                        except Exception as exc:
-                            result = f"Error: {exc}"
-                else:
-                    if client is None:
-                        result = "Error: selected bridge node is no longer connected"
-                    elif not command:
-                        result = "Error: empty command"
-                    elif not node_password:
-                        result = "Error: node admin password required"
-                    else:
-                        try:
-                            timeout = command_timeout_for(command)
-                            if is_ota_update_command(command):
-                                await client.send_command(command, node_password, wait_reply=False)
-                                result = (
-                                    f"{client.display_name}> {command}\n"
-                                    "OK - OTA update command sent. The node may disconnect, reconnect WiFi, "
-                                    "download firmware, reboot, and return online without sending a CLI reply."
-                                )
-                            else:
-                                reply = await client.send_command(command, node_password, timeout=timeout)
-                                result = f"{client.display_name}> {command}\n{reply}"
-                        except asyncio.TimeoutError:
-                            log.warning("%s: remote command timed out: %s", client.addr, command)
-                            result = f"Error: command timed out waiting for bridge reply after {command_timeout_for(command)}s"
-                        except Exception as exc:
-                            result = f"Error: {exc}"
-                status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(result, base_path).encode("utf-8")
-        elif method != "GET":
-            status, content_type, body = "405 Method Not Allowed", "text/plain", b"Method not allowed\n"
-        elif route == "/status.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(status_snapshot(), indent=2).encode("utf-8")
-        elif route == "/locations.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(locations_snapshot(), indent=2).encode("utf-8")
-        elif route == "/sensors.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(sensors_snapshot(), indent=2).encode("utf-8")
-        elif route == "/packets.json":
-            status, content_type = "200 OK", "application/json"
-            body = json.dumps(packets_snapshot(), indent=2).encode("utf-8")
-        elif route == "/map":
-            status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_location_map_html(base_path).encode("utf-8")
-        elif route == "/manage":
-            if not is_admin_authorized(headers):
-                status, content_type, body, extra_headers = admin_auth_response()
-            else:
-                status, content_type = "200 OK", "text/html; charset=utf-8"
-                body = build_manage_html(base_path=base_path).encode("utf-8")
-        elif route in ("/", "/status"):
-            status, content_type = "200 OK", "text/html; charset=utf-8"
-            body = build_status_html(base_path).encode("utf-8")
+    while True:
+        line = await reader.readline()
+        if not line or line in (b"\r\n", b"\n"):
+            break
+        name, sep, value = line.decode("iso-8859-1", errors="ignore").partition(":")
+        if sep:
+            headers[name.strip().lower()] = value.strip()
+
+    return method, path, headers
+
+
+async def handle_command_post(
+    reader: asyncio.StreamReader,
+    headers: dict[str, str],
+    base_path: str,
+) -> HttpResponse:
+    if not is_admin_authorized(headers):
+        return admin_auth_response()
+
+    content_length = parse_content_length(headers)
+    raw_body = await reader.readexactly(content_length) if content_length > 0 else b""
+    form = parse_qs(raw_body.decode("utf-8", errors="replace"), keep_blank_values=True)
+    target = (form.get("target") or [""])[0]
+    node_password = (form.get("node_password") or [""])[0]
+    command = (form.get("command") or [""])[0].strip()
+    mode = (form.get("mode") or [""])[0].strip()
+
+    if mode in ("path_block", "node_block"):
+        result = await handle_quarantine_post(form, target, mode)
+    else:
+        result = await handle_remote_cli_post(target, node_password, command)
+
+    return html_response(build_manage_html(result, base_path))
+
+
+async def handle_quarantine_post(form: dict[str, list[str]], target: str, mode: str) -> str:
+    if not (ALLOW_PATH_BLOCK_ADMIN and ADMIN_PASSWORD):
+        return "Error: bridge quarantine admin is disabled"
+
+    client = find_client(target)
+    try:
+        if mode == "path_block":
+            command = build_path_block_command(form)
+            label = "path quarantine"
         else:
-            status, content_type, body = "404 Not Found", "text/plain", b"Not found\n"
+            command = build_node_block_command(form)
+            label = "node quarantine"
+        return await send_admin_bridge_command(target, command, label)
+    except asyncio.TimeoutError:
+        log.warning("%s: bridge quarantine command timed out", client.addr if client else target)
+        return "Error: command timed out waiting for bridge reply"
+    except Exception as exc:
+        return f"Error: {exc}"
 
-        headers = (
-            f"HTTP/1.1 {status}\r\n"
-            f"Content-Type: {content_type}\r\n"
-            f"Content-Length: {len(body)}\r\n"
-            "Connection: close\r\n"
-            "Cache-Control: no-store\r\n"
-        ).encode("ascii")
-        for name, value in extra_headers:
-            headers += f"{name}: {value}\r\n".encode("ascii")
-        writer.write(headers + b"\r\n" + body)
+
+async def handle_remote_cli_post(target: str, node_password: str, command: str) -> str:
+    client = find_client(target)
+    if client is None:
+        return "Error: selected bridge node is no longer connected"
+    if not command:
+        return "Error: empty command"
+    if not node_password:
+        return "Error: node admin password required"
+
+    try:
+        timeout = command_timeout_for(command)
+        if is_ota_update_command(command):
+            await client.send_command(command, node_password, wait_reply=False)
+            return (
+                f"{client.display_name}> {command}\n"
+                "OK - OTA update command sent. The node may disconnect, reconnect WiFi, "
+                "download firmware, reboot, and return online without sending a CLI reply."
+            )
+        reply = await client.send_command(command, node_password, timeout=timeout)
+        return f"{client.display_name}> {command}\n{reply}"
+    except asyncio.TimeoutError:
+        log.warning("%s: remote command timed out: %s", client.addr, command)
+        return f"Error: command timed out waiting for bridge reply after {command_timeout_for(command)}s"
+    except Exception as exc:
+        return f"Error: {exc}"
+
+
+def route_get_request(
+    route: str,
+    headers: dict[str, str],
+    base_path: str,
+) -> HttpResponse:
+    if route == "/status.json":
+        return json_response(status_snapshot())
+    if route == "/locations.json":
+        return json_response(locations_snapshot())
+    if route == "/sensors.json":
+        return json_response(sensors_snapshot())
+    if route == "/packets.json":
+        return json_response(packets_snapshot())
+    if route == "/map":
+        return html_response(build_location_map_html(base_path))
+    if route == "/manage":
+        if not is_admin_authorized(headers):
+            return admin_auth_response()
+        return html_response(build_manage_html(base_path=base_path))
+    if route in ("/", "/status"):
+        return html_response(build_status_html(base_path))
+    return text_response("404 Not Found", "Not found\n")
+
+
+def build_http_headers(
+    status: str,
+    content_type: str,
+    body: bytes,
+    extra_headers: list[tuple[str, str]],
+) -> bytes:
+    header_lines = [
+        f"HTTP/1.1 {status}",
+        f"Content-Type: {content_type}",
+        f"Content-Length: {len(body)}",
+        "Connection: close",
+        "Cache-Control: no-store",
+    ]
+    header_lines.extend(f"{name}: {value}" for name, value in extra_headers)
+    return ("\r\n".join(header_lines) + "\r\n\r\n").encode("ascii")
+
+
+async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        method, path, request_headers = await read_http_request(reader)
+        base_path = request_base_path(request_headers)
+        route = strip_base_path(path, base_path)
+
+        if not method or not path:
+            response = text_response("405 Method Not Allowed", "Method not allowed\n")
+        elif method == "POST" and route == "/command":
+            response = await handle_command_post(reader, request_headers, base_path)
+        elif method != "GET":
+            response = text_response("405 Method Not Allowed", "Method not allowed\n")
+        else:
+            response = route_get_request(route, request_headers, base_path)
+
+        status, content_type, body, extra_headers = response
+        writer.write(build_http_headers(status, content_type, body, extra_headers) + body)
         await writer.drain()
     except Exception as exc:
         log.debug("HTTP status request failed: %s", exc)
@@ -4210,7 +4944,8 @@ async def handle_http_client(reader: asyncio.StreamReader, writer: asyncio.Strea
             pass
 
 
-async def main(host: str, port: int, status_host: str, status_port: int):
+async def main(host: str, port: int, status_host: str, status_port: int) -> None:
+    log.info("%s v%s starting", SERVER_NAME, SERVER_VERSION)
     server = await asyncio.start_server(handle_client, host, port)
     addrs = format_sockaddrs(server.sockets)
     log.info("MeshCore TCP bridge server listening on %s", addrs)
@@ -4221,12 +4956,20 @@ async def main(host: str, port: int, status_host: str, status_port: int):
             http_addrs = format_sockaddrs(http_server.sockets)
             log.info("Status page listening on http://%s", http_addrs)
         except OSError as exc:
-            log.warning("Status page disabled: could not bind %s:%d (%s)",
-                        status_host, status_port, exc)
+            log.warning(
+                "Status page disabled: could not bind %s:%d (%s)",
+                status_host,
+                status_port,
+                exc,
+            )
     log.info("Press Ctrl+C to stop")
     status = asyncio.create_task(status_task()) if STATUS_INTERVAL_SECS > 0 else None
     firmware_updates = asyncio.create_task(
-        firmware_update_task(FIRMWARE_UPDATE_REPO, FIRMWARE_UPDATE_CHECK_INTERVAL_SECS, FIRMWARE_UPDATE_TIMEOUT_SECS)
+        firmware_update_task(
+            FIRMWARE_UPDATE_REPO,
+            FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
+            FIRMWARE_UPDATE_TIMEOUT_SECS,
+        )
     )
 
     try:
@@ -4242,94 +4985,284 @@ async def main(host: str, port: int, status_host: str, status_port: int):
             await http_server.wait_closed()
         if status:
             status.cancel()
-        if firmware_updates:
-            firmware_updates.cancel()
+        firmware_updates.cancel()
 
 
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MeshCore TCP bridge server")
+
+    add_network_args(parser)
+    add_bridge_guard_args(parser)
+    add_status_page_args(parser)
+    add_firmware_update_args(parser)
+    add_packet_decode_args(parser)
+    add_rate_limit_args(parser)
+    add_admin_args(parser)
+    return parser
+
+
+def add_network_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--version", action="version", version=f"%(prog)s {SERVER_VERSION}")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=4200, help="TCP port (default: 4200)")
-    parser.add_argument("--log-packets", action="store_true",
-                        help="Log every received and forwarded mesh payload")
-    parser.add_argument("--log-hex-bytes", type=int, default=32,
-                        help="Number of payload bytes to show in packet logs (default: 32)")
-    parser.add_argument("--client-timeout", type=int, default=180,
-                        help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)")
-    parser.add_argument("--client-tx-queue-max", type=int, default=CLIENT_TX_QUEUE_MAX,
-                        help="Max queued outbound TCP packets per bridge client (default: 250)")
-    parser.add_argument("--bridge-dedupe", choices=("on", "off"), default="on",
-                        help="Enable TCP bridge packet fingerprint dedupe (default: on)")
-    parser.add_argument("--bridge-dedupe-ttl", type=int, default=BRIDGE_DEDUPE_TTL_SECS,
-                        help="Fingerprint dedupe TTL in seconds (default: 300)")
-    parser.add_argument("--bridge-dedupe-max-entries", type=int, default=BRIDGE_DEDUPE_MAX_ENTRIES,
-                        help="Max fingerprint dedupe entries (default: 4096)")
-    parser.add_argument("--bridge-loopguard", choices=("on", "off"), default="on",
-                        help="Enable bridge loop quarantine guard (default: on)")
-    parser.add_argument("--bridge-loopguard-window", type=int, default=BRIDGE_LOOPGUARD_WINDOW_SECS,
-                        help="Loopguard window in seconds (default: 60)")
-    parser.add_argument("--bridge-loopguard-threshold", type=int, default=BRIDGE_LOOPGUARD_THRESHOLD,
-                        help="Loopguard hits before quarantine (default: 5)")
-    parser.add_argument("--bridge-loopguard-quarantine", type=int, default=BRIDGE_LOOPGUARD_QUARANTINE_SECS,
-                        help="Loopguard quarantine seconds (default: 120)")
-    parser.add_argument("--bridge-rf-inject", choices=("on", "off"), default="off",
-                        help="Enable server-side RF inject budget before forwarding to bridges (default: off)")
-    parser.add_argument("--bridge-rf-inject-max-per-min", type=int, default=BRIDGE_RF_INJECT_MAX_PER_MIN,
-                        help="Max TCP-to-RF inject packets per bridge per minute, 0 disables count cap")
-    parser.add_argument("--bridge-rf-inject-max-airtime-ms-hour", type=int, default=BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
-                        help="Estimated max TCP-to-RF inject airtime per bridge per hour, 0 disables airtime cap")
-    parser.add_argument("--bridge-rf-inject-block-duty-above-pct", type=float, default=BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
-                        help="Block TCP-to-RF inject when reported duty used percent is at/above this, 0 disables")
-    parser.add_argument("--bridge-group", default=BRIDGE_GROUP,
-                        help="Bridge group name assigned to legacy/default clients (default: default)")
-    parser.add_argument("--bridge-require-group-match", action="store_true",
-                        help="Only forward packets between bridges with matching group")
-    parser.add_argument("--status-interval", type=int, default=60,
-                        help="Log connected clients every N seconds (default: 60, 0 disables)")
-    parser.add_argument("--status-host", default="0.0.0.0",
-                        help="Bind address for the HTTP status page (default: 0.0.0.0)")
-    parser.add_argument("--status-port", type=int, default=8080,
-                        help="HTTP status page port (default: 8080, 0 disables)")
-    parser.add_argument("--status-base-path", default=STATUS_BASE_PATH,
-                        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus")
-    parser.add_argument("--firmware-update-repo", default=FIRMWARE_UPDATE_REPO,
-                        help="GitHub owner/repo used for firmware update checks (default: MichTronics/MeshCoreNG, empty disables)")
-    parser.add_argument("--firmware-update-interval", type=int, default=FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
-                        help="Seconds between firmware update checks (default: 3600, 0 disables)")
-    parser.add_argument("--firmware-update-timeout", type=int, default=FIRMWARE_UPDATE_TIMEOUT_SECS,
-                        help="HTTP timeout in seconds for firmware update checks (default: 5)")
-    parser.add_argument("--public-channels-file", default="",
-                        help="JSON file with public channel names/secrets for optional group packet decoding")
-    parser.add_argument("--location-tracks-dir", default=str(LOCATION_TRACKS_DIR),
-                        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)")
-    parser.add_argument("--transport-rate-limit", choices=("on", "off"), default="on",
-                        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)")
-    parser.add_argument("--transport-rate-max", type=int, default=TRANSPORT_RATE_LIMIT_MAX,
-                        help="Max transport packets per bridge client per window (default: 20)")
-    parser.add_argument("--transport-rate-window", type=int, default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
-                        help="Per-client transport rate window in seconds (default: 120)")
-    parser.add_argument("--transport-global-rate-max", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
-                        help="Max transport packets globally per window, 0 disables global cap (default: 80)")
-    parser.add_argument("--transport-global-rate-window", type=int, default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
-                        help="Global transport rate window in seconds (default: 120)")
-    parser.add_argument("--replace-same-ip", action="store_true",
-                        help="When a new client connects, disconnect older clients from the same IP")
-    parser.add_argument("--password", default="",
-                        help="Optional TCP bridge password required from clients")
-    parser.add_argument("--admin-password", default="",
-                        help="Optional Basic auth password protecting the HTTP remote management page")
-    parser.add_argument("--allow-path-block-admin", action="store_true",
-                        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Enable debug logging")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--client-timeout",
+        type=int,
+        default=180,
+        help="Disconnect clients after this many seconds without packets or heartbeat (default: 180, 0 disables)",
+    )
+    parser.add_argument(
+        "--client-tx-queue-max",
+        type=int,
+        default=CLIENT_TX_QUEUE_MAX,
+        help="Max queued outbound TCP packets per bridge client (default: 250)",
+    )
+    parser.add_argument(
+        "--replace-same-ip",
+        action="store_true",
+        help="When a new client connects, disconnect older clients from the same IP",
+    )
+    parser.add_argument("--password", default="", help="Optional TCP bridge password required from clients")
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+
+def add_bridge_guard_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--bridge-dedupe",
+        choices=("on", "off"),
+        default="on",
+        help="Enable TCP bridge packet fingerprint dedupe (default: on)",
+    )
+    parser.add_argument(
+        "--bridge-dedupe-ttl",
+        type=int,
+        default=BRIDGE_DEDUPE_TTL_SECS,
+        help="Fingerprint dedupe TTL in seconds (default: 300)",
+    )
+    parser.add_argument(
+        "--bridge-dedupe-max-entries",
+        type=int,
+        default=BRIDGE_DEDUPE_MAX_ENTRIES,
+        help="Max fingerprint dedupe entries (default: 4096)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard",
+        choices=("on", "off"),
+        default="on",
+        help="Enable bridge loop quarantine guard (default: on)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-window",
+        type=int,
+        default=BRIDGE_LOOPGUARD_WINDOW_SECS,
+        help="Loopguard window in seconds (default: 60)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-threshold",
+        type=int,
+        default=BRIDGE_LOOPGUARD_THRESHOLD,
+        help="Loopguard hits before quarantine (default: 5)",
+    )
+    parser.add_argument(
+        "--bridge-loopguard-quarantine",
+        type=int,
+        default=BRIDGE_LOOPGUARD_QUARANTINE_SECS,
+        help="Loopguard quarantine seconds (default: 120)",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject",
+        choices=("on", "off"),
+        default="off",
+        help="Enable server-side RF inject budget before forwarding to bridges (default: off)",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-max-per-min",
+        type=int,
+        default=BRIDGE_RF_INJECT_MAX_PER_MIN,
+        help="Max TCP-to-RF inject packets per bridge per minute, 0 disables count cap",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-max-airtime-ms-hour",
+        type=int,
+        default=BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR,
+        help="Estimated max TCP-to-RF inject airtime per bridge per hour, 0 disables airtime cap",
+    )
+    parser.add_argument(
+        "--bridge-rf-inject-block-duty-above-pct",
+        type=float,
+        default=BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT,
+        help="Block TCP-to-RF inject when reported duty used percent is at/above this, 0 disables",
+    )
+    parser.add_argument(
+        "--bridge-group",
+        default=BRIDGE_GROUP,
+        help="Bridge group name assigned to legacy/default clients (default: default)",
+    )
+    parser.add_argument(
+        "--bridge-require-group-match",
+        action="store_true",
+        help="Only forward packets between bridges with matching group",
+    )
+    parser.add_argument(
+        "--short-id-quarantine",
+        choices=("on", "off"),
+        default="off",
+        help="Automatically quarantine spammy 1-byte source IDs (default: off)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-window",
+        type=int,
+        default=SHORT_ID_QUARANTINE_WINDOW_SECS,
+        help="Seconds to count bad short-id hits before quarantine (default: 60)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-threshold",
+        type=int,
+        default=SHORT_ID_QUARANTINE_THRESHOLD,
+        help="Bad short-id hits before quarantine (default: 5)",
+    )
+    parser.add_argument(
+        "--short-id-quarantine-secs",
+        type=int,
+        default=SHORT_ID_QUARANTINE_SECS,
+        help="Seconds to block a quarantined 1-byte source ID (default: 900)",
+    )
+
+
+def add_status_page_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--status-interval",
+        type=int,
+        default=60,
+        help="Log connected clients every N seconds (default: 60, 0 disables)",
+    )
+    parser.add_argument(
+        "--status-host",
+        default="0.0.0.0",
+        help="Bind address for the HTTP status page (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--status-port",
+        type=int,
+        default=8080,
+        help="HTTP status page port (default: 8080, 0 disables)",
+    )
+    parser.add_argument(
+        "--status-base-path",
+        default=STATUS_BASE_PATH,
+        help="Public URL prefix for status pages behind a reverse proxy, e.g. /meshbridgestatus",
+    )
+
+
+def add_firmware_update_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--firmware-update-repo",
+        default=FIRMWARE_UPDATE_REPO,
+        help="GitHub owner/repo used for firmware update checks (default: MichTronics/MeshCoreNG, empty disables)",
+    )
+    parser.add_argument(
+        "--firmware-update-interval",
+        type=int,
+        default=FIRMWARE_UPDATE_CHECK_INTERVAL_SECS,
+        help="Seconds between firmware update checks (default: 3600, 0 disables)",
+    )
+    parser.add_argument(
+        "--firmware-update-timeout",
+        type=int,
+        default=FIRMWARE_UPDATE_TIMEOUT_SECS,
+        help="HTTP timeout in seconds for firmware update checks (default: 5)",
+    )
+
+
+def add_packet_decode_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--log-packets", action="store_true", help="Log every received and forwarded mesh payload")
+    parser.add_argument(
+        "--log-hex-bytes",
+        type=int,
+        default=32,
+        help="Number of payload bytes to show in packet logs (default: 32)",
+    )
+    parser.add_argument(
+        "--public-channels-file",
+        default="",
+        help="JSON file with public channel names/secrets for optional group packet decoding",
+    )
+    parser.add_argument(
+        "--location-tracks-dir",
+        default=str(LOCATION_TRACKS_DIR),
+        help="Directory for persistent tracker route JSONL files (default: logs/location_tracks)",
+    )
+
+
+def add_rate_limit_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--transport-rate-limit",
+        choices=("on", "off"),
+        default="on",
+        help="Rate-limit DM/group/transport packets before bridge broadcast (default: on)",
+    )
+    parser.add_argument(
+        "--transport-rate-max",
+        type=int,
+        default=TRANSPORT_RATE_LIMIT_MAX,
+        help="Max transport packets per bridge client per window (default: 20)",
+    )
+    parser.add_argument(
+        "--transport-rate-window",
+        type=int,
+        default=TRANSPORT_RATE_LIMIT_WINDOW_SECS,
+        help="Per-client transport rate window in seconds (default: 120)",
+    )
+    parser.add_argument(
+        "--transport-global-rate-max",
+        type=int,
+        default=TRANSPORT_GLOBAL_RATE_LIMIT_MAX,
+        help="Max transport packets globally per window, 0 disables global cap (default: 80)",
+    )
+    parser.add_argument(
+        "--transport-global-rate-window",
+        type=int,
+        default=TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS,
+        help="Global transport rate window in seconds (default: 120)",
+    )
+
+
+def add_admin_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--admin-password",
+        default="",
+        help="Optional Basic auth password protecting the HTTP remote management page",
+    )
+    parser.add_argument(
+        "--allow-path-block-admin",
+        action="store_true",
+        help="Allow HTTP bridge admins to send path.block quarantine commands without node passwords",
+    )
+
+
+def apply_args(args: argparse.Namespace) -> None:
+    global LOG_PACKETS, LOG_HEX_BYTES, CLIENT_TIMEOUT_SECS, CLIENT_TX_QUEUE_MAX
+    global BRIDGE_DEDUPE_ENABLED, BRIDGE_DEDUPE_TTL_SECS, BRIDGE_DEDUPE_MAX_ENTRIES
+    global BRIDGE_LOOPGUARD_ENABLED, BRIDGE_LOOPGUARD_WINDOW_SECS, BRIDGE_LOOPGUARD_THRESHOLD
+    global BRIDGE_LOOPGUARD_QUARANTINE_SECS, BRIDGE_RF_INJECT_ENABLED, BRIDGE_RF_INJECT_MAX_PER_MIN
+    global BRIDGE_RF_INJECT_MAX_AIRTIME_MS_PER_HOUR, BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT
+    global BRIDGE_GROUP, BRIDGE_REQUIRE_GROUP_MATCH, SHORT_ID_QUARANTINE_ENABLED
+    global SHORT_ID_QUARANTINE_WINDOW_SECS, SHORT_ID_QUARANTINE_THRESHOLD, SHORT_ID_QUARANTINE_SECS
+    global STATUS_INTERVAL_SECS, REPLACE_SAME_IP, BRIDGE_PASSWORD, ADMIN_PASSWORD
+    global ALLOW_PATH_BLOCK_ADMIN, STATUS_BASE_PATH, FIRMWARE_UPDATE_REPO
+    global FIRMWARE_UPDATE_CHECK_INTERVAL_SECS, FIRMWARE_UPDATE_TIMEOUT_SECS
+    global PUBLIC_CHANNELS_FILE, LOCATION_TRACKS_DIR, TRANSPORT_RATE_LIMIT_ENABLE
+    global TRANSPORT_RATE_LIMIT_MAX, TRANSPORT_RATE_LIMIT_WINDOW_SECS
+    global TRANSPORT_GLOBAL_RATE_LIMIT_MAX, TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS
 
     if args.verbose:
         log.setLevel(logging.DEBUG)
+
     LOG_PACKETS = args.log_packets
     LOG_HEX_BYTES = max(0, args.log_hex_bytes)
     CLIENT_TIMEOUT_SECS = max(0, args.client_timeout)
     CLIENT_TX_QUEUE_MAX = max(1, args.client_tx_queue_max)
+
     BRIDGE_DEDUPE_ENABLED = args.bridge_dedupe == "on"
     BRIDGE_DEDUPE_TTL_SECS = max(1, args.bridge_dedupe_ttl)
     BRIDGE_DEDUPE_MAX_ENTRIES = max(1, args.bridge_dedupe_max_entries)
@@ -4343,22 +5276,37 @@ if __name__ == "__main__":
     BRIDGE_RF_INJECT_BLOCK_DUTY_ABOVE_PCT = max(0.0, args.bridge_rf_inject_block_duty_above_pct)
     BRIDGE_GROUP = (args.bridge_group or "default").strip() or "default"
     BRIDGE_REQUIRE_GROUP_MATCH = bool(args.bridge_require_group_match)
+    SHORT_ID_QUARANTINE_ENABLED = args.short_id_quarantine == "on"
+    SHORT_ID_QUARANTINE_WINDOW_SECS = max(1, args.short_id_quarantine_window)
+    SHORT_ID_QUARANTINE_THRESHOLD = max(1, args.short_id_quarantine_threshold)
+    SHORT_ID_QUARANTINE_SECS = max(1, args.short_id_quarantine_secs)
+
     STATUS_INTERVAL_SECS = max(0, args.status_interval)
+    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
     REPLACE_SAME_IP = args.replace_same_ip
     BRIDGE_PASSWORD = args.password
     ADMIN_PASSWORD = args.admin_password
     ALLOW_PATH_BLOCK_ADMIN = args.allow_path_block_admin
-    STATUS_BASE_PATH = normalize_base_path(args.status_base_path)
+
     FIRMWARE_UPDATE_REPO = args.firmware_update_repo.strip()
     FIRMWARE_UPDATE_CHECK_INTERVAL_SECS = max(0, args.firmware_update_interval)
     FIRMWARE_UPDATE_TIMEOUT_SECS = max(1, args.firmware_update_timeout)
+
     PUBLIC_CHANNELS_FILE = args.public_channels_file
     LOCATION_TRACKS_DIR = Path(args.location_tracks_dir)
+
     TRANSPORT_RATE_LIMIT_ENABLE = args.transport_rate_limit == "on"
     TRANSPORT_RATE_LIMIT_MAX = max(0, args.transport_rate_max)
     TRANSPORT_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_rate_window)
     TRANSPORT_GLOBAL_RATE_LIMIT_MAX = max(0, args.transport_global_rate_max)
     TRANSPORT_GLOBAL_RATE_LIMIT_WINDOW_SECS = max(1, args.transport_global_rate_window)
+
+
+def run_cli() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    apply_args(args)
+
     load_public_channels(PUBLIC_CHANNELS_FILE)
     load_location_tracks()
 
@@ -4366,3 +5314,7 @@ if __name__ == "__main__":
         asyncio.run(main(args.host, args.port, args.status_host, max(0, args.status_port)))
     except KeyboardInterrupt:
         log.info("Server stopped")
+
+
+if __name__ == "__main__":
+    run_cli()

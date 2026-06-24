@@ -12,7 +12,9 @@ When enabled, each category tracks packets within its own time window. When a ca
 
 The Python TCP bridge server also has a server-side transport limiter. It drops excessive DM/group/transport packets before broadcasting them to other bridge clients. This limiter is based on the TCP bridge client and packet category, not on MeshCore node name or advertised identity, so changing names or node IDs does not bypass it.
 
-The same server exposes bridge status on the HTTP status page. It keeps per-node RX/TX packet timestamps for a 24-hour in-memory window, so nodes that disconnect remain visible as offline while they still have traffic inside that window. The page also shows RF duty telemetry from updated bridge firmware. `Duty this hour` is normalized to the configured hourly duty-cycle budget: with a 10% duty-cycle limit, `100%` means 360 seconds of RF TX have been used in the current accounting window.
+The TCP bridge is a controlled backhaul between selected RF islands, not a blind transparent internet mesh. MeshCore RF packets remain compatible, while TCP-only metadata and guards handle origin identity, TTL, duplicate suppression, export filtering, and RF injection budgets at the backhaul boundary.
+
+The same server exposes bridge status on the HTTP status page. It keeps per-node RX/TX packet timestamps for a 24-hour in-memory window, so nodes that disconnect remain visible as offline while they still have traffic inside that window. The page also shows RF duty telemetry and local neighbor count from updated bridge firmware. `Duty used` and `Duty left` are normalized to the configured hourly duty-cycle budget: with a 10% duty-cycle limit, 360 seconds of RF TX are available per hour.
 
 ## Packet Categories
 
@@ -74,18 +76,7 @@ tools/tcp_bridge_server_ctl.sh restart
 
 `0` disables only the corresponding max cap. For example, `--transport-global-rate-max 0` keeps per-client limiting but disables the global cap.
 
-### Basic Flood Protection (Legacy)
-
-Global settings that apply when selective protection is not configured:
-
-```bash
-get tcp.flood.limit       # Check if enabled
-set tcp.flood.limit on    # Enable flood protection
-set tcp.flood.max 100     # Max packets (1-10000)
-set tcp.flood.window 600  # Time window in seconds (1-3600)
-```
-
-### Selective Transport Flood Protection (Recommended)
+### Selective Transport Flood Protection
 
 Configure rate limits specifically for transport/message packets:
 
@@ -176,13 +167,13 @@ get tcp.flood.transport.max
 get tcp.flood.transport.window
 get tcp.flood.control.max
 get tcp.flood.control.window
-get wifi.status    # Shows drop counts per category
+get bridge.status  # Shows drop counts per category on TCP bridge builds
 ```
 
-The `wifi.status` command will show the number of dropped packets if flood protection is active:
+The `bridge.status` command will show the number of dropped packets if flood protection is active:
 
 ```
-> WiFi: connected | IP: 192.168.1.100 | RSSI: -45 dBm | Server: connected | Flood dropped: 23
+> WiFi: connected | IP: 192.168.1.100 | RSSI: -45 dBm | Server: connected | NTP: synced | Rate drop:23/0
 ```
 
 ## Use Cases

@@ -171,10 +171,15 @@ MeshCoreNG v2 also includes a rolling window for neighbor count, unique/duplicat
 ### Atlas Export
 **Usage:**
 - `atlas enable <on|off>`
+- `atlas.enable <on|off>`
 - `atlas position <on|off>`
+- `atlas.position <on|off>`
 - `atlas neighbors <on|off>`
+- `atlas.neighbors <on|off>`
 - `atlas pathsample <on|off|0-10>`
+- `atlas.pathsample <on|off|0-10>`
 - `atlas export <on|off>`
+- `atlas.export <on|off>`
 - `atlas export status`
 - `atlas export test`
 - `get atlas.stats`
@@ -756,7 +761,31 @@ get path.block
 clear path.block
 ```
 
-**Note:** This is a runtime quarantine list for repeaters. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+**Note:** This is a runtime quarantine list for repeaters. Matching packets are not retransmitted on RF and are not exported to bridge transports. It does not change the packet format and it is not persisted across reboot. The path hop width must match the packet path width: 1-byte paths use `aa`, 2-byte paths use `aa12/bb34`, and 3-byte paths use `aa12fe/bb34aa/cc56d0`.
+
+---
+
+#### Temporarily block TCP bridge packets by 1-byte source node id
+**Usage:**
+- `get node.block`
+- `set node.block add <id> [duration]`
+- `set node.block del <id>`
+- `clear node.block`
+- `set node.block clear`
+
+**Parameters:**
+- `id`: one byte in hex, for example `a7`
+- `duration`: optional temporary block duration. Use seconds, `Nm`, `Nh`, or `Nd`. Default is `15m`; maximum is 30 days.
+
+**Examples:**
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+**Note:** This is a runtime quarantine list on the bridge/repeater itself. Matching packets are not retransmitted on RF, not exported from RF to TCP, and not injected from TCP to RF on that bridge. Because only one byte is matched, unrelated nodes with the same byte are blocked too.
 
 ---
 
@@ -832,7 +861,25 @@ MeshCoreNG also performs duplicate-hearing suppression for queued flood retransm
 
 **Note:** When enabled, a queued flood retransmit can be cancelled if this node hears enough duplicate forwards before its own transmit slot. This reduces redundant flood traffic in dense meshes without changing the packet protocol.
 
-**Note:** When multiple nearby repeaters all hear the same flood packet, each waits a random amount of time before retransmitting to avoid simultaneous collisions. This factor scales the size of that random window. Higher values reduce collision risk at the cost of added latency. `0` disables the window entirely.
+---
+
+#### View or change nearby client flood suppression
+**Usage:**
+- `get nearby.client.suppress`
+- `set nearby.client.suppress <state>`
+- `get nearby.client.rssi`
+- `set nearby.client.rssi <dbm>`
+- `get nearby.client.hops`
+- `set nearby.client.hops <value>`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `dbm`: RSSI threshold from `-140` to `-10`; packets at or above this RSSI are treated as very nearby
+- `value`: maximum flood path hop count to consider nearby client traffic, from `0` to `3`
+
+**Default:** `nearby.client.suppress on`, `nearby.client.rssi -45`, `nearby.client.hops 0`
+
+**Note:** When enabled, repeaters suppress very strong first-hop client/companion flood packets instead of immediately extending them over RF. This targets the pattern where a companion and repeater are placed a few meters apart as a personal range extender. Repeater, room server and sensor adverts are not suppressed by this rule, and packets that already have relay hops continue through the normal forwarding logic.
 
 ---
 
@@ -1044,6 +1091,20 @@ Simple start advice:
 - `value`: Maximum flood hop count (0-64) for an advert packet
 
 **Default:** `8`
+
+---
+
+#### Limit the number of hops for peer flood messages
+**Usage:**
+- `get flood.max.messages`
+- `set flood.max.messages <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for `REQ`, `RESPONSE`, and `TXT_MSG` packets
+
+**Default:** `64`
+
+**Note:** This only limits peer request/response/text payloads when they are flood-routed. It does not change adverts, ACKs, path returns, trace/control packets, group packets, or direct routing.
 
 ---
 
@@ -1547,6 +1608,8 @@ Bridge support is optional and defaults to disabled. MeshCoreNG remains RF-first
 
 Operators are responsible for choosing what should be bridged and for avoiding unnecessary rebroadcast into RF networks. Prefer scoped, private bridge groups and preserve RF locality where possible.
 
+The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. It preserves the MeshCore RF packet format, but TCP-only metadata, duplicate suppression, origin IDs, TTL, export filters, and RF injection controls make it deliberately semi-transparent at the transport boundary.
+
 #### Configure a TCP bridge
 
 The TCP bridge connects bridge-capable repeaters to a selected bridge server. Use it to transport selected traffic between controlled MeshCore RF deployments. A server is required; see `tools/tcp_bridge_server.py`.
@@ -1556,7 +1619,7 @@ The TCP bridge connects bridge-capable repeaters to a selected bridge server. Us
 python3 tools/tcp_bridge_server.py --port 4200
 ```
 
-Optional web-admin path quarantine on `/manage`:
+Optional web-admin path/node quarantine on `/manage`:
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200 \
@@ -1564,7 +1627,7 @@ python3 tools/tcp_bridge_server.py --port 4200 \
   --allow-path-block-admin
 ```
 
-This lets bridge web admins send only the whitelisted `path.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
+This lets bridge web admins send only the whitelisted `path.block` and `node.block` quarantine commands without entering each repeater's node admin password. The web form can target one selected bridge node or all currently connected bridge nodes. Normal remote CLI commands still require the selected repeater's node admin password.
 
 **2. Configure each intended bridge repeater via CLI:**
 ```
@@ -1701,6 +1764,52 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
 
 ---
 
+#### View or change the TCP bridge group
+**Usage:**
+- `get bridge.group`
+- `set bridge.group <name>`
+
+**Parameters:**
+- `name`: Bridge group name, 1-15 characters, without `[]\:,?*`
+
+Bridge clients only interoperate with other bridge clients in the same bridge group when the server requires group matching. The value is also advertised to the TCP bridge server in caps metadata.
+
+**Default:** `default`
+
+---
+
+#### View or set the TCP bridge identity override
+**Usage:**
+- `get bridge.id`
+- `set bridge.id <id>`
+
+**Parameters:**
+- `id`: Empty string for automatic identity, or exactly 8 hex characters.
+
+By default the TCP bridge derives a stable bridge ID from the node identity when available, then from device identity fallbacks. Set `bridge.id` only when an operator needs a fixed bridge identity across hardware replacement or a known multi-interface deployment. The active ID is logged at bridge startup and advertised to the TCP bridge server in caps metadata.
+
+**Default:** `auto`
+
+---
+
+#### View or change RF injection budget controls
+**Usage:**
+- `get bridge.budget`
+- `set bridge.budget <state>`
+- `set bridge.budget.max_per_min <value>`
+- `set bridge.budget.max_airtime_ms_hour <milliseconds>`
+- `set bridge.budget.block_duty_above_pct <percent>`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `value`: Maximum bridge-originated RF injections per minute, from `0` to `10000`
+- `milliseconds`: Maximum bridge-originated RF airtime budget per hour
+- `percent`: Block bridge RF injection when the node's RF duty use is above this percentage, from `0` to `100`
+
+These settings limit packets injected from the TCP bridge onto local RF. They do not change normal RF-to-RF repeater forwarding.
+
+---
+
 #### View or apply a bridge profile
 **Usage:**
 - `get bridge.profile`
@@ -1717,6 +1826,124 @@ The TCP bridge v2 envelope carries bridge metadata such as origin bridge ID and 
 The `island` profile is intended for controlled RF islands, for example one bridge node on SF7 and another on SF8. It exports eligible RF RX packets to TCP even when the local repeater policy decides not to retransmit them on RF, and injects packets from TCP once on the receiving RF island.
 
 The `repeater` profile is intended for controlled deployments where the TCP bridge should behave as much like a repeater/backhaul as possible. It exports every packet selected by RF RX/TX and lets bridge-originated flood packets pass through the normal RF repeater forwarding path on the receiving side.
+
+---
+
+#### View or reset bridge runtime statistics
+**Usage:**
+- `get bridge.status`
+- `bridge stats reset`
+
+`get bridge.status` is implemented by bridge builds and returns the current bridge connection/runtime status. `bridge stats reset` clears bridge runtime counters where supported.
+
+---
+
+#### WiFi bridge helper settings
+**Usage:**
+- `get wifi.ssid`
+- `set wifi.ssid <name>`
+- `get wifi.pwd`
+- `set wifi.pwd <password>`
+- `set wifi.password <password>`
+- `get wifi.status`
+- `get wifi.powersave`
+- `set wifi.powersave <mode>`
+
+**Parameters:**
+- `mode`: `none`, `min`, or `max`
+
+`wifi.pwd` and `wifi.password` update the same saved WiFi password. WiFi SSID/password changes require a reboot before they are applied by bridge firmware.
+
+---
+
+#### Timezone settings for WiFi/MQTT builds
+**Usage:**
+- `get timezone`
+- `set timezone <name>`
+- `get timezone.offset`
+- `set timezone.offset <hours>`
+
+**Parameters:**
+- `name`: Timezone label such as `UTC`, `Europe/Amsterdam`, `CET`, or `UTC+1`
+- `hours`: Fixed UTC offset from `-12` to `+14`
+
+MQTT status formatting uses the timezone string when the MQTT bridge is compiled in.
+
+---
+
+#### MQTT bridge settings
+**Build flag:** `WITH_MQTT_BRIDGE`
+
+**Usage:**
+- `get mqtt.status`
+- `set mqtt.status <state>`
+- `get mqtt.packets`
+- `set mqtt.packets <state>`
+- `get mqtt.raw`
+- `set mqtt.raw <state>`
+- `get mqtt.tx`
+- `set mqtt.tx on|off|advert`
+- `get mqtt.rx`
+- `set mqtt.rx <state>`
+- `get mqtt.interval`
+- `set mqtt.interval <minutes>`
+- `get mqtt.origin`
+- `set mqtt.origin <name>`
+- `get mqtt.iata`
+- `set mqtt.iata <airport_code>`
+- `get mqtt.presets [start]`
+- `get mqtt.config.valid`
+- `get mqtt.analyzer.us`
+- `set mqtt.analyzer.us <state>`
+- `get mqtt.analyzer.eu`
+- `set mqtt.analyzer.eu <state>`
+- `get mqtt.owner`
+- `set mqtt.owner <public_key_hex>`
+- `get mqtt.email`
+- `set mqtt.email <email>`
+
+Slot-specific commands use `mqttN` where `N` is the slot number:
+
+- `get mqttN.preset`
+- `set mqttN.preset <preset>`
+- `get mqttN.server`
+- `set mqttN.server <host>`
+- `get mqttN.port`
+- `set mqttN.port <port>`
+- `get mqttN.username`
+- `set mqttN.username <user>`
+- `get mqttN.password`
+- `set mqttN.password <password>`
+- `get mqttN.token`
+- `set mqttN.token <token>`
+- `get mqttN.topic`
+- `set mqttN.topic <template>`
+- `get mqttN.audience`
+- `set mqttN.audience <audience>`
+- `get mqttN.diag`
+
+**Parameters:**
+- `state`: `on`|`off`
+- `minutes`: MQTT status interval from `1` to `60`
+- `preset`: A preset from `get mqtt.presets`, or `custom`, or `none`
+
+The legacy shortcuts `mqtt.analyzer.us` and `mqtt.analyzer.eu` map slot 1 and slot 2 to the analyzer presets.
+
+---
+
+#### SNMP settings
+**Build flag:** `WITH_SNMP`
+
+**Usage:**
+- `get snmp`
+- `set snmp <state>`
+- `get snmp.community`
+- `set snmp.community <community>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+SNMP changes are saved and take effect after restart.
 
 ---
 
@@ -1861,24 +2088,6 @@ Connect SenseCAP Solar repeaters as `D6/TX -> D7/RX`, `D7/RX -> D6/TX`, and `GND
 
 ---
 
-#### Configure NTP time sync (TCP bridge only)
-**Usage:**
-- `get ntp.enabled`
-- `set ntp.enabled <state>`
-- `get ntp.server`
-- `set ntp.server <host>`
-- `get ntp.interval`
-- `set ntp.interval <seconds>`
-
-**Parameters:**
-- `state`: `on`|`off`; accepted for compatibility, but NTP remains enabled
-- `host`: NTP server hostname, default `nl.pool.ntp.org`
-- `seconds`: accepted from 300 to 86400 seconds for compatibility, but the refresh interval remains fixed at 3600 seconds
-
-The TCP bridge syncs the firmware RTC immediately after WiFi connects and refreshes it every hour. It uses the configured server with `pool.ntp.org` and `time.google.com` as fallbacks. `get ntp.enabled` always reports `on`; `get wifi.status` shows `NTP: synced` or `not synced`.
-
----
-
 #### View or enable TCP flood protection (TCP bridge only)
 **Usage:**
 - `get tcp.flood.limit`
@@ -1892,42 +2101,6 @@ Enable or disable TCP flood protection. When enabled, the bridge monitors incomi
 **Default:** `off`
 
 **Note:** See [TCP Flood Protection](tcp_flood_protection.md) for detailed information.
-
----
-
-#### View or set TCP flood maximum packets (TCP bridge only)
-**Usage:**
-- `get tcp.flood.max`
-- `set tcp.flood.max <value>`
-
-**Parameters:**
-- `value`: Maximum packets allowed in the time window (1–10000)
-
-Configure the maximum number of packets allowed from the TCP bridge within the configured time window. When this limit is exceeded, additional packets are dropped until the time window expires.
-
-**Default:** `100` packets
-
----
-
-#### View or set TCP flood time window (TCP bridge only)
-**Usage:**
-- `get tcp.flood.window`
-- `set tcp.flood.window <value>`
-
-**Parameters:**
-- `value`: Time window in seconds (1–3600)
-
-Configure the time window for TCP flood protection. The packet counter resets when this window expires.
-
-**Default:** `600` seconds (10 minutes)
-
-**Example configuration:**
-```
-set tcp.flood.limit on
-set tcp.flood.max 200
-set tcp.flood.window 300
-```
-This allows up to 200 packets per 5 minutes from the TCP bridge.
 
 ---
 

@@ -56,7 +56,7 @@ Repeater, GPS tracker / sensor, and room server builds can tune this from the CL
 
 Repeater, GPS tracker / sensor, and room server builds also include a runtime low-battery guard. While the node is running, it periodically checks battery voltage. If the node is not externally powered and the battery falls below the runtime threshold, it sleeps before WiFi, bridge, GPS, display or radio work can drain the battery further. Tune it with `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min`, and `set runtime.lowbat.retry`. See [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Native tracker packets include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker variants with a display now keep the display on and show tracker-specific information such as GPS fix state, satellite count, position or waiting status, TX interval and battery voltage. Tracker reports are sent as Trackers-channel group datagrams for older repeater compatibility, include speed and heading where the GPS provider exposes them, and the TCP bridge map can show the reported route history. See [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## What Have We Done So Far?
 
@@ -190,7 +190,7 @@ The default threshold is conservative: two duplicate forwards must be heard befo
 
 This reduces duplicate flooding, airtime waste and collision probability without extra packets, without synchronization, and without changing the protocol.
 
-### 8. Internet bridge — optional transport for isolated RF deployments
+### 8. Controlled TCP bridge/backhaul — optional transport for isolated RF deployments
 
 #### Purpose of the bridge system
 
@@ -274,21 +274,22 @@ Multi-bridge environments need additional safeguards because the same packet may
 
 Implemented protections:
 - TCP bridge v2 envelope with per-bridge origin ID and TTL (`set bridge.tcp.ttl`, default 2). The envelope is TCP-only metadata; RF flood packets exported to TCP also get the exporting bridge-repeater's node hash added to the MeshCore path when it is not already present.
+- Stable bridge identity advertised in TCP caps metadata. By default it is derived from node/device identity; `set bridge.id <8-hex>` can pin it for hardware replacement or multi-interface deployments.
 - Export filter (`set bridge.export`) and hop-count limit (`set bridge.export.maxhops`) to restrict which packets cross the bridge.
 
-Planned or under consideration:
+Still planned or under consideration:
 - path fingerprints
-- lightweight path hashes
-- bridge loop detection
-- duplicate suppression
-- bridge scoping
+- additional lightweight path hashes
+- richer bridge scoping
 
 These mechanisms are intended to make controlled bridge deployments safer. They do not change the basic guidance: avoid uncontrolled forwarding, keep bridge groups scoped, and preserve RF locality.
+
+The TCP bridge is a controlled backhaul, not a blind transparent internet mesh. It keeps MeshCore RF packets compatible, while the TCP boundary remains semi-transparent through TCP-only metadata, duplicate suppression, origin IDs, TTL, export filters, and RF injection controls.
 
 #### Bridge FAQ
 
 **Does MeshCoreNG require internet?**  
-No. MeshCoreNG remains usable as an RF-only LoRa mesh.
+No. Normal MeshCoreNG remains usable as an RF-only LoRa mesh. Only bridge- or MQTT-capable builds use WiFi/IP transport when explicitly configured.
 
 **Is the bridge enabled by default?**  
 No. Bridge support requires a bridge-capable firmware build and `set bridge.enabled on`.
@@ -299,8 +300,8 @@ No. The bridge is for controlled transport between selected deployments, not wor
 **Can bridges be private?**  
 Yes. Private bridge servers and private bridge groups are recommended for many deployments.
 
-**Are anti-loop protections planned?**  
-Yes. Path fingerprints, lightweight path hashes, loop detection, duplicate suppression, TTL/hop controls, and bridge scoping are planned or being evaluated, especially for multi-bridge environments.
+**Are anti-loop protections implemented?**
+Partly. TCP bridge v2 already uses origin IDs, TTL, duplicate suppression, export filters, hop controls, and RF injection controls. Path fingerprints and richer bridge scoping are still being evaluated.
 
 #### Path 1: ESP32 repeater with WiFi
 
@@ -340,11 +341,23 @@ get bridge.profile           # returns the last profile applied: default, island
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
+get bridge.id
 ```
 
 TCP bridge v2 adds a small TCP-only envelope with origin and TTL metadata. When RF flood packets are exported to TCP, the exporting bridge-repeater adds its own node hash to the MeshCore path when it is not already present and the path still has room.
 
-The Python TCP bridge server includes a status website on port `8080` by default. It shows online and recently seen bridge nodes, per-node RX/TX packet counts for the last 24 hours, heartbeat status, firmware version, bridge v1/v2 support, and RF duty-cycle budget use. Disconnected nodes remain visible while they still have packet history inside the 24-hour window. The `Duty this hour` value is the percentage of the allowed hourly RF TX duty-cycle budget that has been used: with a 10% duty-cycle setting, `100%` means the full six minutes per hour have been used, while `50%` means three minutes have been used.
+The Python TCP bridge server includes a status website on port `8080` by default. It shows online and recently seen bridge nodes, per-node RX/TX packet counts for the last 24 hours, heartbeat status, firmware version, bridge v1/v2 support, local neighbor count when reported by updated firmware, and RF duty-cycle budget use. Disconnected nodes remain visible while they still have packet history inside the 24-hour window. The `Duty used` and `Duty left` values show the allowed hourly RF TX duty-cycle budget as timers: with a 10% duty-cycle setting, six minutes are available per hour, so `3m 00s` used means half of the hourly budget is gone.
+
+Bridge nodes can also block a 1-byte source id locally through the server management page. This is a temporary runtime quarantine on the bridge/repeater itself: packets with the same byte are no longer retransmitted on RF, exported from RF to TCP, or injected from TCP to RF on that bridge. This intentionally blocks every packet with the same byte, even if another node collides with that byte:
+
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+The server `/manage` page can send these `node.block` commands to one selected bridge node or all connected bridge nodes, the same way as path quarantine.
 
 All 38 ESP32 repeater variants now have a `_bridge_tcp` firmware build available. See [docs/cli_commands.md](./docs/cli_commands.md) for the full command reference.
 
@@ -360,7 +373,7 @@ MeshCoreNG has multiple bridge paths:
 | `_bridge_espnow` | ESP-NOW | Local ESP32 bridge experiments where WiFi infrastructure is not the main transport. |
 | `_bridge_ble` | BLE UART bridge | nRF52 and ESP32 BLE repeaters can form a short-range bridge without WiFi, USB, or extra UART wiring. |
 
-Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported. The Python TCP bridge server status page shows connected nodes (including their node name, firmware version, and full 32-byte public key), recent packet type/route/hop logs, encrypted peer/DM metadata, sensor adverts, tracker locations, and JSON endpoints such as `/status.json`, `/packets.json`, `/sensors.json`, and `/locations.json`. The server rate-limits excessive DM/group/transport packets before bridge broadcast, based on TCP client and packet category rather than node name or advertised identity. The tracker map at `/map` shows the latest tracker position, speed, heading and persisted route history for each tracker. IP addresses and connection details are redacted from data exposed on the public status page.
+Use `get bridge.type` to confirm which bridge mode is compiled into the firmware. Some bridge builds also expose `get bridge.status`, `get node.info`, and a small HTTP status page where supported. The Python TCP bridge server status page shows connected nodes (including their node name, firmware version, full 32-byte public key, and local neighbor count when reported by updated firmware), recent packet type/route/hop logs, encrypted peer/DM metadata, sensor adverts, tracker locations, and JSON endpoints such as `/status.json`, `/packets.json`, `/sensors.json`, and `/locations.json`. The server rate-limits excessive DM/group/transport packets before bridge broadcast, based on TCP client and packet category rather than node name or advertised identity. The tracker map at `/map` shows the latest tracker position, speed, heading and persisted route history for each tracker. IP addresses and connection details are redacted from data exposed on the public status page.
 
 The BLE bridge is available for nRF52 BLE variants with Bluefruit and ESP32 variants with BLE support. It runs central and peripheral mode at the same time so either repeater can initiate the BLE link. Flash the same `_bridge_ble` firmware on both repeaters, set the same `bridge.secret` on both sides when you want to isolate a private bridge pair, then enable the bridge with `set bridge.enabled on`. Combined `_bridge_tcp_ble` builds are provided for ESP32 boards with enough flash; 4MB ESP32 boards are left as board-by-board test candidates because TCP+BLE can be tight there.
 
@@ -418,13 +431,14 @@ python3 tools/tcp_bridge_server.py --port 4200
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
-The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.7+ and has no external dependencies. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+The server script is included in this repository at [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). It requires Python 3.10+ and has no external dependencies for basic bridge operation; optional public-channel decoding needs `cryptography`. WiFi repeaters and USB repeaters can connect to the same controlled bridge server simultaneously.
+Use `python3 tools/tcp_bridge_server.py --version` to check the bridge server version; the same version is shown on the HTTP status page and in `/status.json`.
 
-#### Public channel decryption on the bridge server
+#### Channel decryption on the bridge server
 
-The bridge server can optionally decrypt and display the plaintext of public MeshCore channel messages in its status page and packet log. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
+The bridge server can decrypt selected MeshCore group channels in its status page and packet log. The standard `Public` and MeshCoreNG `Trackers` channels are known by default; the `Trackers` channel is used for compact GPS tracker reports. This is useful for server operators who want to inspect traffic passing through the bridge without running a separate client.
 
-Supply a JSON file listing the channel names and secrets:
+Supply a JSON file to add more channel names and secrets:
 
 ```bash
 TCP_BRIDGE_PUBLIC_CHANNELS_FILE=tools/public_channels.json tools/tcp_bridge_server_ctl.sh start
@@ -768,7 +782,7 @@ set radio.fem.rxgain off
 
 `radio.fem.rxgain` is for boards with a controllable external FEM/LNA RX path, such as Heltec V4.3. It is separate from `radio.rxgain`, which controls the radio chip's internal boosted RX gain.
 
-**Internet bridge (TCP):**
+**Controlled TCP bridge/backhaul:**
 
 ```text
 set wifi.ssid     <ssid>
@@ -776,12 +790,10 @@ set wifi.password <password>
 set bridge.server <hostname or IP>
 set bridge.port   4200
 set bridge.password <bridge password>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type

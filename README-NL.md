@@ -51,7 +51,7 @@ Repeater-, GPS tracker / sensor- en room server-builds kunnen dit via de CLI ins
 
 Daarnaast hebben repeater-, GPS tracker / sensor- en room server-builds nu een runtime low-battery guard. Die controleert tijdens normaal draaien periodiek de batterijspanning. Als de node niet extern gevoed wordt en de batterij onder de runtime-drempel komt, gaat de node slapen voordat WiFi, bridge, GPS, display of radio de batterij verder leegtrekken. Instellen kan met `set runtime.lowbat.guard`, `set runtime.lowbat.mv`, `set runtime.lowbat.valid_min` en `set runtime.lowbat.retry`. Zie [docs/battery_boot_guard.md](./docs/battery_boot_guard.md).
 
-GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Native tracker-packets bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
+GPS tracker varianten met een display houden het display nu aan en tonen tracker-informatie zoals GPS fix-status, satellieten, positie of waiting-status, TX interval en batterijspanning. Tracker-rapporten worden als Trackers-channel group datagrams verstuurd voor compatibiliteit met oudere repeaters, bevatten ook snelheid en heading wanneer de GPS-provider die kan leveren, en de TCP bridge map kan de gereden route tonen. Zie [docs/location_tracker.md](./docs/location_tracker.md).
 
 ## Wat hebben we nu gedaan?
 
@@ -185,9 +185,11 @@ De standaarddrempel is voorzichtig: er moeten twee duplicate forwards gehoord wo
 
 Dit vermindert dubbele floods, airtime-verspilling en botsingskans zonder extra packets, zonder synchronisatie, en zonder protocolwijziging.
 
-### 8. Internetbrug — optioneel transport voor gescheiden RF-netwerken
+### 8. Gecontroleerde TCP bridge/backhaul — optioneel transport voor gescheiden RF-netwerken
 
 MeshCoreNG blijft RF-first. De bridge is optioneel transport/backhaul voor specifieke deployments, geen vervanging voor lokale RF-werking.
+
+De TCP bridge is een gecontroleerde backhaul, geen blind transparante internet-mesh. Het MeshCore RF packet-format blijft hetzelfde, maar de TCP-rand gebruikt eigen metadata, duplicate suppression, origin-ID's, TTL, exportfilters en RF-injectiecontroles. Daardoor is de bridge bewust semi-transparant: operators kiezen wat over de backhaul mag en wat lokaal RF blijft.
 
 De bridge is bedoeld voor:
 - gescheiden geografische MeshCore RF-regio's die bewust geselecteerd verkeer moeten uitwisselen
@@ -210,7 +212,7 @@ Geselecteerd verkeer kan optioneel tussen gescheiden MeshCore-deployments worden
 
 RF-locality blijft belangrijk. Bridge alleen wat nodig is, houd lokaal verkeer lokaal waar dat kan, gebruik regionale segmentatie en voorkom full-network flooding over bridge-links.
 
-Geplande of onderzochte bescherming voor multi-bridge omgevingen omvat path fingerprints, lichte path hashes, bridge loop detection, duplicate suppression, TTL/hop-controls en bridge scoping.
+Geimplementeerde bescherming voor multi-bridge omgevingen omvat TCP bridge v2 origin-ID's en TTL, duplicate suppression, exportfilters, RF-injectiecontroles, node/path quarantine en hop-controls. Nog onderzocht worden path fingerprints, extra lichte path hashes en rijkere bridge scoping.
 
 **Route 1: ESP32-repeater met WiFi**
 
@@ -250,11 +252,25 @@ get bridge.profile           # toont het laatst toegepaste profiel: default, isl
 get bridge.export
 get bridge.export.maxhops
 get bridge.tcp.ttl
+get bridge.id
 ```
 
 TCP bridge v2 gebruikt een kleine TCP-only envelope met origin- en TTL-metadata. Bij export van RF flood-packets voegt de TCP bridge-repeater zijn eigen node-hash toe aan het MeshCore path wanneer die nog niet aanwezig is en er ruimte is. Zo blijft zichtbaar via welke RF bridge-node het packet de TCP bridge op ging, zonder dubbele path entries te maken.
 
-De Python TCP bridge server heeft standaard een statuswebsite op poort `8080`. Die toont online en recent geziene bridge-nodes, per node het aantal RX/TX packets in de laatste 24 uur, heartbeat-status, firmwareversie, bridge v1/v2 support en RF dutycycle-budgetverbruik. Nodes die disconnecten blijven zichtbaar zolang ze nog packet-history binnen het 24-uurs venster hebben. De waarde `Duty this hour` is het percentage van het toegestane RF TX dutycycle-uurbudget dat is gebruikt: bij een instelling van 10% dutycycle betekent `100%` dat de volledige zes minuten per uur zijn gebruikt, en `50%` dat drie minuten zijn gebruikt.
+Nieuwe bridge-builds adverteren daarnaast een stabiele bridge-ID aan de server. Standaard wordt die veilig afgeleid uit de node/device-identiteit; met `set bridge.id <8-hex>` kan een beheerder hem expliciet vastzetten voor hardwarevervanging of multi-interface setups.
+
+De Python TCP bridge server heeft standaard een statuswebsite op poort `8080`. Die toont online en recent geziene bridge-nodes, per node het aantal RX/TX packets in de laatste 24 uur, heartbeat-status, firmwareversie, bridge v1/v2 support, lokale neighbour count wanneer nieuwe firmware die meestuurt, en RF dutycycle-budgetverbruik. Nodes die disconnecten blijven zichtbaar zolang ze nog packet-history binnen het 24-uurs venster hebben. De waarden `Duty used` en `Duty left` tonen het toegestane RF TX dutycycle-uurbudget als timers: bij 10% dutycycle is er zes minuten per uur beschikbaar, dus `3m 00s` gebruikt betekent dat de helft van het uurbudget op is.
+
+Bridge-nodes kunnen via de server-webpagina ook een 1-byte source-id lokaal blokkeren. Dit werkt als tijdelijke runtime quarantine op de bridge/repeater zelf: packets met dezelfde byte worden niet meer via RF heruitgezonden, niet meer van RF naar TCP geexporteerd en niet meer van TCP naar RF geinjecteerd. Dit blokkeert expres alle packets met dezelfde byte, ook als een andere node toevallig dezelfde byte gebruikt:
+
+```text
+set node.block add a7 15m
+set node.block del a7
+get node.block
+clear node.block
+```
+
+De server-webpagina `/manage` kan deze `node.block` commando's naar een geselecteerde bridge-node of alle verbonden bridge-nodes sturen, op dezelfde manier als path quarantine.
 
 Alle 38 ESP32-repeater varianten hebben nu een bijbehorende `_bridge_tcp` firmware. Zie [docs/cli_commands.md](./docs/cli_commands.md) voor alle instelmogelijkheden.
 
@@ -270,7 +286,7 @@ MeshCoreNG heeft meerdere bridge-routes:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32 bridge-experimenten waarbij WiFi-infrastructuur niet het hoofdtransport is. |
 | `_bridge_ble` | BLE UART bridge | nRF52- en ESP32-BLE-repeaters kunnen een korte-afstand bridge maken zonder WiFi, USB of extra UART-bedrading. |
 
-Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, recente packet type/route/hop logs, versleutelde peer/DM-metadata, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`. De server rate-limit overmatige DM/group/transport packets voordat ze naar andere bridge-clients gaan, op basis van TCP-client en packetcategorie in plaats van node-naam of advertentie-identiteit. De tracker map op `/map` toont de laatste trackerpositie, snelheid, heading en opgeslagen routegeschiedenis per tracker.
+Gebruik `get bridge.type` om te controleren welke bridge-modus in de firmware zit. Sommige bridge-builds hebben ook `get bridge.status`, `get node.info` en waar ondersteund een kleine HTTP-statuspagina. De Python TCP bridge-server statuspagina toont verbonden nodes, lokale neighbour count per node wanneer nieuwe firmware die meestuurt, recente packet type/route/hop logs, versleutelde peer/DM-metadata, sensor adverts, tracker locaties en JSON endpoints zoals `/status.json`, `/packets.json`, `/sensors.json` en `/locations.json`. De server rate-limit overmatige DM/group/transport packets voordat ze naar andere bridge-clients gaan, op basis van TCP-client en packetcategorie in plaats van node-naam of advertentie-identiteit. De tracker map op `/map` toont de laatste trackerpositie, snelheid, heading en opgeslagen routegeschiedenis per tracker.
 
 De BLE bridge is beschikbaar voor nRF52 BLE-varianten met Bluefruit en ESP32-varianten met BLE-support. Hij draait tegelijk als central en peripheral, zodat beide repeaters de BLE-link kunnen starten. Flash dezelfde `_bridge_ble` firmware op beide repeaters, zet eventueel op beide kanten dezelfde `bridge.secret` voor een private bridge-pair, en zet daarna `set bridge.enabled on`. Gecombineerde `_bridge_tcp_ble` builds zijn toegevoegd voor ESP32-boards met genoeg flash; 4MB ESP32-boards blijven per board testkandidaten omdat TCP+BLE daar krap kan worden.
 
@@ -320,7 +336,7 @@ D7 = RX = GNSS_RX
 
 Verbind SenseCAP Solar repeaters als `D6/TX -> D7/RX`, `D7/RX -> D6/TX` en `GND -> GND`. Deze pinnen worden gedeeld met de GNSS UART, dus verwacht niet dat GNSS/GPS tegelijk dezelfde UART gebruikt.
 
-**Server starten** (op een VPS, Raspberry Pi of gewone pc met Python 3.7+):
+**Server starten** (op een VPS, Raspberry Pi of gewone pc met Python 3.10+):
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
@@ -328,7 +344,7 @@ python3 tools/tcp_bridge_server.py --port 4200
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
-Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Het heeft geen externe dependencies. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde gecontroleerde bridge-server verbonden zijn.
+Het serverscript staat in deze repository bij [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Voor gewone bridge-werking heeft het geen externe dependencies; optionele public-channel decoding gebruikt `cryptography`. WiFi-repeaters en USB-repeaters kunnen tegelijk via dezelfde gecontroleerde bridge-server verbonden zijn.
 
 **Route 3: Python roomserver via de bridge**
 
@@ -680,7 +696,7 @@ set radio.fem.rxgain off
 
 `radio.fem.rxgain` is voor boards met een aanstuurbare externe FEM/LNA RX-route, zoals Heltec V4.3. Dit staat los van `radio.rxgain`, dat de interne boosted RX gain van de radiochip regelt.
 
-**Internetbrug (TCP):**
+**Gecontroleerde TCP bridge/backhaul:**
 
 ```text
 set wifi.ssid     <netwerknaam>
@@ -688,12 +704,10 @@ set wifi.password <wachtwoord>
 set bridge.server <hostnaam of IP>
 set bridge.port   4200
 set bridge.password <bridge wachtwoord>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type

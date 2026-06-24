@@ -24,9 +24,16 @@ set flood.relay.prob <v>   — set (0=never, 128=half, 255=always)
 
 get flood.dynamic.enable   — get dynamic mode state
 set flood.dynamic.enable on|off
+
+get nearby.client.suppress — get nearby client suppression state
+set nearby.client.suppress on|off
+get nearby.client.rssi     — get RSSI threshold, default -45 dBm
+set nearby.client.rssi <v> — set threshold (-140..-10 dBm)
+get nearby.client.hops     — get max hop count for nearby suppression, default 0
+set nearby.client.hops <v> — set max hop count (0..3)
 ```
 
-### Internet bridge (TCP)
+### Controlled TCP bridge/backhaul
 
 ```
 set wifi.ssid <name>
@@ -36,6 +43,8 @@ set bridge.port <port>
 set bridge.password <pass>
 set bridge.enabled on|off
 set bridge.rf on|off       — allow bridge flood packets onto LoRa RF
+get bridge.group           — show TCP bridge group
+get bridge.budget          — show RF injection budget controls
 get bridge.type            — shows "tcp", "rs232", "espnow" or "ble"
 ```
 

@@ -8,6 +8,8 @@ Packet::Packet() {
   header = 0;
   path_len = 0;
   payload_len = 0;
+  _snr = 0;
+  _rssi = 0;
   _dup_rx_count = 0;
   _received_from_bridge = false;
 }
@@ -66,6 +68,8 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
 
 bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   _dup_rx_count = 0;
+  _snr = 0;
+  _rssi = 0;
   _received_from_bridge = false;
   uint8_t i = 0;
   header = src[i++];

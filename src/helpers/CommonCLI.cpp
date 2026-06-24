@@ -499,14 +499,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&tcp_flood_limit_enable, sizeof(tcp_flood_limit_enable)) == sizeof(tcp_flood_limit_enable)) {
         _prefs->tcp_flood_limit_enable = tcp_flood_limit_enable;                                   // 532 + sizeof(AtlasConfig)
       }
-      uint16_t tcp_flood_max_packets = _prefs->tcp_flood_max_packets;
-      if (file.read((uint8_t *)&tcp_flood_max_packets, sizeof(tcp_flood_max_packets)) == sizeof(tcp_flood_max_packets)) {
-        _prefs->tcp_flood_max_packets = tcp_flood_max_packets;                                     // 533 + sizeof(AtlasConfig)
-      }
-      uint16_t tcp_flood_window_secs = _prefs->tcp_flood_window_secs;
-      if (file.read((uint8_t *)&tcp_flood_window_secs, sizeof(tcp_flood_window_secs)) == sizeof(tcp_flood_window_secs)) {
-        _prefs->tcp_flood_window_secs = tcp_flood_window_secs;                                     // 535 + sizeof(AtlasConfig)
-      }
+      file.read(pad, 2);                                                                           // 533 + sizeof(AtlasConfig), legacy tcp.flood.max unused
+      file.read(pad, 2);                                                                           // 535 + sizeof(AtlasConfig), legacy tcp.flood.window unused
       uint16_t tcp_flood_transport_max = _prefs->tcp_flood_transport_max;
       if (file.read((uint8_t *)&tcp_flood_transport_max, sizeof(tcp_flood_transport_max)) == sizeof(tcp_flood_transport_max)) {
         _prefs->tcp_flood_transport_max = tcp_flood_transport_max;                                 // 537 + sizeof(AtlasConfig)
@@ -546,18 +540,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&low_bat_boot_retry_secs, sizeof(low_bat_boot_retry_secs)) == sizeof(low_bat_boot_retry_secs)) {
         _prefs->low_bat_boot_retry_secs = low_bat_boot_retry_secs;                                 // 585 + sizeof(AtlasConfig)
       }
-      char ntp_server[64] = {};
-      if (file.read((uint8_t *)ntp_server, sizeof(ntp_server)) == sizeof(ntp_server)) {
-        memcpy(_prefs->ntp_server, ntp_server, sizeof(ntp_server));                                // 587 + sizeof(AtlasConfig)
-      }
-      uint8_t ntp_enabled = _prefs->ntp_enabled;
-      if (file.read((uint8_t *)&ntp_enabled, sizeof(ntp_enabled)) == sizeof(ntp_enabled)) {
-        _prefs->ntp_enabled = ntp_enabled;                                                         // 651 + sizeof(AtlasConfig)
-      }
-      uint32_t ntp_interval_secs = _prefs->ntp_interval_secs;
-      if (file.read((uint8_t *)&ntp_interval_secs, sizeof(ntp_interval_secs)) == sizeof(ntp_interval_secs)) {
-        _prefs->ntp_interval_secs = ntp_interval_secs;                                             // 652 + sizeof(AtlasConfig)
-      }
+      file.read(pad, 8);                                                                           // 587 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 595 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 603 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 611 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 619 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 627 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 635 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 8);                                                                           // 643 + sizeof(AtlasConfig), legacy NTP server unused
+      file.read(pad, 1);                                                                           // 651 + sizeof(AtlasConfig), legacy NTP enabled unused
+      file.read(pad, 4);                                                                           // 652 + sizeof(AtlasConfig), legacy NTP interval unused
       uint8_t low_bat_runtime_guard_enabled = _prefs->low_bat_runtime_guard_enabled;
       if (file.read((uint8_t *)&low_bat_runtime_guard_enabled, sizeof(low_bat_runtime_guard_enabled)) == sizeof(low_bat_runtime_guard_enabled)) {
         _prefs->low_bat_runtime_guard_enabled = low_bat_runtime_guard_enabled;                     // 656 + sizeof(AtlasConfig)
@@ -615,7 +607,28 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       if (file.read((uint8_t *)&bridge_rf_inject_block_duty_centi_pct, sizeof(bridge_rf_inject_block_duty_centi_pct)) == sizeof(bridge_rf_inject_block_duty_centi_pct)) {
         _prefs->bridge_rf_inject_block_duty_centi_pct = bridge_rf_inject_block_duty_centi_pct;       // 694 + sizeof(AtlasConfig)
       }
-      // next: 696 + sizeof(AtlasConfig)
+      char bridge_id[sizeof(_prefs->bridge_id)];
+      memset(bridge_id, 0, sizeof(bridge_id));
+      if (file.read((uint8_t *)&bridge_id, sizeof(bridge_id)) == sizeof(bridge_id)) {
+        memcpy(_prefs->bridge_id, bridge_id, sizeof(bridge_id));                                     // 696 + sizeof(AtlasConfig)
+      }
+      uint8_t nearby_client_suppress_enabled = _prefs->nearby_client_suppress_enabled;
+      if (file.read((uint8_t *)&nearby_client_suppress_enabled, sizeof(nearby_client_suppress_enabled)) == sizeof(nearby_client_suppress_enabled)) {
+        _prefs->nearby_client_suppress_enabled = nearby_client_suppress_enabled;                      // 705 + sizeof(AtlasConfig)
+      }
+      int16_t nearby_client_suppress_rssi_dbm = _prefs->nearby_client_suppress_rssi_dbm;
+      if (file.read((uint8_t *)&nearby_client_suppress_rssi_dbm, sizeof(nearby_client_suppress_rssi_dbm)) == sizeof(nearby_client_suppress_rssi_dbm)) {
+        _prefs->nearby_client_suppress_rssi_dbm = nearby_client_suppress_rssi_dbm;                    // 706 + sizeof(AtlasConfig)
+      }
+      uint8_t nearby_client_suppress_max_hops = _prefs->nearby_client_suppress_max_hops;
+      if (file.read((uint8_t *)&nearby_client_suppress_max_hops, sizeof(nearby_client_suppress_max_hops)) == sizeof(nearby_client_suppress_max_hops)) {
+        _prefs->nearby_client_suppress_max_hops = nearby_client_suppress_max_hops;                    // 708 + sizeof(AtlasConfig)
+      }
+      uint8_t flood_max_messages = _prefs->flood_max_messages;
+      if (file.read((uint8_t *)&flood_max_messages, sizeof(flood_max_messages)) == sizeof(flood_max_messages)) {
+        _prefs->flood_max_messages = flood_max_messages;                                             // 709 + sizeof(AtlasConfig)
+      }
+      // next: 710 + sizeof(AtlasConfig)
     }
 
     // sanitise bad pref values
@@ -648,12 +661,25 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_rf_inject_budget_enabled = constrain(_prefs->bridge_rf_inject_budget_enabled, 0, 1);
     _prefs->bridge_rf_inject_max_per_min = constrain(_prefs->bridge_rf_inject_max_per_min, 0, 10000);
     _prefs->bridge_rf_inject_block_duty_centi_pct = constrain(_prefs->bridge_rf_inject_block_duty_centi_pct, 0, 10000);
+    _prefs->bridge_id[sizeof(_prefs->bridge_id) - 1] = 0;
+    for (size_t i = 0; _prefs->bridge_id[i]; i++) {
+      bool is_hex = (_prefs->bridge_id[i] >= '0' && _prefs->bridge_id[i] <= '9')
+                 || (_prefs->bridge_id[i] >= 'a' && _prefs->bridge_id[i] <= 'f')
+                 || (_prefs->bridge_id[i] >= 'A' && _prefs->bridge_id[i] <= 'F');
+      if (!is_hex) {
+        _prefs->bridge_id[0] = 0;
+        break;
+      }
+    }
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
     if (_prefs->bridge_port == 0) _prefs->bridge_port = 4200;
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
     _prefs->malformed_drop = constrain(_prefs->malformed_drop, 0, 1);
+    _prefs->nearby_client_suppress_enabled = constrain(_prefs->nearby_client_suppress_enabled, 0, 1);
+    _prefs->nearby_client_suppress_rssi_dbm = constrain(_prefs->nearby_client_suppress_rssi_dbm, -140, -10);
+    _prefs->nearby_client_suppress_max_hops = constrain(_prefs->nearby_client_suppress_max_hops, 0, 3);
     _prefs->fem_rx_gain = constrain(_prefs->fem_rx_gain, 0, 1);
     _prefs->low_bat_boot_guard_enabled = constrain(_prefs->low_bat_boot_guard_enabled, 0, 1);
     _prefs->low_bat_boot_guard_mv = constrain(_prefs->low_bat_boot_guard_mv, 0, 6000);
@@ -667,10 +693,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitize TCP bridge rate-limit settings
     _prefs->tcp_flood_limit_enable = constrain(_prefs->tcp_flood_limit_enable, 0, 1);
-    if (_prefs->tcp_flood_max_packets == 0) _prefs->tcp_flood_max_packets = 100;  // default 100 packets
-    if (_prefs->tcp_flood_window_secs == 0) _prefs->tcp_flood_window_secs = 600;  // default 10 minutes
-    _prefs->tcp_flood_max_packets = constrain(_prefs->tcp_flood_max_packets, 1, 10000);
-    _prefs->tcp_flood_window_secs = constrain(_prefs->tcp_flood_window_secs, 1, 3600);
     
     // sanitize selective TCP rate-limit settings
     if (_prefs->tcp_flood_transport_max == 0) _prefs->tcp_flood_transport_max = 20;   // default 20 transport packets
@@ -713,6 +735,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       _prefs->flood_advert_base = default_flood_advert_base;
     }
     _prefs->flood_dynamic_enable = constrain(_prefs->flood_dynamic_enable, 0, 1);
+    _prefs->flood_max_messages = constrain(_prefs->flood_max_messages, 0, 64);
     _prefs->flood_node_delay_enable = constrain(_prefs->flood_node_delay_enable, 0, 1);
     _prefs->flood_dup_suppress_enable = constrain(_prefs->flood_dup_suppress_enable, 0, 1);
     _prefs->atlas.enabled = constrain(_prefs->atlas.enabled, 0, 1);
@@ -724,12 +747,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->daily_reboot_enabled = constrain(_prefs->daily_reboot_enabled, 0, 1);
     if (_prefs->daily_reboot_interval_hours == 0) _prefs->daily_reboot_interval_hours = 24;
     _prefs->daily_reboot_interval_hours = constrain(_prefs->daily_reboot_interval_hours, 1, 168);
-    _prefs->ntp_enabled = 1;
-    if (_prefs->ntp_server[0] == '\0' || strcmp(_prefs->ntp_server, "pool.ntp.org") == 0) {
-      StrHelper::strncpy(_prefs->ntp_server, "nl.pool.ntp.org", sizeof(_prefs->ntp_server));
-    }
-    _prefs->ntp_interval_secs = 3600;
-
     file.close();
   }
 }
@@ -809,8 +826,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_password, sizeof(_prefs->bridge_password));              // 467 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->fem_rx_gain, sizeof(_prefs->fem_rx_gain));                      // 531 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_limit_enable, sizeof(_prefs->tcp_flood_limit_enable)); // 532 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->tcp_flood_max_packets, sizeof(_prefs->tcp_flood_max_packets));   // 533 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->tcp_flood_window_secs, sizeof(_prefs->tcp_flood_window_secs));   // 535 + sizeof(AtlasConfig)
+    file.write(pad, 2);                                                                            // 533 + sizeof(AtlasConfig), legacy tcp.flood.max unused
+    file.write(pad, 2);                                                                            // 535 + sizeof(AtlasConfig), legacy tcp.flood.window unused
     file.write((uint8_t *)&_prefs->tcp_flood_transport_max, sizeof(_prefs->tcp_flood_transport_max)); // 537 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_transport_window, sizeof(_prefs->tcp_flood_transport_window)); // 539 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->tcp_flood_control_max, sizeof(_prefs->tcp_flood_control_max));   // 541 + sizeof(AtlasConfig)
@@ -826,9 +843,16 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->low_bat_boot_guard_mv, sizeof(_prefs->low_bat_boot_guard_mv));  // 581 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_valid_min_mv, sizeof(_prefs->low_bat_boot_valid_min_mv)); // 583 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_boot_retry_secs, sizeof(_prefs->low_bat_boot_retry_secs)); // 585 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_server, sizeof(_prefs->ntp_server));                        // 587 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_enabled, sizeof(_prefs->ntp_enabled));                      // 651 + sizeof(AtlasConfig)
-    file.write((uint8_t *)&_prefs->ntp_interval_secs, sizeof(_prefs->ntp_interval_secs));          // 652 + sizeof(AtlasConfig)
+    file.write(pad, 8);                                                                            // 587 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 595 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 603 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 611 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 619 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 627 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 635 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 8);                                                                            // 643 + sizeof(AtlasConfig), legacy NTP server unused
+    file.write(pad, 1);                                                                            // 651 + sizeof(AtlasConfig), legacy NTP enabled unused
+    file.write(pad, 4);                                                                            // 652 + sizeof(AtlasConfig), legacy NTP interval unused
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_enabled, sizeof(_prefs->low_bat_runtime_guard_enabled)); // 656 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_guard_mv, sizeof(_prefs->low_bat_runtime_guard_mv)); // 657 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->low_bat_runtime_warn_mv, sizeof(_prefs->low_bat_runtime_warn_mv)); // 659 + sizeof(AtlasConfig)
@@ -843,7 +867,12 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_rf_inject_max_per_min, sizeof(_prefs->bridge_rf_inject_max_per_min)); // 688 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf_inject_max_airtime_ms_hour, sizeof(_prefs->bridge_rf_inject_max_airtime_ms_hour)); // 690 + sizeof(AtlasConfig)
     file.write((uint8_t *)&_prefs->bridge_rf_inject_block_duty_centi_pct, sizeof(_prefs->bridge_rf_inject_block_duty_centi_pct)); // 694 + sizeof(AtlasConfig)
-    // next: 696 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->bridge_id, sizeof(_prefs->bridge_id));                         // 696 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_enabled, sizeof(_prefs->nearby_client_suppress_enabled)); // 705 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_rssi_dbm, sizeof(_prefs->nearby_client_suppress_rssi_dbm)); // 706 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->nearby_client_suppress_max_hops, sizeof(_prefs->nearby_client_suppress_max_hops)); // 708 + sizeof(AtlasConfig)
+    file.write((uint8_t *)&_prefs->flood_max_messages, sizeof(_prefs->flood_max_messages));          // 709 + sizeof(AtlasConfig)
+    // next: 710 + sizeof(AtlasConfig)
 
     file.close();
   }
@@ -1499,6 +1528,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "flood.max.messages ", 19) == 0) {
+    uint8_t m = atoi(&config[19]);
+    if (m <= 64) {
+      _prefs->flood_max_messages = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
@@ -1550,6 +1588,31 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "nearby.client.suppress ", 23) == 0) {
+    if (parseOnOff(&config[23], &_prefs->nearby_client_suppress_enabled)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: expected on or off");
+    }
+  } else if (memcmp(config, "nearby.client.rssi ", 19) == 0) {
+    int rssi = atoi(&config[19]);
+    if (rssi >= -140 && rssi <= -10) {
+      _prefs->nearby_client_suppress_rssi_dbm = (int16_t)rssi;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: RSSI must be between -140 and -10 dBm");
+    }
+  } else if (memcmp(config, "nearby.client.hops ", 19) == 0) {
+    int hops = atoi(&config[19]);
+    if (hops >= 0 && hops <= 3) {
+      _prefs->nearby_client_suppress_max_hops = (uint8_t)hops;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: hops must be between 0 and 3");
     }
   } else if (memcmp(config, "atlas.enable ", 13) == 0 || memcmp(config, "atlas ", 6) == 0) {
     const char* value = (config[6] == 'e') ? &config[13] : &config[6];
@@ -1754,6 +1817,23 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "bridge.id ", 10) == 0) {
+    const char* id = &config[10];
+    size_t len = strlen(id);
+    bool valid = len == 0 || len == 8;
+    for (size_t i = 0; valid && i < len; i++) {
+      valid = (id[i] >= '0' && id[i] <= '9')
+           || (id[i] >= 'a' && id[i] <= 'f')
+           || (id[i] >= 'A' && id[i] <= 'F');
+    }
+    if (valid) {
+      StrHelper::strncpy(_prefs->bridge_id, id, sizeof(_prefs->bridge_id));
+      _callbacks->restartBridge();
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: bridge.id must be empty or 8 hex chars");
+    }
   } else if (memcmp(config, "bridge.budget ", 14) == 0) {
     const char* value = &config[14];
     if (parseOnOff(value, &_prefs->bridge_rf_inject_budget_enabled)) {
@@ -1886,32 +1966,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: port must be between 1-65535");
     }
-  } else if (memcmp(config, "ntp.enabled ", 12) == 0) {
-    const char* value = &config[12];
-    uint8_t ignored = 0;
-    if (parseOnOff(value, &ignored)) {
-      _prefs->ntp_enabled = 1;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK - NTP always enabled");
-    } else {
-      strcpy(reply, "Error: expected on or off");
-    }
-  } else if (memcmp(config, "ntp.server ", 11) == 0) {
-    StrHelper::strncpy(_prefs->ntp_server, &config[11], sizeof(_prefs->ntp_server));
-    _callbacks->restartBridge();
-    savePrefs();
-    strcpy(reply, "OK");
-  } else if (memcmp(config, "ntp.interval ", 13) == 0) {
-    uint32_t interval = _atoi(&config[13]);
-    if (interval >= 300 && interval <= 86400) {
-      _prefs->ntp_interval_secs = 3600;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK - NTP sync interval fixed at 3600 seconds");
-    } else {
-      strcpy(reply, "Error: interval must be between 300-86400 seconds");
-    }
   } else if (memcmp(config, "tcp.flood.limit ", 16) == 0) {
     const char* value = &config[16];
     if (parseOnOff(value, &_prefs->tcp_flood_limit_enable)) {
@@ -1920,26 +1974,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: expected on or off");
-    }
-  } else if (memcmp(config, "tcp.flood.max ", 14) == 0) {
-    int max = _atoi(&config[14]);
-    if (max > 0 && max <= 10000) {
-      _prefs->tcp_flood_max_packets = (uint16_t)max;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: max must be between 1-10000");
-    }
-  } else if (memcmp(config, "tcp.flood.window ", 17) == 0) {
-    int window = _atoi(&config[17]);
-    if (window > 0 && window <= 3600) {
-      _prefs->tcp_flood_window_secs = (uint16_t)window;
-      _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error: window must be between 1-3600 seconds");
     }
   } else if (memcmp(config, "tcp.flood.transport.max ", 24) == 0) {
     int max = _atoi(&config[24]);
@@ -2243,6 +2277,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->flood_node_delay_enable ? "on" : "off");
   } else if (memcmp(config, "flood.dup.suppress", 18) == 0 || memcmp(config, "dup.suppress", 12) == 0) {
     sprintf(reply, "> %s", _prefs->flood_dup_suppress_enable ? "on" : "off");
+  } else if (memcmp(config, "nearby.client.suppress", 22) == 0) {
+    sprintf(reply, "> %s", _prefs->nearby_client_suppress_enabled ? "on" : "off");
+  } else if (memcmp(config, "nearby.client.rssi", 18) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->nearby_client_suppress_rssi_dbm);
+  } else if (memcmp(config, "nearby.client.hops", 18) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->nearby_client_suppress_max_hops);
   } else if (sender_timestamp == 0 && memcmp(config, "dense.stats", 11) == 0) {
     _callbacks->formatDenseStatsReply(reply);
   } else if (sender_timestamp == 0 && memcmp(config, "atlas.stats", 11) == 0) {
@@ -2321,6 +2361,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
   } else if (memcmp(config, "flood.max.advert", 16) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
+  } else if (memcmp(config, "flood.max.messages", 18) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_messages);
   } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_unscoped);
   } else if (memcmp(config, "flood.max", 9) == 0) {
@@ -2401,6 +2443,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %u", (uint32_t)_prefs->bridge_tcp_ttl);
   } else if (memcmp(config, "bridge.group", 12) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_group);
+  } else if (memcmp(config, "bridge.id", 9) == 0) {
+    sprintf(reply, "> %s", _prefs->bridge_id[0] ? _prefs->bridge_id : "auto");
   } else if (memcmp(config, "bridge.budget", 13) == 0) {
     snprintf(reply, 160, "> %s max_per_min=%u max_airtime_ms_hour=%lu block_duty_above=%u.%02u%%",
              _prefs->bridge_rf_inject_budget_enabled ? "on" : "off",
@@ -2441,18 +2485,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "> ***");
   } else if (memcmp(config, "bridge.port", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_port);
-  } else if (memcmp(config, "ntp.enabled", 11) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_enabled ? "on" : "off");
-  } else if (memcmp(config, "ntp.server", 10) == 0) {
-    sprintf(reply, "> %s", _prefs->ntp_server);
-  } else if (memcmp(config, "ntp.interval", 12) == 0) {
-    sprintf(reply, "> %lu seconds", (unsigned long)_prefs->ntp_interval_secs);
   } else if (memcmp(config, "tcp.flood.limit", 15) == 0) {
     strcpy(reply, _prefs->tcp_flood_limit_enable ? "> on" : "> off");
-  } else if (memcmp(config, "tcp.flood.max", 13) == 0) {
-    sprintf(reply, "> %d packets", (uint32_t)_prefs->tcp_flood_max_packets);
-  } else if (memcmp(config, "tcp.flood.window", 16) == 0) {
-    sprintf(reply, "> %d seconds", (uint32_t)_prefs->tcp_flood_window_secs);
   } else if (memcmp(config, "tcp.flood.transport.max", 23) == 0) {
     sprintf(reply, "> %d packets", (uint32_t)_prefs->tcp_flood_transport_max);
   } else if (memcmp(config, "tcp.flood.transport.window", 26) == 0) {

@@ -193,7 +193,7 @@ set flood.dup.suppress on
 set flood.dup.suppress off
 ```
 
-### 8. Internetbruecke — optionaler Transport fuer getrennte RF-Netze
+### 8. Kontrollierte TCP-Bridge/Backhaul — optionaler Transport fuer getrennte RF-Netze
 
 MeshCoreNG bleibt RF-first. Die Bruecke ist optionaler Transport/Backhaul fuer bestimmte Deployments, kein Ersatz fuer lokale RF-Struktur.
 
@@ -218,7 +218,7 @@ Ausgewaehlter Traffic kann optional zwischen getrennten MeshCore-Deployments tra
 
 RF-Lokalitaet bleibt wichtig. Bridge nur, was wirklich benoetigt wird, halte lokalen Traffic lokal, nutze regionale Segmentierung und vermeide Full-Network-Flooding ueber Bridge-Links.
 
-Geplante oder untersuchte Schutzmechanismen fuer Multi-Bridge-Umgebungen sind Path-Fingerprints, leichte Path-Hashes, Bridge-Loop-Erkennung, Duplicate Suppression, TTL/Hop-Controls und Bridge-Scoping.
+Implementierte Schutzmechanismen fuer Multi-Bridge-Umgebungen sind TCP-Bridge-v2-Origin-IDs und TTL, Duplicate Suppression, Exportfilter, RF-Injection-Controls, Node/Path-Quarantine und Hop-Controls. Weiter untersucht werden Path-Fingerprints, zusaetzliche leichte Path-Hashes und reichere Bridge-Scopes.
 
 **Route 1: ESP32-Repeater mit WiFi**
 
@@ -262,7 +262,7 @@ get bridge.tcp.ttl
 
 TCP bridge v2 nutzt eine kleine TCP-only Envelope mit Origin- und TTL-Metadaten. Beim Export von RF-Flood-Packets zur TCP bridge fuegt der exportierende Bridge-Repeater seinen eigenen Node-Hash zum MeshCore Path hinzu, wenn er dort noch nicht vorhanden ist und im Path noch Platz ist.
 
-Der Python TCP-Bridge-Server stellt standardmaessig eine Status-Webseite auf Port `8080` bereit. Sie zeigt online und kuerzlich gesehene Bridge-Nodes, RX/TX-Packet-Zahlen pro Node fuer die letzten 24 Stunden, Heartbeat-Status, Firmware-Version, Bridge-v1/v2-Support und den RF-Dutycycle-Budgetverbrauch. Disconnected Nodes bleiben sichtbar, solange sie noch Packet-History im 24-Stunden-Fenster haben. Der Wert `Duty this hour` ist der prozentuale Anteil des erlaubten stuendlichen RF-TX-Dutycycle-Budgets, der bereits genutzt wurde: bei 10% Dutycycle bedeutet `100%`, dass die vollen sechs Minuten pro Stunde genutzt wurden, und `50%` bedeutet drei Minuten.
+Der Python TCP-Bridge-Server stellt standardmaessig eine Status-Webseite auf Port `8080` bereit. Sie zeigt online und kuerzlich gesehene Bridge-Nodes, RX/TX-Packet-Zahlen pro Node fuer die letzten 24 Stunden, Heartbeat-Status, Firmware-Version, Bridge-v1/v2-Support, den lokalen Neighbor-Count wenn neue Firmware ihn meldet, und den RF-Dutycycle-Budgetverbrauch. Disconnected Nodes bleiben sichtbar, solange sie noch Packet-History im 24-Stunden-Fenster haben. Die Werte `Duty used` und `Duty left` zeigen das erlaubte stuendliche RF-TX-Dutycycle-Budget als Timer: bei 10% Dutycycle stehen sechs Minuten pro Stunde zur Verfuegung, also bedeutet `3m 00s` genutzt, dass die Haelfte des Stundenbudgets verbraucht ist.
 
 Alle 38 ESP32-Repeater-Varianten haben jetzt eine passende `_bridge_tcp` Firmware. Siehe [docs/cli_commands.md](./docs/cli_commands.md) fuer alle Einstellmoeglichkeiten.
 
@@ -278,7 +278,7 @@ MeshCoreNG hat mehrere Bridge-Routen:
 | `_bridge_espnow` | ESP-NOW | Lokale ESP32-Bridge-Experimente, bei denen WiFi-Infrastruktur nicht der Haupttransport ist. |
 | `_bridge_ble` | BLE UART Bridge | nRF52- und ESP32-BLE-Repeater koennen eine Kurzstrecken-Bridge ohne WiFi, USB oder zusaetzliche UART-Verkabelung bilden. |
 
-Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit. Die Python TCP-Bridge-Server-Statusseite zeigt verbundene Nodes, aktuelle Packet-Type/Route/Hop-Logs, verschluesselte Peer/DM-Metadaten, Sensor-Adverts, Tracker-Positionen und JSON Endpoints wie `/status.json`, `/packets.json`, `/sensors.json` und `/locations.json`. Der Server begrenzt uebermaessige DM/group/transport Packets vor dem Bridge-Broadcast, basierend auf TCP-Client und Packet-Kategorie statt Node-Name oder Advert-Identitaet. Die Tracker-Karte unter `/map` zeigt die letzte Tracker-Position, Geschwindigkeit, Heading und die gespeicherte Routenhistorie pro Tracker.
+Mit `get bridge.type` laesst sich pruefen, welcher Bridge-Modus in der Firmware enthalten ist. Manche Bridge-Builds stellen auch `get bridge.status`, `get node.info` und, wo unterstuetzt, eine kleine HTTP-Statusseite bereit. Die Python TCP-Bridge-Server-Statusseite zeigt verbundene Nodes, den lokalen Neighbor-Count pro Node wenn neue Firmware ihn meldet, aktuelle Packet-Type/Route/Hop-Logs, verschluesselte Peer/DM-Metadaten, Sensor-Adverts, Tracker-Positionen und JSON Endpoints wie `/status.json`, `/packets.json`, `/sensors.json` und `/locations.json`. Der Server begrenzt uebermaessige DM/group/transport Packets vor dem Bridge-Broadcast, basierend auf TCP-Client und Packet-Kategorie statt Node-Name oder Advert-Identitaet. Die Tracker-Karte unter `/map` zeigt die letzte Tracker-Position, Geschwindigkeit, Heading und die gespeicherte Routenhistorie pro Tracker.
 
 Die BLE Bridge ist fuer nRF52-BLE-Varianten mit Bluefruit und ESP32-Varianten mit BLE-Support verfuegbar. Sie laeuft gleichzeitig als Central und Peripheral, sodass beide Repeater den BLE-Link starten koennen. Flash dieselbe `_bridge_ble` Firmware auf beide Repeater, setze optional auf beiden Seiten dieselbe `bridge.secret` fuer ein privates Bridge-Paar, und aktiviere danach `set bridge.enabled on`. Kombinierte `_bridge_tcp_ble` Builds sind fuer ESP32-Boards mit genug Flash enthalten; 4MB ESP32-Boards bleiben Board-fuer-Board-Testkandidaten, weil TCP+BLE dort knapp werden kann.
 
@@ -328,7 +328,7 @@ D7 = RX = GNSS_RX
 
 SenseCAP-Solar-Repeater also so verbinden: `D6/TX -> D7/RX`, `D7/RX -> D6/TX` und `GND -> GND`. Diese Pins werden mit der GNSS-UART geteilt, daher kann GNSS/GPS diese UART nicht gleichzeitig nutzen.
 
-Bridge-Server starten, zum Beispiel auf VPS, Raspberry Pi oder normalem PC mit Python 3.7+:
+Bridge-Server starten, zum Beispiel auf VPS, Raspberry Pi oder normalem PC mit Python 3.10+:
 
 ```bash
 python3 tools/tcp_bridge_server.py --port 4200
@@ -336,7 +336,7 @@ python3 tools/tcp_bridge_server.py --port 4200
 python3 tools/tcp_bridge_server.py --port 4200 --password bridgeSecret
 ```
 
-Das Server-Script steht in dieser Repository unter [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Es hat keine externen Dependencies. WiFi-Repeater und USB-Repeater koennen gleichzeitig mit demselben kontrollierten Bridge-Server verbunden sein.
+Das Server-Script steht in dieser Repository unter [tools/tcp_bridge_server.py](./tools/tcp_bridge_server.py). Fuer normalen Bridge-Betrieb hat es keine externen Dependencies; optionale Public-Channel-Decodierung nutzt `cryptography`. WiFi-Repeater und USB-Repeater koennen gleichzeitig mit demselben kontrollierten Bridge-Server verbunden sein.
 
 **Route 3: Python-Roomserver ueber die Bridge**
 
@@ -796,7 +796,7 @@ get power.stats
 clear power.stats
 ```
 
-Internetbruecke:
+Kontrollierte TCP-Bridge/Backhaul:
 
 ```text
 set wifi.ssid     <netzwerkname>
@@ -804,12 +804,10 @@ set wifi.password <passwort>
 set bridge.server <hostname oder IP>
 set bridge.port   4200
 set bridge.password <bridge passwort>
-set ntp.enabled on
-set ntp.server nl.pool.ntp.org
-set ntp.interval 3600
 set bridge.enabled on
 set bridge.rf on
 set bridge.profile island
+get wifi.status
 get bridge.export
 get bridge.tcp.ttl
 get bridge.type
@@ -981,7 +979,7 @@ Die naechsten logischen Schritte sind:
 - Nur Low-Priority-Traffic bei Last reduzieren.
 - Automatische Tuning-Entscheidungen erst spaeter aktivieren.
 - Noch spaeter auf hybrides routed + flooded Mesh vorbereiten.
-- Optionale TLS-Verschluesselung fuer die TCP-Internetbruecke ergaenzen, damit Traffic ueber das Internet besser geschuetzt ist.
+- Optionale TLS-Verschluesselung fuer die TCP-Bridge ergaenzen, damit Traffic ueber IP-Netze besser geschuetzt ist.
 
 Das Endziel ist ein skalierbareres LoRa MANET: einfach, wo es einfach bleiben kann, smarter, wo es noetig ist, und mit der TCP-Bruecke auch dort erreichbar, wo kein LoRa vorhanden ist.
 

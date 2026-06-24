@@ -61,6 +61,7 @@ struct NodePrefs { // persisted to file
   uint8_t flood_max;
   uint8_t flood_max_unscoped;
   uint8_t flood_max_advert;
+  uint8_t flood_max_messages;
   uint8_t interference_threshold;
   uint8_t agc_reset_interval; // secs / 4
   // Bridge settings
@@ -99,10 +100,8 @@ struct NodePrefs { // persisted to file
   uint8_t daily_reboot_enabled;
   uint8_t daily_reboot_interval_hours;
   uint8_t fem_rx_gain; // external FEM/LNA RX gain, board-specific
-  // TCP bridge rate-limit settings (CLI keeps tcp.flood.* names for compatibility)
+  // TCP bridge rate-limit settings
   uint8_t tcp_flood_limit_enable; // enable TCP bridge rate limiting
-  uint16_t tcp_flood_max_packets; // max packets allowed in time window (general/legacy)
-  uint16_t tcp_flood_window_secs; // time window in seconds (e.g., 600 = 10 min)
   // Selective rate limiting per packet category
   uint16_t tcp_flood_transport_max; // max transport/message packets (DMs, group msgs)
   uint16_t tcp_flood_transport_window; // transport time window in seconds
@@ -112,10 +111,6 @@ struct NodePrefs { // persisted to file
   uint16_t low_bat_boot_guard_mv;
   uint16_t low_bat_boot_valid_min_mv;
   uint16_t low_bat_boot_retry_secs;
-  // NTP time synchronization settings for WiFi/TCP bridge builds.
-  char ntp_server[64];
-  uint8_t ntp_enabled;
-  uint32_t ntp_interval_secs;
   uint8_t low_bat_runtime_guard_enabled;
   uint16_t low_bat_runtime_guard_mv;
   uint16_t low_bat_runtime_warn_mv;
@@ -130,6 +125,10 @@ struct NodePrefs { // persisted to file
   uint16_t bridge_rf_inject_max_per_min;        // 0 = no packet count cap
   uint32_t bridge_rf_inject_max_airtime_ms_hour; // 0 = no airtime cap
   uint16_t bridge_rf_inject_block_duty_centi_pct; // 0 = no duty threshold
+  char bridge_id[9];          // optional TCP bridge identity override, 8 hex chars
+  uint8_t nearby_client_suppress_enabled; // suppress very nearby first-hop client floods
+  int16_t nearby_client_suppress_rssi_dbm; // RSSI threshold for nearby client suppression
+  uint8_t nearby_client_suppress_max_hops; // normally 0: only original sender packets
 #ifdef WITH_MQTT_BRIDGE
   // MQTT bridge settings — mirrored in memory from the separate /mqtt_prefs file so the
   // bridge can read everything from NodePrefs. Appended at the end of NodePrefs so the main
@@ -338,10 +337,6 @@ public:
   virtual void restartBridgeSlot(int slot_index) {
     // no op by default (used by MQTT bridge to reconnect a single slot)
   };
-
-  virtual void formatMqttStatusReply(char *reply) {
-    reply[0] = 0;
-  }
 
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
