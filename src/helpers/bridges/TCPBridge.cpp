@@ -2,6 +2,7 @@
 
 #ifdef WITH_TCP_BRIDGE
 
+#include "helpers/FloodLimits.h"
 #include "Utils.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -804,9 +805,9 @@ bool TCPBridge::shouldExportPacket(const mesh::Packet *packet) {
 
   if (BridgeBase::exceedsFloodMaxPath(_prefs, packet)) {
     _skipped_max_hops_count++;
-    BRIDGE_DEBUG_PRINTLN("TCP bridge: skipped export flood.max hops=%u max=%u\n",
+    BRIDGE_DEBUG_PRINTLN("TCP bridge: skipped export flood hop limit hops=%u max=%u\n",
                          (uint32_t)packet->getPathHashCount(),
-                         (uint32_t)_prefs->flood_max);
+                         (uint32_t)mesh::effectiveFloodMaxHopLimit(*_prefs, packet));
     return false;
   }
   if (_prefs->bridge_export_max_hops > 0 &&

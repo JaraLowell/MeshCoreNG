@@ -1,5 +1,7 @@
 #include "BridgeBase.h"
 
+#include "helpers/FloodLimits.h"
+
 #include <Arduino.h>
 #include <string.h>
 
@@ -39,9 +41,7 @@ bool BridgeBase::isRunning() const {
 }
 
 bool BridgeBase::exceedsFloodMaxPath(const NodePrefs *prefs, const mesh::Packet *packet) {
-  if (!prefs || !packet || !packet->isRouteFlood()) return false;
-  if (prefs->flood_max == 0) return false;
-  return packet->getPathHashCount() >= prefs->flood_max;
+  return mesh::exceedsFloodMaxHopLimit(*prefs, packet);
 }
 
 const char *BridgeBase::getLogDateTime() {

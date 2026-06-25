@@ -59,6 +59,11 @@ protected:
   virtual uint8_t getFloodMaxPathCount() const { return 0; }
 
   /**
+   * \brief  Per-packet relay hop cap (flood.max hierarchy). Default uses getFloodMaxPathCount().
+   */
+  virtual uint8_t getEffectiveFloodMaxForRelay(const Packet* packet) const;
+
+  /**
    * \brief  True when a flood packet has already reached the configured relay hop cap.
    *         Does not include this node's pending path entry.
    */

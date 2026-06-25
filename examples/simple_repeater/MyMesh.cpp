@@ -993,10 +993,6 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   const bool is_bridge_flood = packet->isRouteFlood() && packet->wasReceivedFromBridge();
   const bool bridge_gateway = _prefs.bridge_enabled && _prefs.bridge_rf != BRIDGE_RF_OFF;
   const bool tcp_to_rf = bridge_gateway && is_bridge_flood;
-  const bool is_flood_message = packet->isRouteFlood()
-    && (packet->getPayloadType() == PAYLOAD_TYPE_REQ
-        || packet->getPayloadType() == PAYLOAD_TYPE_RESPONSE
-        || packet->getPayloadType() == PAYLOAD_TYPE_TXT_MSG);
 
   if (packet->isRouteFlood() && isFloodPathAtRelayLimit(packet)) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
@@ -1035,14 +1031,6 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd && !tcp_to_rf) {
     if (is_flood_advert) dense_stats.n_drop_flood_adverts++;
     return false;
-  }
-  if (packet->isRouteFlood() && !tcp_to_rf) {
-    if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
-    if (is_flood_message && packet->getPathHashCount() >= _prefs.flood_max_messages) return false;
-    if (is_flood_advert && packet->getPathHashCount() >= _prefs.flood_max_advert) {
-      dense_stats.n_drop_flood_adverts++;
-      return false;
-    }
   }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     if (!tcp_to_rf) {

@@ -58,10 +58,10 @@ struct NodePrefs { // persisted to file
   uint8_t allow_read_only;
   uint8_t multi_acks;
   float bw;
-  uint8_t flood_max;              // max flood path hash count before relay stops (all types; default 64)
-  uint8_t flood_max_unscoped;
-  uint8_t flood_max_advert;
-  uint8_t flood_max_messages;
+  uint8_t flood_max;              // default relay cap for all flood packets (0 = no cap)
+  uint8_t flood_max_unscoped;     // cap for ROUTE_TYPE_FLOOD (no scope); min with flood_max
+  uint8_t flood_max_advert;       // advert cap; may exceed flood_max for neighbour discovery
+  uint8_t flood_max_messages;    // legacy optional stricter cap (CLI only; hierarchy uses flood_max)
   uint8_t interference_threshold;
   uint8_t agc_reset_interval; // secs / 4
   // Bridge settings

@@ -28,10 +28,15 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
   return false;  // by default, Transport NOT enabled
 }
 
+uint8_t Mesh::getEffectiveFloodMaxForRelay(const Packet* packet) const {
+  (void)packet;
+  return getFloodMaxPathCount();
+}
+
 bool Mesh::isFloodPathAtRelayLimit(const Packet* packet) const {
   if (packet == NULL || !packet->isRouteFlood()) return false;
 
-  uint8_t max_hops = getFloodMaxPathCount();
+  uint8_t max_hops = getEffectiveFloodMaxForRelay(packet);
   if (max_hops == 0) return false;
 
   // Hops already recorded on the wire before this node appends itself.

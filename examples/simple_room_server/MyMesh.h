@@ -2,6 +2,7 @@
 
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include "helpers/FloodLimits.h"
 
 #if defined(NRF52_PLATFORM)
   #include <InternalFileSystem.h>
@@ -159,6 +160,10 @@ protected:
 
   uint8_t getFloodMaxPathCount() const override {
     return _prefs.flood_max;
+  }
+
+  uint8_t getEffectiveFloodMaxForRelay(const mesh::Packet* packet) const override {
+    return mesh::effectiveFloodMaxHopLimit(_prefs, packet);
   }
 
   bool filterRecvFloodPacket(mesh::Packet* pkt) override;
